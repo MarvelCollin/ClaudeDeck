@@ -3,9 +3,31 @@ const path = require('path');
 const { assertValidAlias, isDefaultAlias, registryPath } = require('./paths');
 
 const VERSION = 1;
+const DEFAULT_SETTINGS = { shareSession: true };
+
+function normalizeSettings(value) {
+  const source = value && typeof value === 'object' ? value : {};
+  const settings = {};
+  for (const [key, fallback] of Object.entries(DEFAULT_SETTINGS)) {
+    settings[key] = typeof source[key] === typeof fallback ? source[key] : fallback;
+  }
+  return settings;
+}
 
 function emptyRegistry() {
-  return { version: VERSION, profiles: [], identities: {}, sessions: [] };
+  return { version: VERSION, profiles: [], identities: {}, sessions: [], settings: normalizeSettings(null) };
+}
+
+function settingsOf(registry) {
+  return normalizeSettings(registry && registry.settings);
+}
+
+function setSetting(registry, key, value) {
+  if (!Object.prototype.hasOwnProperty.call(DEFAULT_SETTINGS, key)) throw new Error(`Unknown setting "${key}".`);
+  if (typeof value !== typeof DEFAULT_SETTINGS[key]) {
+    throw new Error(`Setting "${key}" expects a ${typeof DEFAULT_SETTINGS[key]}.`);
+  }
+  return { ...registry, settings: { ...settingsOf(registry), [key]: value } };
 }
 
 function normalizeSession(entry) {
@@ -60,7 +82,7 @@ function normalize(data) {
       sessions.push(session);
     }
   }
-  return { version: VERSION, profiles, identities, sessions };
+  return { version: VERSION, profiles, identities, sessions, settings: normalizeSettings(data.settings) };
 }
 
 function findSession(registry, alias) {
@@ -170,6 +192,7 @@ function touch(registry, alias, now = new Date()) {
 }
 
 module.exports = {
+  DEFAULT_SETTINGS,
   VERSION,
   add,
   emptyRegistry,
@@ -180,6 +203,7 @@ module.exports = {
   normalize,
   normalizeIdentity,
   normalizeSession,
+  normalizeSettings,
   read,
   rememberIdentity,
   remove,
@@ -187,6 +211,8 @@ module.exports = {
   saveSession,
   sessionByEmail,
   setLabel,
+  setSetting,
+  settingsOf,
   touch,
   write,
 };
