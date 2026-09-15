@@ -109,6 +109,12 @@ function createService() {
     return switcher.forget(body.alias);
   }
 
+  function setSharing(body) {
+    if (!body || typeof body.enabled !== 'boolean') throw new Error('Should shared history be on or off?');
+    switcher.setSharing(body.enabled);
+    return accountsState();
+  }
+
   function state() {
     return { schedule: scheduleState(), accounts: accountsState() };
   }
@@ -122,6 +128,7 @@ function createService() {
     runNow,
     saveSchedule,
     scheduleState,
+    setSharing,
     startBackground,
     state,
     stopBackground,

@@ -53,6 +53,7 @@ function buildRoutes(service) {
     '/api/accounts/sync': () => service.syncCurrent(),
     '/api/accounts/switch': body => service.switchAccount(body),
     '/api/accounts/forget': body => service.forgetAccount(body),
+    '/api/accounts/sharing': body => service.setSharing(body),
   };
 }
 

@@ -230,6 +230,10 @@ footer{margin-top:24px;font-size:13px;color:var(--faint)}
     <div class="body" id="current"></div>
     <div class="rows" id="sessions"></div>
     <div class="body">
+      <label class="check"><input type="checkbox" id="share"> Share history and app state across every account</label>
+      <div class="hint" id="share-hint"></div>
+    </div>
+    <div class="body">
       <details id="howto">
         <summary>How to add another account</summary>
         <ol class="steps">
@@ -509,6 +513,18 @@ function renderSessions(accounts) {
   }
 }
 
+function renderSharing(accounts) {
+  var box = document.getElementById('share');
+  box.checked = accounts.shareSession;
+  var hint = document.getElementById('share-hint');
+  if (accounts.shareSession) {
+    hint.textContent = 'Kept common for every account: ' + accounts.sharedItems.join(', ') +
+      ' in Claude Desktop, and ' + accounts.sharedCodeItems.join(', ') + ' in Claude Code. Only the login itself is swapped.';
+  } else {
+    hint.textContent = 'Each account keeps its own Claude Desktop history and app state. Claude Code files stay common either way.';
+  }
+}
+
 function refresh() {
   return api('/api/state').then(function (data) {
     state = data;
@@ -516,6 +532,7 @@ function refresh() {
     renderStrip(data.schedule);
     renderCurrent(data.accounts);
     renderSessions(data.accounts);
+    renderSharing(data.accounts);
   }).catch(function (err) { flash(err.message, true); });
 }
 
@@ -558,6 +575,19 @@ wire('b-run', '/api/schedule/run', 'Running', 'Triggered one run. The log update
 
 document.getElementById('b-log').onclick = loadLog;
 document.getElementById('prompt').oninput = markDirty;
+document.getElementById('share').onchange = function () {
+  var box = document.getElementById('share');
+  var wanted = box.checked;
+  box.disabled = true;
+  api('/api/accounts/sharing', { enabled: wanted }).then(function () {
+    flash(wanted ? 'Every account now shares the same history and app state.' : 'Each account keeps its own history again.');
+    return refresh();
+  }).catch(function (err) {
+    box.checked = !wanted;
+    flash(err.message, true);
+  }).then(function () { box.disabled = false; });
+};
+
 document.getElementById('wake').onchange = markDirty;
 document.getElementById('locked').onchange = markDirty;
 document.getElementById('b-addblock').onclick = function () {
