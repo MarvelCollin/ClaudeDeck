@@ -1,12 +1,17 @@
 # ClaudeDeck
 
-Command-line scheduler for running Claude CLI prompts in the background.
+Scheduled Claude CLI runs and multi-account Claude Desktop switching, from one local control panel.
 
 ## Install
 
 ```bash
-npm i -g claudedeck-cli
-claudedeck
+npm i -g claudedeck
+```
+
+To run it from a clone instead, link it once:
+
+```bash
+npm link
 ```
 
 Run Claude CLI login first if Claude is not authenticated yet.
@@ -15,12 +20,28 @@ Run Claude CLI login first if Claude is not authenticated yet.
 claude auth
 ```
 
+## Two commands
+
+`cdeck` opens the control panel in your browser. This is the one to remember.
+
+```bash
+cdeck
+```
+
+`claudedeck` opens the terminal menu, which does the same things without a browser.
+
+```bash
+claudedeck
+```
+
+Both accept the same subcommands, so `cdeck list` and `claudedeck web list` are equivalent.
+
 ## macOS
 
 ClaudeDeck supports macOS through `launchd`.
 
 ```bash
-npm i -g claudedeck-cli
+npm i -g claudedeck
 claude auth
 claudedeck
 ```
@@ -92,7 +113,7 @@ After changing the config manually, run `claudedeck` and choose `Run Background`
 Everything ClaudeDeck does is also available as a page in your browser. Run:
 
 ```bash
-claudedeck web
+cdeck
 ```
 
 That serves a page on `127.0.0.1`, opens it, and prints the address. The server only lives while the tab is open and stops about ten seconds after you close it. There is no tray icon, no background service and no port left listening. Every request needs a session token that is generated per run, and requests from other hostnames are refused.
@@ -106,12 +127,12 @@ Claude Desktop keeps its login in a Chromium profile directory. ClaudeDeck creat
 Add an account in the Control Panel, or from the command line:
 
 ```bash
-claudedeck web list
-claudedeck web add work@example.com
-claudedeck web launch work-example.com
-claudedeck web label work-example.com Work Account
-claudedeck web stop work-example.com
-claudedeck web remove work-example.com
+cdeck list
+cdeck add work@example.com
+cdeck launch work-example.com
+cdeck label work-example.com Work Account
+cdeck stop work-example.com
+cdeck remove work-example.com
 ```
 
 The name you type is kept as the display name. A folder name is derived from it, and that derived name is the alias the other commands take. `default` is your existing Claude Desktop login and cannot be removed.
