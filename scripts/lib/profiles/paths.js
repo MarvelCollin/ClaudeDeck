@@ -35,8 +35,20 @@ function sessionSlot(alias, platform = process.platform, env = process.env) {
   return path.join(sessionsRoot(platform, env), alias);
 }
 
+function homeDir(env = process.env) {
+  return env.USERPROFILE || env.HOME || os.homedir();
+}
+
 function codeCredentialsPath(env = process.env) {
-  return path.join(env.USERPROFILE || env.HOME || os.homedir(), '.claude', '.credentials.json');
+  return path.join(homeDir(env), '.claude', '.credentials.json');
+}
+
+function codeAccountPath(env = process.env) {
+  return path.join(homeDir(env), '.claude.json');
+}
+
+function desktopConfigPath(profileDir) {
+  return path.join(profileDir, 'config.json');
 }
 
 function isDefaultAlias(alias) {
@@ -77,9 +89,12 @@ function profilePath(alias, platform = process.platform, env = process.env) {
 module.exports = {
   DEFAULT_ALIAS,
   assertValidAlias,
+  codeAccountPath,
   codeCredentialsPath,
   deriveAlias,
+  desktopConfigPath,
   desktopProfileDir,
+  homeDir,
   isDefaultAlias,
   isValidAlias,
   profilePath,
