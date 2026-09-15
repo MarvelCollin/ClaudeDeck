@@ -9,6 +9,8 @@ npm i -g claudedeck-cli
 claudedeck
 ```
 
+`claudedeck` on its own opens the control panel in your browser. Everything else is a subcommand, and `claudedeck help` lists them all.
+
 Run Claude CLI login first if Claude is not authenticated yet.
 
 ```bash
@@ -22,7 +24,7 @@ ClaudeDeck supports macOS through `launchd`.
 ```bash
 npm i -g claudedeck-cli
 claude auth
-claudedeck
+claudedeck menu
 ```
 
 Choose `Configure Schedule` to edit the JSON config, then choose `Run Background` to install or update the LaunchAgent at:
@@ -36,7 +38,7 @@ The Mac must be powered on and signed in for local scheduled runs. It cannot run
 ## Manage Schedule
 
 ```bash
-claudedeck
+claudedeck menu
 ```
 
 Use the arrow keys to choose `Configure Schedule`, `Run Background`, `Stop Background`, `Run once now`, or `Open log`. The menu shows whether the background schedule is on, whether a run is active, the last run time, the next run time, and run counts.
@@ -111,12 +113,14 @@ Two stores make up an account session:
 Because of that lock, switching restarts Claude Desktop. Claude Code picks up the new login on its next message without a restart.
 
 ```bash
-claudedeck web list
-claudedeck web save
-claudedeck web switch work-example.com
-claudedeck web forget work-example.com
-claudedeck web share off
+claudedeck list
+claudedeck save
+claudedeck switch work-example.com
+claudedeck forget work-example.com
+claudedeck share off
 ```
+
+The older `claudedeck web <command>` spelling still works.
 
 To set up two accounts:
 
@@ -148,7 +152,7 @@ The shared store lives next to the saved sessions:
 
 `Local State`, `Network`, and `IndexedDB` stay per account. They hold the cookies and the account identity, which is what makes an account an account.
 
-Turn sharing off with the checkbox in the control panel or `claudedeck web share off`, and each account goes back to its own history. Turning it back on adopts whatever is live right now as the shared copy and prunes the per-account copies.
+Turn sharing off with the checkbox in the control panel or `claudedeck share off`, and each account goes back to its own history. Turning it back on adopts whatever is live right now as the shared copy and prunes the per-account copies.
 
 `forget` deletes a saved session. Before overwriting `~/.claude/.credentials.json`, ClaudeDeck copies it to `.credentials.json.claudedeck.bak`.
 
