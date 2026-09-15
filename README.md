@@ -115,6 +115,7 @@ claudedeck web list
 claudedeck web save
 claudedeck web switch work-example.com
 claudedeck web forget work-example.com
+claudedeck web share off
 ```
 
 To set up two accounts:
@@ -130,6 +131,24 @@ Saved sessions live in:
 %APPDATA%\ClaudeDeck\sessions                            Windows
 ~/Library/Application Support/ClaudeDeck/sessions        macOS
 ```
+
+## One shared session for every account
+
+Switching swaps the login, not your work. Shared session history is on by default, so every account opens the same local history and app state:
+
+- Claude **Code** keeps `projects`, `history.jsonl`, `todos`, and `statsig` under `~/.claude` untouched. Only the `claudeAiOauth` block inside `.credentials.json` is swapped, so transcripts, todos, and settings carry across accounts.
+- Claude **Desktop** keeps `Local Storage` and `Session Storage` in one shared store instead of one copy per account. Before a switch, ClaudeDeck captures the live copy into the shared store, restores only the login files from the target account, then writes the shared copy back.
+
+The shared store lives next to the saved sessions:
+
+```text
+%APPDATA%\ClaudeDeck\shared                              Windows
+~/Library/Application Support/ClaudeDeck/shared          macOS
+```
+
+`Local State`, `Network`, and `IndexedDB` stay per account. They hold the cookies and the account identity, which is what makes an account an account.
+
+Turn sharing off with the checkbox in the control panel or `claudedeck web share off`, and each account goes back to its own history. Turning it back on adopts whatever is live right now as the shared copy and prunes the per-account copies.
 
 `forget` deletes a saved session. Before overwriting `~/.claude/.credentials.json`, ClaudeDeck copies it to `.credentials.json.claudedeck.bak`.
 
