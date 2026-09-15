@@ -1,33 +1,34 @@
 const { openUrl } = require('../lib/profiles/app');
-const manager = require('../lib/profiles/manager');
+const { createSwitcher } = require('../lib/profiles/switcher');
 const { startServer } = require('../lib/web/server');
 
 const USAGE = [
   'Usage: claudedeck web [command]',
   '',
   '  (no command)       open the control panel in your browser',
-  '  list               print every Claude Desktop profile',
-  '  add <name>         create a profile, named however you like',
-  '  label <alias> <n>  rename an existing profile',
-  '  launch <alias>     start Claude Desktop on a profile',
-  '  stop <alias>       stop every Claude Desktop process on a profile',
-  '  remove <alias>     delete a profile and its saved login',
+  '  list               show every saved account and which one is active',
+  '  save               save the account you are signed into now',
+  '  switch <alias>     restore a saved account and restart Claude Desktop',
+  '  forget <alias>     delete a saved account session',
 ].join('\n');
-
-function printList() {
-  const profiles = manager.listProfiles();
-  const nameOf = profile => (profile.account ? profile.account.name : profile.label || profile.alias);
-  const width = Math.max(...profiles.map(profile => nameOf(profile).length), 7);
-  for (const profile of profiles) {
-    const state = profile.running ? `running (${profile.pids.length})` : 'idle';
-    const who = profile.account ? profile.account.email : profile.dir;
-    console.log(`${nameOf(profile).padEnd(width)}  ${state.padEnd(13)}  ${who}`);
-  }
-}
 
 function requireArg(value, command, what) {
   if (!value) throw new Error(`Command "${command}" needs ${what}.`);
   return value;
+}
+
+function printList() {
+  const { sessions, current } = createSwitcher().listSessions();
+  if (current) console.log(`Signed in now: ${current.name} <${current.email}>`);
+  if (!sessions.length) {
+    console.log('No saved accounts yet. Run "claudedeck web save" to keep the current one.');
+    return;
+  }
+  const width = Math.max(...sessions.map(entry => entry.name.length), 7);
+  for (const entry of sessions) {
+    const mark = entry.active ? '* ' : '  ';
+    console.log(`${mark}${entry.name.padEnd(width)}  ${entry.email}`);
+  }
 }
 
 async function openUi() {
@@ -40,34 +41,22 @@ async function openUi() {
 }
 
 async function runWeb(argv = []) {
-  const [command, first, ...rest] = argv;
+  const [command, first] = argv;
   if (!command) return openUi();
   if (command === 'list') return printList();
-  if (command === 'add') {
-    const created = manager.addProfile(requireArg(first, 'add', 'a name'));
-    console.log(`Created ${created.label} at ${created.dir}`);
-    console.log(`Run "claudedeck web launch ${created.alias}" and sign in with that account.`);
+  if (command === 'save' || command === 'sync') {
+    const saved = createSwitcher().sync();
+    console.log(`Saved ${saved.name} <${saved.email}>.`);
     return undefined;
   }
-  if (command === 'label') {
-    const alias = requireArg(first, 'label', 'a profile alias');
-    const updated = manager.labelProfile(alias, requireArg(rest.join(' '), 'label', 'a new name'));
-    console.log(`${updated.alias} is now shown as ${updated.label}`);
+  if (command === 'switch') {
+    const result = createSwitcher().switchTo(requireArg(first, 'switch', 'an account alias'));
+    console.log(`Switched to ${result.name} <${result.email}>. Claude Desktop is reopening.`);
     return undefined;
   }
-  if (command === 'launch') {
-    const started = manager.launchProfile(requireArg(first, 'launch', 'a profile alias'));
-    console.log(`Launched ${started.alias} (pid ${started.pid}).`);
-    return undefined;
-  }
-  if (command === 'stop') {
-    const stopped = manager.stopProfile(requireArg(first, 'stop', 'a profile alias'));
-    console.log(stopped.stopped ? `Stopped ${stopped.stopped} process(es) on ${stopped.alias}.` : `Nothing running on ${stopped.alias}.`);
-    return undefined;
-  }
-  if (command === 'remove') {
-    const removed = manager.removeProfile(requireArg(first, 'remove', 'a profile alias'));
-    console.log(`Removed ${removed.alias} and deleted ${removed.dir}`);
+  if (command === 'forget') {
+    const forgotten = createSwitcher().forget(requireArg(first, 'forget', 'an account alias'));
+    console.log(`Forgot ${forgotten.alias}.`);
     return undefined;
   }
   console.log(USAGE);
