@@ -131,8 +131,17 @@ input:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px;b
 .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:13px 16px;border-bottom:1px solid var(--line)}
 .row:last-child{border-bottom:0}
 .row .who{flex:1;min-width:150px}
-.row .name{font-weight:600;font-size:15px}
+.row .name{font-weight:600;font-size:15px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.row .sub{font:12.5px/1.45 var(--mono);color:var(--muted);overflow-wrap:anywhere}
+.row .sub.muted{color:var(--faint);font-family:inherit;font-size:13px}
 .row .path{font:12px/1.45 var(--mono);color:var(--faint);overflow-wrap:anywhere}
+.avatar{
+  width:38px;height:38px;border-radius:10px;flex:none;
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;font-weight:600;letter-spacing:.02em;
+  background:var(--accent);color:var(--accent-ink);
+}
+.avatar.unknown{background:var(--surface-2);color:var(--faint);border:1px dashed var(--line-strong)}
 .state{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:7px;white-space:nowrap}
 .state.live{color:var(--live)}
 .tagline{font-size:12px;color:var(--faint);font-weight:400;margin-left:7px}
@@ -439,13 +448,35 @@ function confirmRow(row, p) {
   yes.focus();
 }
 
+function initialsOf(text) {
+  var parts = String(text).trim().split(/\\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 function profileRow(p) {
   var row = el('div', 'row');
+  var account = p.account;
+  var displayName = account ? account.name : (p.label || p.alias);
+
+  var avatar = el('div', 'avatar' + (account ? '' : ' unknown'), account ? initialsOf(account.name) : '?');
+
   var who = el('div', 'who');
   var name = el('div', 'name');
-  name.appendChild(document.createTextNode(p.label || p.alias));
-  if (p.isDefault) name.appendChild(el('span', 'tagline', 'the account you are signed into now'));
-  who.append(name, el('div', 'path', p.dir));
+  name.appendChild(document.createTextNode(displayName));
+  if (p.isDefault) name.appendChild(el('span', 'tagline', 'signed in now'));
+  if (account && p.label && p.label !== p.alias && p.label.toLowerCase() !== account.name.toLowerCase()) {
+    name.appendChild(el('span', 'tagline', p.label));
+  }
+  who.appendChild(name);
+  if (account) {
+    who.appendChild(el('div', 'sub', account.email));
+  } else if (p.isDefault) {
+    who.appendChild(el('div', 'sub muted', 'Reading account...'));
+  } else {
+    who.appendChild(el('div', 'sub muted', 'Not signed in yet. Launch, then sign in to detect the account.'));
+  }
 
   var stateText = el('span', 'state' + (p.running ? ' live' : ''));
   stateText.appendChild(el('span', 'dot' + (p.running ? ' live' : '')));
@@ -470,7 +501,7 @@ function profileRow(p) {
     }).catch(function (err) { busy(stop, false); flash(err.message, true); });
   };
 
-  row.append(who, stateText, launch, stop);
+  row.append(avatar, who, stateText, launch, stop);
 
   if (!p.isDefault) {
     var rename = el('button', 'quiet icon', 'Rename');

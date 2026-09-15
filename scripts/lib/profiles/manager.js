@@ -1,5 +1,6 @@
 const fs = require('fs');
 const { launch, launchArgs, locateApp } = require('./app');
+const { readIdentity } = require('./identity');
 const { DEFAULT_ALIAS, deriveAlias, desktopProfileDir, isDefaultAlias, profilePath } = require('./paths');
 const { groupProcesses, killPids, listClaudeProcesses } = require('./procs');
 const registry = require('./registry');
@@ -12,12 +13,36 @@ function allProfiles(data = registry.read()) {
   return [describe(DEFAULT_ALIAS), ...data.profiles.map(entry => ({ ...describe(entry.alias), ...entry }))];
 }
 
+function resolveIdentities(data, profiles) {
+  let next = data;
+  let changed = false;
+  const result = new Map();
+  for (const profile of profiles) {
+    const live = fs.existsSync(profile.dir) ? readIdentity(profile.dir) : null;
+    if (live) {
+      const cached = registry.identityFor(next, profile.alias);
+      if (!cached || cached.email !== live.email || cached.name !== live.name) {
+        next = registry.rememberIdentity(next, profile.alias, live);
+        changed = true;
+      }
+      result.set(profile.alias, { ...registry.identityFor(next, profile.alias) });
+    } else {
+      const cached = registry.identityFor(next, profile.alias);
+      result.set(profile.alias, cached ? { ...cached } : null);
+    }
+  }
+  if (changed) registry.write(next);
+  return result;
+}
+
 function listProfiles() {
   const data = registry.read();
   const profiles = allProfiles(data);
   const groups = groupProcesses(listClaudeProcesses(), profiles, desktopProfileDir());
+  const identities = resolveIdentities(data, profiles);
   return profiles.map(profile => {
     const pids = groups.get(profile.alias) || [];
+    const identity = identities.get(profile.alias) || null;
     return {
       alias: profile.alias,
       label: profile.label || profile.alias,
@@ -28,6 +53,7 @@ function listProfiles() {
       lastLaunchedAt: profile.lastLaunchedAt || null,
       running: pids.length > 0,
       pids,
+      account: identity,
     };
   });
 }

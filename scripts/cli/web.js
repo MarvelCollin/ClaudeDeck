@@ -16,10 +16,12 @@ const USAGE = [
 
 function printList() {
   const profiles = manager.listProfiles();
-  const width = Math.max(...profiles.map(profile => (profile.label || profile.alias).length), 7);
+  const nameOf = profile => (profile.account ? profile.account.name : profile.label || profile.alias);
+  const width = Math.max(...profiles.map(profile => nameOf(profile).length), 7);
   for (const profile of profiles) {
     const state = profile.running ? `running (${profile.pids.length})` : 'idle';
-    console.log(`${(profile.label || profile.alias).padEnd(width)}  ${state.padEnd(13)}  ${profile.dir}`);
+    const who = profile.account ? profile.account.email : profile.dir;
+    console.log(`${nameOf(profile).padEnd(width)}  ${state.padEnd(13)}  ${who}`);
   }
 }
 
