@@ -141,14 +141,19 @@ input:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px;b
   font-size:14px;font-weight:600;letter-spacing:.02em;
   background:var(--accent);color:var(--accent-ink);
 }
-.avatar.unknown{background:var(--surface-2);color:var(--faint);border:1px dashed var(--line-strong)}
+.avatar.unknown,.avatar.idle{background:var(--surface-2);color:var(--faint);border:1px dashed var(--line-strong)}
 .state{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:7px;white-space:nowrap}
 .state.live{color:var(--live)}
 .tagline{font-size:12px;color:var(--faint);font-weight:400;margin-left:7px}
 
 .empty{padding:16px;color:var(--muted);font-size:14px;border-top:1px solid var(--line)}
-form.add{display:flex;gap:8px;padding:14px 16px;border-top:1px solid var(--line);background:var(--surface-2)}
-form.add input{flex:1}
+.current-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.tagline.live{color:var(--live)}
+details#howto{font-size:13px;color:var(--muted)}
+details#howto summary{cursor:pointer;font-weight:600;color:var(--text)}
+.steps{margin:10px 0 0;padding-left:20px;line-height:1.7}
+.steps b{color:var(--text)}
+.warn{margin:0;padding:10px 16px;font-size:13px;color:var(--busy);background:var(--busy-soft);border-top:1px solid var(--line)}
 
 pre.log{margin:0;padding:14px 16px;max-height:300px;overflow:auto;font:12.5px/1.6 var(--mono);color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere}
 
@@ -221,13 +226,20 @@ footer{margin-top:24px;font-size:13px;color:var(--faint)}
   </section>
 
   <section aria-labelledby="acct-h">
-    <h2 id="acct-h">Claude Desktop accounts</h2>
-    <div class="rows" id="profiles"></div>
-    <form class="add" id="addform">
-      <label class="sr" for="newname">Name for the new account</label>
-      <input type="text" id="newname" placeholder="work@example.com" autocomplete="off" required>
-      <button type="submit">Add account</button>
-    </form>
+    <h2 id="acct-h">Claude accounts</h2>
+    <div class="body" id="current"></div>
+    <div class="rows" id="sessions"></div>
+    <div class="body">
+      <details id="howto">
+        <summary>How to add another account</summary>
+        <ol class="steps">
+          <li>Press <b>Save this account</b> above so the one you use now is kept.</li>
+          <li>In Claude Desktop, sign out and sign in with the other account.</li>
+          <li>Come back here and press <b>Save this account</b> again.</li>
+          <li>Both are saved. Use <b>Switch</b> to jump between them.</li>
+        </ol>
+      </details>
+    </div>
   </section>
 </div>
 
@@ -405,49 +417,6 @@ function markDirty() {
   document.getElementById('dirty').textContent = 'Unsaved changes.';
 }
 
-function renameRow(row, p) {
-  var form = el('form');
-  form.style.cssText = 'display:flex;gap:8px;flex:1;min-width:200px';
-  var input = el('input');
-  input.type = 'text';
-  input.value = p.label || p.alias;
-  input.setAttribute('aria-label', 'New name for ' + (p.label || p.alias));
-  var save = el('button', 'primary', 'Save');
-  var cancel = el('button', 'quiet', 'Cancel');
-  cancel.type = 'button';
-  cancel.onclick = refresh;
-  form.append(input, save, cancel);
-  form.onsubmit = function (event) {
-    event.preventDefault();
-    busy(save, true, 'Saving');
-    api('/api/profiles/label', { alias: p.alias, label: input.value }).then(function () {
-      flash('Renamed to ' + input.value.trim());
-      return refresh();
-    }).catch(function (err) { busy(save, false); flash(err.message, true); });
-  };
-  row.replaceChildren(form);
-  input.focus();
-  input.select();
-}
-
-function confirmRow(row, p) {
-  var note = el('div', 'who');
-  note.appendChild(el('div', 'name', 'Delete ' + (p.label || p.alias) + '?'));
-  note.appendChild(el('div', 'path', 'Its saved login and local data are erased. This cannot be undone.'));
-  var yes = el('button', 'danger', 'Delete it');
-  var no = el('button', 'quiet', 'Keep it');
-  no.onclick = refresh;
-  yes.onclick = function () {
-    busy(yes, true, 'Deleting');
-    api('/api/profiles/remove', { alias: p.alias }).then(function () {
-      flash('Deleted ' + (p.label || p.alias));
-      return refresh();
-    }).catch(function (err) { busy(yes, false); flash(err.message, true); });
-  };
-  row.replaceChildren(note, yes, no);
-  yes.focus();
-}
-
 function initialsOf(text) {
   var parts = String(text).trim().split(/\\s+/).filter(Boolean);
   if (!parts.length) return '?';
@@ -455,71 +424,83 @@ function initialsOf(text) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-function profileRow(p) {
+function avatarFor(name, active) {
+  return el('div', 'avatar' + (active ? '' : ' idle'), initialsOf(name));
+}
+
+function renderCurrent(accounts) {
+  var host = document.getElementById('current');
+  host.replaceChildren();
+  var box = el('div', 'current-row');
+  if (accounts.current) {
+    box.appendChild(avatarFor(accounts.current.name, true));
+    var who = el('div', 'who');
+    var name = el('div', 'name');
+    name.appendChild(document.createTextNode(accounts.current.name));
+    name.appendChild(el('span', 'tagline', 'signed in now'));
+    who.append(name, el('div', 'sub', accounts.current.email));
+    box.appendChild(who);
+
+    var saved = accounts.sessions.some(function (s) { return s.active; });
+    var save = el('button', 'primary', saved ? 'Update saved copy' : 'Save this account');
+    save.onclick = function () {
+      if (!confirm('Save ' + accounts.current.name + '?\\n\\nClaude Desktop will briefly close and reopen so its session can be copied.')) return;
+      busy(save, true, 'Saving');
+      api('/api/accounts/sync', {}).then(function (r) {
+        flash('Saved ' + r.name + '. You can switch back to it any time.');
+        return refresh();
+      }).catch(function (err) { busy(save, false); flash(err.message, true); });
+    };
+    box.appendChild(save);
+  } else {
+    box.appendChild(avatarFor('?', false));
+    var note = el('div', 'who');
+    note.append(el('div', 'name', 'No account detected'), el('div', 'sub muted', 'Sign in to Claude Desktop, then reload this page.'));
+    box.appendChild(note);
+  }
+  host.appendChild(box);
+}
+
+function switchRow(s) {
   var row = el('div', 'row');
-  var account = p.account;
-  var displayName = account ? account.name : (p.label || p.alias);
-
-  var avatar = el('div', 'avatar' + (account ? '' : ' unknown'), account ? initialsOf(account.name) : '?');
-
+  row.appendChild(avatarFor(s.name, s.active));
   var who = el('div', 'who');
   var name = el('div', 'name');
-  name.appendChild(document.createTextNode(displayName));
-  if (p.isDefault) name.appendChild(el('span', 'tagline', 'signed in now'));
-  if (account && p.label && p.label !== p.alias && p.label.toLowerCase() !== account.name.toLowerCase()) {
-    name.appendChild(el('span', 'tagline', p.label));
-  }
-  who.appendChild(name);
-  if (account) {
-    who.appendChild(el('div', 'sub', account.email));
-  } else if (p.isDefault) {
-    who.appendChild(el('div', 'sub muted', 'Reading account...'));
-  } else {
-    who.appendChild(el('div', 'sub muted', 'Not signed in yet. Launch, then sign in to detect the account.'));
-  }
+  name.appendChild(document.createTextNode(s.name));
+  if (s.active) name.appendChild(el('span', 'tagline live', 'active'));
+  who.append(name, el('div', 'sub', s.email));
+  row.appendChild(who);
 
-  var stateText = el('span', 'state' + (p.running ? ' live' : ''));
-  stateText.appendChild(el('span', 'dot' + (p.running ? ' live' : '')));
-  stateText.appendChild(document.createTextNode(p.running ? 'Open, ' + p.pids.length + ' processes' : 'Not running'));
-
-  var launch = el('button', 'primary', 'Launch');
-  launch.onclick = function () {
-    busy(launch, true, 'Launching');
-    api('/api/profiles/launch', { alias: p.alias }).then(function () {
-      flash('Launched ' + (p.label || p.alias) + '. A new Claude Desktop window is opening.');
+  var swap = el('button', 'primary', 'Switch');
+  swap.disabled = s.active;
+  swap.title = s.active ? 'This account is already active' : '';
+  swap.onclick = function () {
+    if (!confirm('Switch to ' + s.name + '?\\n\\nClaude Desktop will close and reopen on this account. Claude Code switches too.')) return;
+    busy(swap, true, 'Switching');
+    api('/api/accounts/switch', { alias: s.alias }).then(function () {
+      flash('Switched to ' + s.name + '. Claude Desktop is reopening.');
       return refresh();
-    }).catch(function (err) { busy(launch, false); flash(err.message, true); });
+    }).catch(function (err) { busy(swap, false); flash(err.message, true); });
   };
 
-  var stop = el('button', null, 'Stop');
-  stop.disabled = !p.running;
-  stop.onclick = function () {
-    busy(stop, true, 'Stopping');
-    api('/api/profiles/stop', { alias: p.alias }).then(function () {
-      flash('Stopped ' + (p.label || p.alias));
+  var forget = el('button', 'quiet icon danger', 'Forget');
+  forget.onclick = function () {
+    if (!confirm('Forget the saved session for ' + s.name + '? You would sign in again next time.')) return;
+    api('/api/accounts/forget', { alias: s.alias }).then(function () {
+      flash('Forgot ' + s.name);
       return refresh();
-    }).catch(function (err) { busy(stop, false); flash(err.message, true); });
+    }).catch(function (err) { flash(err.message, true); });
   };
 
-  row.append(avatar, who, stateText, launch, stop);
-
-  if (!p.isDefault) {
-    var rename = el('button', 'quiet icon', 'Rename');
-    rename.onclick = function () { renameRow(row, p); };
-    var del = el('button', 'quiet icon danger', 'Delete');
-    del.disabled = p.running;
-    del.title = p.running ? 'Stop this account before deleting it' : '';
-    del.onclick = function () { confirmRow(row, p); };
-    row.append(rename, del);
-  }
+  row.append(swap, forget);
   return row;
 }
 
-function renderProfiles(profiles) {
-  var host = document.getElementById('profiles');
-  host.replaceChildren.apply(host, profiles.map(profileRow));
-  if (profiles.length === 1) {
-    host.appendChild(el('div', 'empty', 'Only the account you are already signed into. Add a name below, press Launch, then sign in with your other account in the window that opens.'));
+function renderSessions(accounts) {
+  var host = document.getElementById('sessions');
+  host.replaceChildren.apply(host, accounts.sessions.map(switchRow));
+  if (!accounts.sessions.length) {
+    host.appendChild(el('div', 'empty', 'No saved accounts yet. Save the current one, then follow the steps below to add another.'));
   }
 }
 
@@ -528,7 +509,8 @@ function refresh() {
     state = data;
     if (!draft) resetDraft();
     renderStrip(data.schedule);
-    renderProfiles(data.profiles);
+    renderCurrent(data.accounts);
+    renderSessions(data.accounts);
   }).catch(function (err) { flash(err.message, true); });
 }
 
@@ -591,18 +573,6 @@ document.getElementById('b-save').onclick = function () {
     return refresh();
   }).catch(function (err) { busy(button, false); flash(err.message, true); });
 };
-document.getElementById('addform').onsubmit = function (event) {
-  event.preventDefault();
-  var input = document.getElementById('newname');
-  var name = input.value.trim();
-  if (!name) return;
-  api('/api/profiles/add', { name: name }).then(function (created) {
-    input.value = '';
-    flash('Added ' + created.label + '. Press Launch next, then sign in with that account.');
-    return refresh();
-  }).catch(function (err) { flash(err.message, true); });
-};
-
 setInterval(function () { api('/api/ping', {}).catch(function () {}); }, 3000);
 setInterval(function () { if (!draft || !document.getElementById('dirty').textContent) refresh(); }, 6000);
 addEventListener('pagehide', function () {
