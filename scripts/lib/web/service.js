@@ -3,10 +3,12 @@ const { calendarEntryCount, loadConfig, scheduleSummary, validateConfig } = requ
 const { writeState } = require('../state');
 const { selectPlatform } = require('../task/platform');
 const manager = require('../profiles/manager');
+const { createSwitcher } = require('../profiles/switcher');
 
 function createService() {
   let context = loadConfig();
   let platform = null;
+  const switcher = createSwitcher();
 
   function platformOrThrow() {
     if (!platform) platform = selectPlatform();
@@ -89,11 +91,31 @@ function createService() {
     return { path: context.logPath, lines: lines.slice(-limit) };
   }
 
+  function accountsState() {
+    return switcher.listSessions();
+  }
+
+  function syncCurrent() {
+    return switcher.sync();
+  }
+
+  function switchAccount(body) {
+    if (!body || !body.alias) throw new Error('Which account should I switch to?');
+    return switcher.switchTo(body.alias);
+  }
+
+  function forgetAccount(body) {
+    if (!body || !body.alias) throw new Error('Which account should I forget?');
+    return switcher.forget(body.alias);
+  }
+
   function state() {
-    return { schedule: scheduleState(), profiles: manager.listProfiles() };
+    return { schedule: scheduleState(), accounts: accountsState() };
   }
 
   return {
+    accountsState,
+    forgetAccount,
     install,
     readLog,
     reload,
@@ -103,6 +125,8 @@ function createService() {
     startBackground,
     state,
     stopBackground,
+    switchAccount,
+    syncCurrent,
   };
 }
 

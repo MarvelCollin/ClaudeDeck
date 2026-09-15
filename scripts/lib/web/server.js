@@ -1,7 +1,6 @@
 const crypto = require('crypto');
 const http = require('http');
 const { URL } = require('url');
-const manager = require('../profiles/manager');
 const { createService } = require('./service');
 const { renderPage } = require('./page');
 
@@ -51,11 +50,9 @@ function buildRoutes(service) {
     '/api/schedule/stop': () => service.stopBackground(),
     '/api/schedule/run': () => service.runNow(),
     '/api/schedule/log': () => service.readLog(),
-    '/api/profiles/add': body => manager.addProfile(body.name),
-    '/api/profiles/label': body => manager.labelProfile(body.alias, body.label),
-    '/api/profiles/remove': body => manager.removeProfile(body.alias),
-    '/api/profiles/launch': body => manager.launchProfile(body.alias),
-    '/api/profiles/stop': body => manager.stopProfile(body.alias),
+    '/api/accounts/sync': () => service.syncCurrent(),
+    '/api/accounts/switch': body => service.switchAccount(body),
+    '/api/accounts/forget': body => service.forgetAccount(body),
   };
 }
 
