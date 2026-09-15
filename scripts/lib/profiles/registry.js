@@ -5,7 +5,16 @@ const { assertValidAlias, isDefaultAlias, registryPath } = require('./paths');
 const VERSION = 1;
 
 function emptyRegistry() {
-  return { version: VERSION, profiles: [] };
+  return { version: VERSION, profiles: [], identities: {} };
+}
+
+function normalizeIdentity(value) {
+  if (!value || typeof value !== 'object' || typeof value.email !== 'string') return null;
+  return {
+    email: value.email,
+    name: typeof value.name === 'string' && value.name.trim() ? value.name.trim() : value.email.split('@')[0],
+    seenAt: value.seenAt || null,
+  };
 }
 
 function normalize(data) {
@@ -24,7 +33,34 @@ function normalize(data) {
       lastLaunchedAt: entry.lastLaunchedAt || null,
     });
   }
-  return { version: VERSION, profiles };
+  const identities = {};
+  if (data.identities && typeof data.identities === 'object') {
+    for (const [alias, value] of Object.entries(data.identities)) {
+      const identity = normalizeIdentity(value);
+      if (identity) identities[alias.toLowerCase()] = identity;
+    }
+  }
+  return { version: VERSION, profiles, identities };
+}
+
+function identityFor(registry, alias) {
+  return (registry.identities && registry.identities[String(alias).toLowerCase()]) || null;
+}
+
+function rememberIdentity(registry, alias, identity, now = new Date()) {
+  const value = normalizeIdentity(identity);
+  if (!value) return registry;
+  value.seenAt = now.toISOString();
+  return {
+    ...registry,
+    identities: { ...(registry.identities || {}), [String(alias).toLowerCase()]: value },
+  };
+}
+
+function forgetIdentity(registry, alias) {
+  const identities = { ...(registry.identities || {}) };
+  delete identities[String(alias).toLowerCase()];
+  return { ...registry, identities };
 }
 
 function read(file = registryPath()) {
@@ -71,7 +107,13 @@ function remove(registry, alias) {
   if (isDefaultAlias(alias)) throw new Error('Cannot remove the default Claude Desktop profile.');
   if (!find(registry, alias)) throw new Error(`Profile "${alias}" not found.`);
   const wanted = String(alias).toLowerCase();
-  return { ...registry, profiles: registry.profiles.filter(entry => entry.alias.toLowerCase() !== wanted) };
+  const identities = { ...(registry.identities || {}) };
+  delete identities[wanted];
+  return {
+    ...registry,
+    identities,
+    profiles: registry.profiles.filter(entry => entry.alias.toLowerCase() !== wanted),
+  };
 }
 
 function touch(registry, alias, now = new Date()) {
@@ -89,8 +131,12 @@ module.exports = {
   add,
   emptyRegistry,
   find,
+  forgetIdentity,
+  identityFor,
   normalize,
+  normalizeIdentity,
   read,
+  rememberIdentity,
   remove,
   setLabel,
   touch,
