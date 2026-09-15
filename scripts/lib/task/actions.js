@@ -51,6 +51,7 @@ function createActions(context, platform) {
     else if (choice === 'stop-background' || choice === 'disable' || choice === '2') stopBackground();
     else if (choice === 'run' || choice === '3') platform.runNow(context);
     else if (choice === 'log' || choice === '4') openLog();
+    else if (choice === 'profiles' || choice === '5') await require('../../cli/profiles').openUi();
     else if (choice === 'stop') platform.stop(context);
     else if (choice === 'enable') platform.enable(context);
     else if (choice === 'status') platform.status(context);

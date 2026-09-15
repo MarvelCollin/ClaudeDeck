@@ -43,6 +43,8 @@
     "task": "node scripts/cli/task.js",
     "install-task": "node scripts/cli/task.js install",
     "check": "node scripts/dev/check.js",
+    "test": "node --test tests/*.test.js",
+    "profiles": "node bin/claudecron.js profiles",
     "prepublishOnly": "npm run check"
   }
 }

@@ -87,6 +87,37 @@ Use English day names: `Monday`, `Tuesday`, `Wednesday`, `Thursday`, `Friday`, `
 
 After changing the config manually, run `claudecron` and choose `Run Background` so Windows Task Scheduler or macOS launchd is updated.
 
+## Switch Claude Desktop Accounts
+
+Claude Desktop keeps its login in a Chromium profile directory. ClaudeCron creates extra profile directories and launches Claude Desktop against them with `--user-data-dir`, so several accounts run side by side in separate windows. Nothing is decrypted and no token is copied.
+
+Choose `Switch Account` in the menu, or run:
+
+```bash
+claudecron profiles
+```
+
+That serves a small page on `127.0.0.1` and opens it in your browser. The server only lives while the tab is open and stops about ten seconds after you close it. There is no tray icon and no background service.
+
+Command line equivalents:
+
+```bash
+claudecron profiles list
+claudecron profiles add work
+claudecron profiles launch work
+claudecron profiles stop work
+claudecron profiles remove work
+```
+
+`default` is your existing Claude Desktop login and cannot be removed. A new profile starts signed out, so launch it once and sign in with the other account. Extra profiles live in:
+
+```text
+%APPDATA%\ClaudeCron\profiles       Windows
+~/Library/Application Support/ClaudeCron/profiles       macOS
+```
+
+`remove` deletes that directory, including the saved login. A profile must be stopped before it can be removed.
+
 ## Publish
 
 Add an npm automation token to GitHub Actions as `NPM_TOKEN`. To publish a new version:

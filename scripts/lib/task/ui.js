@@ -6,6 +6,7 @@ const menuItems = [
   { label: 'Stop Background', choice: 'stop-background', code: '31' },
   { label: 'Run once now', choice: 'run', code: '36' },
   { label: 'Open log', choice: 'log', code: '35' },
+  { label: 'Switch Account', choice: 'profiles', code: '34' },
   { label: 'Exit', choice: '0', code: '90' },
 ];
 
