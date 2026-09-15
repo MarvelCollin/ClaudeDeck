@@ -8,7 +8,8 @@ const { launchArgs, windowsCandidates } = require('../scripts/lib/profiles/app')
 const paths = require('../scripts/lib/profiles/paths');
 const procs = require('../scripts/lib/profiles/procs');
 const registry = require('../scripts/lib/profiles/registry');
-const { allowedHost, startServer } = require('../scripts/lib/web/server');
+const shared = require('../scripts/lib/profiles/shared');
+const { allowedHost, buildRoutes, startServer } = require('../scripts/lib/web/server');
 
 const env = { APPDATA: 'C:\\Users\\tester\\AppData\\Roaming', LOCALAPPDATA: 'C:\\Users\\tester\\AppData\\Local' };
 
@@ -406,6 +407,7 @@ function switcherHarness() {
   const deps = {
     profileDir,
     credPath,
+    sharedDir: path.join(base, 'shared'),
     slotOf: alias => path.join(base, 'sessions', alias),
     registryFile: path.join(base, 'profiles.json'),
     listProcesses: () => events.includes('killed') ? [] : [{ pid: 10, commandLine: 'Claude.exe' }],
@@ -506,4 +508,140 @@ test('listSessions reports whether each account has a captured desktop session',
   } finally {
     fs.rmSync(h.base, { recursive: true, force: true });
   }
+});
+
+test('registry settings default to sharing and reject unknown keys', () => {
+  assert.strictEqual(registry.emptyRegistry().settings.shareSession, true);
+  assert.strictEqual(registry.settingsOf(null).shareSession, true);
+  assert.strictEqual(registry.normalize({ profiles: [], settings: { shareSession: 'yes' } }).settings.shareSession, true);
+  const off = registry.setSetting(registry.emptyRegistry(), 'shareSession', false);
+  assert.strictEqual(off.settings.shareSession, false);
+  assert.strictEqual(registry.normalize(off).settings.shareSession, false);
+  assert.throws(() => registry.setSetting(off, 'nope', true), /Unknown setting/);
+  assert.throws(() => registry.setSetting(off, 'shareSession', 'on'), /expects a boolean/);
+});
+
+test('shared items drop out of the swap list only while sharing is on', () => {
+  const all = ['Local State', 'Network', 'Local Storage', 'Session Storage', 'IndexedDB'];
+  assert.deepStrictEqual(shared.swappedItems(all, shared.SHARED_DESKTOP_ITEMS, true), ['Local State', 'Network', 'IndexedDB']);
+  assert.deepStrictEqual(shared.swappedItems(all, shared.SHARED_DESKTOP_ITEMS, false), all);
+  assert.ok(shared.SHARED_CODE_ITEMS.includes('projects'));
+  assert.ok(shared.SHARED_CODE_ITEMS.includes('history.jsonl'));
+});
+
+test('shared capture and apply move the common state without touching the login', () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'cd-shared-'));
+  try {
+    const live = path.join(base, 'Claude');
+    const store = path.join(base, 'shared');
+    seedDesktop(live, 'AAA');
+    assert.deepStrictEqual(shared.capture(live, store), ['Local Storage']);
+    seedDesktop(live, 'BBB');
+    assert.deepStrictEqual(shared.apply(store, live), ['Local Storage']);
+    assert.strictEqual(fs.readFileSync(path.join(live, 'Local Storage', 'leveldb.log'), 'utf8'), 'ls-AAA');
+    assert.strictEqual(fs.readFileSync(path.join(live, 'Network', 'Cookies'), 'utf8'), 'BBB');
+    assert.deepStrictEqual(shared.capture(path.join(base, 'missing'), store), []);
+    assert.deepStrictEqual(shared.apply(path.join(base, 'no-store'), live), []);
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+});
+
+function seedTwoAccounts(h) {
+  seedDesktop(h.profileDir, 'SESSION-A');
+  accountBlobFile(h.profileDir, 'a@team.com', 'Person A');
+  fs.writeFileSync(h.credPath, JSON.stringify({ claudeAiOauth: { accessToken: 'code-A' } }));
+  createSwitcher(h.deps).sync();
+
+  seedDesktop(h.profileDir, 'SESSION-B');
+  accountBlobFile(h.profileDir, 'b@team.com', 'Person B');
+  fs.writeFileSync(h.credPath, JSON.stringify({ claudeAiOauth: { accessToken: 'code-B' } }));
+  createSwitcher(h.deps).sync();
+}
+
+test('switching keeps one shared history while the login still swaps', () => {
+  const h = switcherHarness();
+  try {
+    seedTwoAccounts(h);
+    fs.writeFileSync(path.join(h.profileDir, 'Local Storage', 'leveldb.log'), 'shared-history');
+
+    const result = createSwitcher(h.deps).switchTo('a-team.com');
+    assert.deepStrictEqual(result.sharedItems, ['Local Storage']);
+    assert.strictEqual(fs.readFileSync(path.join(h.profileDir, 'Local Storage', 'leveldb.log'), 'utf8'), 'shared-history');
+    assert.strictEqual(fs.readFileSync(path.join(h.profileDir, 'Network', 'Cookies'), 'utf8'), 'SESSION-A');
+    assert.strictEqual(JSON.parse(fs.readFileSync(h.credPath, 'utf8')).claudeAiOauth.accessToken, 'code-A');
+
+    fs.writeFileSync(path.join(h.profileDir, 'Local Storage', 'leveldb.log'), 'newer-history');
+    createSwitcher(h.deps).switchTo('b-team.com');
+    assert.strictEqual(fs.readFileSync(path.join(h.profileDir, 'Local Storage', 'leveldb.log'), 'utf8'), 'newer-history');
+    assert.strictEqual(fs.readFileSync(path.join(h.profileDir, 'Network', 'Cookies'), 'utf8'), 'SESSION-B');
+  } finally {
+    fs.rmSync(h.base, { recursive: true, force: true });
+  }
+});
+
+test('turning sharing off gives every account its own history again', () => {
+  const h = switcherHarness();
+  try {
+    createSwitcher(h.deps).setSharing(false);
+    seedTwoAccounts(h);
+    assert.strictEqual(createSwitcher(h.deps).sharingEnabled(), false);
+
+    fs.writeFileSync(path.join(h.profileDir, 'Local Storage', 'leveldb.log'), 'only-for-b');
+    const result = createSwitcher(h.deps).switchTo('a-team.com');
+    assert.deepStrictEqual(result.sharedItems, []);
+    assert.strictEqual(fs.readFileSync(path.join(h.profileDir, 'Local Storage', 'leveldb.log'), 'utf8'), 'ls-SESSION-A');
+  } finally {
+    fs.rmSync(h.base, { recursive: true, force: true });
+  }
+});
+
+test('turning sharing on adopts the live history and prunes the per account copies', () => {
+  const h = switcherHarness();
+  try {
+    createSwitcher(h.deps).setSharing(false);
+    seedTwoAccounts(h);
+    const slotShared = path.join(h.base, 'sessions', 'a-team.com', 'desktop', 'Local Storage');
+    assert.ok(fs.existsSync(slotShared));
+
+    fs.writeFileSync(path.join(h.profileDir, 'Local Storage', 'leveldb.log'), 'adopt-me');
+    const result = createSwitcher(h.deps).setSharing(true);
+    assert.strictEqual(result.shareSession, true);
+    assert.deepStrictEqual(result.captured, ['Local Storage']);
+    assert.ok(!fs.existsSync(slotShared));
+    assert.strictEqual(fs.readFileSync(path.join(h.base, 'shared', 'Local Storage', 'leveldb.log'), 'utf8'), 'adopt-me');
+
+    createSwitcher(h.deps).switchTo('a-team.com');
+    assert.strictEqual(fs.readFileSync(path.join(h.profileDir, 'Local Storage', 'leveldb.log'), 'utf8'), 'adopt-me');
+  } finally {
+    fs.rmSync(h.base, { recursive: true, force: true });
+  }
+});
+
+test('listSessions reports the sharing state and which items stay common', () => {
+  const h = switcherHarness();
+  try {
+    seedDesktop(h.profileDir, 'S');
+    accountBlobFile(h.profileDir, 'a@team.com', 'Person A');
+    fs.writeFileSync(h.credPath, JSON.stringify({ claudeAiOauth: { accessToken: 'c' } }));
+    createSwitcher(h.deps).sync();
+
+    const on = createSwitcher(h.deps).listSessions();
+    assert.strictEqual(on.shareSession, true);
+    assert.deepStrictEqual(on.sharedItems, shared.SHARED_DESKTOP_ITEMS);
+    assert.deepStrictEqual(on.sharedCodeItems, shared.SHARED_CODE_ITEMS);
+
+    createSwitcher(h.deps).setSharing(false);
+    assert.strictEqual(createSwitcher(h.deps).listSessions().shareSession, false);
+  } finally {
+    fs.rmSync(h.base, { recursive: true, force: true });
+  }
+});
+
+test("the web panel exposes a sharing route", () => {
+  const calls = [];
+  const routes = buildRoutes({ setSharing: body => { calls.push(body); return { ok: true }; } });
+  assert.strictEqual(typeof routes["/api/accounts/sharing"], "function");
+  routes["/api/accounts/sharing"]({ enabled: false });
+  assert.deepStrictEqual(calls, [{ enabled: false }]);
 });
