@@ -226,3 +226,106 @@ test('legacy ClaudeCron data folder is moved to ClaudeDeck once', () => {
     fs.rmSync(base, { recursive: true, force: true });
   }
 });
+
+const identity = require('../scripts/lib/profiles/identity');
+
+function v8String(text) {
+  const body = Buffer.from(text, 'utf8');
+  return Buffer.concat([Buffer.from([0x22, body.length]), body]);
+}
+
+function accountBlob(email, fullName, displayName) {
+  const parts = [Buffer.from('uuid'), v8String('69580f84-d469-4b70-9f9e-42e80527ee02'), Buffer.from('email_address'), v8String(email)];
+  if (fullName) parts.push(Buffer.from('full_name'), v8String(fullName));
+  if (displayName) parts.push(Buffer.from('display_name'), v8String(displayName));
+  return Buffer.concat(parts);
+}
+
+test('readVarint decodes single and multi byte lengths', () => {
+  assert.deepStrictEqual(identity.readVarint(Buffer.from([0x05]), 0), { value: 5, next: 1 });
+  assert.deepStrictEqual(identity.readVarint(Buffer.from([0xac, 0x02]), 0), { value: 300, next: 2 });
+  assert.strictEqual(identity.readVarint(Buffer.from([0x80]), 0), null);
+});
+
+test('readV8String reads one byte and two byte strings', () => {
+  assert.strictEqual(identity.readV8String(v8String('kolin'), 0).text, 'kolin');
+  const wide = Buffer.from('hi', 'utf16le');
+  const twoByte = Buffer.concat([Buffer.from([0x63, wide.length]), wide]);
+  assert.strictEqual(identity.readV8String(twoByte, 0).text, 'hi');
+  assert.strictEqual(identity.readV8String(Buffer.from([0x99, 0x01, 0x41]), 0), null);
+});
+
+test('parseAccount pulls the email and prefers the display name', () => {
+  assert.deepStrictEqual(identity.parseAccount(accountBlob('a@b.com', 'Full Name', 'Display')), {
+    email: 'a@b.com',
+    name: 'Display',
+  });
+  assert.deepStrictEqual(identity.parseAccount(accountBlob('a@b.com', 'Full Name', null)), {
+    email: 'a@b.com',
+    name: 'Full Name',
+  });
+  assert.deepStrictEqual(identity.parseAccount(accountBlob('a@b.com', null, null)), { email: 'a@b.com', name: 'a' });
+});
+
+test('parseAccount rejects blobs without a usable email', () => {
+  assert.strictEqual(identity.parseAccount(Buffer.from('nothing here')), null);
+  assert.strictEqual(identity.parseAccount(Buffer.concat([Buffer.from('email_address'), v8String('not-an-email')])), null);
+});
+
+test('readIdentity finds the account inside a claude.ai IndexedDB folder', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cd-identity-'));
+  try {
+    assert.strictEqual(identity.readIdentity(dir), null);
+    const db = path.join(dir, 'IndexedDB', 'https_claude.ai_0.indexeddb.blob', '4', '00');
+    fs.mkdirSync(db, { recursive: true });
+    fs.writeFileSync(path.join(db, '13'), accountBlob('work@example.com', 'Work Person', 'Work Person'));
+    assert.deepStrictEqual(identity.readIdentity(dir), { email: 'work@example.com', name: 'Work Person' });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('readIdentity ignores IndexedDB folders for other origins', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cd-identity-other-'));
+  try {
+    const db = path.join(dir, 'IndexedDB', 'https_example.com_0.indexeddb.blob');
+    fs.mkdirSync(db, { recursive: true });
+    fs.writeFileSync(path.join(db, '1'), accountBlob('someone@example.com', 'Someone', null));
+    assert.strictEqual(identity.readIdentity(dir), null);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('registry caches an identity per alias and drops it on remove', () => {
+  let data = registry.add(registry.emptyRegistry(), 'work', 'Work');
+  data = registry.rememberIdentity(data, 'WORK', { email: 'w@e.com', name: 'Worker' }, new Date('2026-03-03T00:00:00Z'));
+  assert.deepStrictEqual(registry.identityFor(data, 'work'), {
+    email: 'w@e.com',
+    name: 'Worker',
+    seenAt: '2026-03-03T00:00:00.000Z',
+  });
+  assert.strictEqual(registry.identityFor(data, 'missing'), null);
+  assert.strictEqual(registry.rememberIdentity(data, 'work', { name: 'no email' }), data);
+
+  data = registry.rememberIdentity(data, 'default', { email: 'me@e.com', name: 'Me' });
+  assert.strictEqual(registry.identityFor(data, 'default').name, 'Me');
+
+  data = registry.remove(data, 'work');
+  assert.strictEqual(registry.identityFor(data, 'work'), null);
+  assert.strictEqual(registry.identityFor(data, 'default').name, 'Me');
+});
+
+test('registry identities survive normalize and a disk round trip', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cd-reg-id-'));
+  const file = path.join(dir, 'profiles.json');
+  try {
+    let data = registry.rememberIdentity(registry.emptyRegistry(), 'default', { email: 'me@e.com', name: 'Me' });
+    registry.write(data, file);
+    assert.strictEqual(registry.read(file).identities.default.email, 'me@e.com');
+    const junk = registry.normalize({ profiles: [], identities: { a: { name: 'no email' }, b: null } });
+    assert.deepStrictEqual(junk.identities, {});
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
