@@ -462,7 +462,14 @@ function renderCurrent(accounts) {
   } else {
     box.appendChild(avatarFor('?', false));
     var note = el('div', 'who');
-    note.append(el('div', 'name', 'No account detected'), el('div', 'sub muted', 'Sign in to Claude Desktop, then reload this page.'));
+    if (accounts.unknownAccount) {
+      note.append(
+        el('div', 'name', 'Signed in, account not recognised yet'),
+        el('div', 'sub muted', 'Claude Desktop is on account ' + accounts.accountUuid + '. Open Claude Code once on this account so its email can be read, then reload.')
+      );
+    } else {
+      note.append(el('div', 'name', 'No account detected'), el('div', 'sub muted', 'Sign in to Claude Desktop, then reload this page.'));
+    }
     box.appendChild(note);
   }
   host.appendChild(box);
