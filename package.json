@@ -1,7 +1,7 @@
 {
   "name": "claudedeck",
   "version": "1.0.1",
-  "description": "Scheduled Claude CLI runs and multi-account Claude Desktop switching from one local control panel.",
+  "description": "Switch the active Claude account across Claude Desktop and Claude Code, and schedule background Claude runs, from one local control panel.",
   "homepage": "https://github.com/MarvelCollin/ClaudeDeck#readme",
   "bugs": {
     "url": "https://github.com/MarvelCollin/ClaudeDeck/issues"
@@ -29,13 +29,13 @@
     "claude",
     "claude-code",
     "claude-desktop",
+    "account-switcher",
+    "session",
+    "multi-account",
     "cron",
     "scheduler",
-    "task-scheduler",
     "launchd",
-    "automation",
-    "profiles",
-    "account-switcher"
+    "automation"
   ],
   "engines": {
     "node": ">=18"

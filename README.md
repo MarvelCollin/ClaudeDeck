@@ -1,6 +1,6 @@
 # ClaudeDeck
 
-Command-line scheduler for running Claude CLI prompts in the background.
+Switch the active Claude account across Claude Desktop and Claude Code, and schedule background Claude runs, from one local control panel.
 
 ## Install
 
@@ -99,33 +99,39 @@ That serves a page on `127.0.0.1`, opens it, and prints the address. The server 
 
 From the page you can edit the schedule, start or stop the background task, trigger a single run, read the log, and manage Claude Desktop accounts. The terminal menu still works and its `Open Control Panel` entry opens the same page.
 
-## Switch Claude Desktop Accounts
+## Switch Claude accounts
 
-Claude Desktop keeps its login in a Chromium profile directory. ClaudeDeck creates extra profile directories and launches Claude Desktop against them with `--user-data-dir`, so several accounts run side by side in separate windows. Nothing is decrypted and no token is copied.
+ClaudeDeck keeps one Claude Desktop and swaps the active account in place, so Claude Desktop and Claude Code always sit on the same login. It saves the session files each account produces after you sign in, then restores them on demand. Nothing is decrypted, no password is typed, and nothing leaves your machine.
 
-Add an account in the Control Panel, or from the command line:
+Two stores make up an account session:
+
+- Claude **Code** reads `~/.claude/.credentials.json`. This file is never locked, so ClaudeDeck keeps the active account's copy in sync automatically.
+- Claude **Desktop** chat reads its Chromium session files under `%APPDATA%\Claude`. Windows locks these while the app runs, so capturing or restoring them needs Claude Desktop to close and reopen, about two seconds.
+
+Because of that lock, switching restarts Claude Desktop. Claude Code picks up the new login on its next message without a restart.
 
 ```bash
 claudedeck web list
-claudedeck web add work@example.com
-claudedeck web launch work-example.com
-claudedeck web label work-example.com Work Account
-claudedeck web stop work-example.com
-claudedeck web remove work-example.com
+claudedeck web save
+claudedeck web switch work-example.com
+claudedeck web forget work-example.com
 ```
 
-The name you type is kept as the display name. A folder name is derived from it, and that derived name is the alias the other commands take. `default` is your existing Claude Desktop login and cannot be removed.
+To set up two accounts:
 
-A new profile starts signed out, so launch it once and sign in with the other account. Extra profiles live in:
+1. Signed in as the first account, run `save` (or press **Save this account**). Claude Desktop restarts once to capture its session.
+2. In Claude Desktop, sign out and sign in with the second account.
+3. Run `save` again.
+4. Use `switch` to jump between them. Switching saves the account you are leaving first, so you never lose a session.
+
+Saved sessions live in:
 
 ```text
-%APPDATA%\ClaudeDeck\profiles                            Windows
-~/Library/Application Support/ClaudeDeck/profiles        macOS
+%APPDATA%\ClaudeDeck\sessions                            Windows
+~/Library/Application Support/ClaudeDeck/sessions        macOS
 ```
 
-`remove` deletes that directory, including the saved login. A profile must be stopped before it can be removed.
-
-Claude Code sessions are not covered by this. They read `~/.claude/.credentials.json`, which is shared by every profile, so the Code tab uses the same login in all windows.
+`forget` deletes a saved session. Before overwriting `~/.claude/.credentials.json`, ClaudeDeck copies it to `.credentials.json.claudedeck.bak`.
 
 ## Publish
 
