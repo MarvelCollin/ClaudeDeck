@@ -1,7 +1,8 @@
 const crypto = require('crypto');
 const http = require('http');
 const { URL } = require('url');
-const manager = require('./manager');
+const manager = require('../profiles/manager');
+const { createService } = require('./service');
 const { renderPage } = require('./page');
 
 const HOST = '127.0.0.1';
@@ -14,7 +15,7 @@ function allowedHost(header) {
   return host === '127.0.0.1' || host === 'localhost' || host === '[::1]';
 }
 
-function readBody(req, limit = 8192) {
+function readBody(req, limit = 65536) {
   return new Promise((resolve, reject) => {
     let raw = '';
     req.on('data', chunk => {
@@ -37,25 +38,34 @@ function readBody(req, limit = 8192) {
 }
 
 function sendJson(res, status, payload) {
-  const body = JSON.stringify(payload);
   res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
-  res.end(body);
+  res.end(JSON.stringify(payload));
+}
+
+function buildRoutes(service) {
+  return {
+    '/api/state': () => service.state(),
+    '/api/ping': () => ({ ok: true }),
+    '/api/schedule/save': body => service.saveSchedule(body),
+    '/api/schedule/start': () => service.startBackground(),
+    '/api/schedule/stop': () => service.stopBackground(),
+    '/api/schedule/run': () => service.runNow(),
+    '/api/schedule/log': () => service.readLog(),
+    '/api/profiles/add': body => manager.addProfile(body.name),
+    '/api/profiles/label': body => manager.labelProfile(body.alias, body.label),
+    '/api/profiles/remove': body => manager.removeProfile(body.alias),
+    '/api/profiles/launch': body => manager.launchProfile(body.alias),
+    '/api/profiles/stop': body => manager.stopProfile(body.alias),
+  };
 }
 
 function startServer(options = {}) {
   const token = options.token || crypto.randomBytes(24).toString('hex');
   const idleTimeout = options.idleTimeout || IDLE_TIMEOUT;
+  const service = options.service || createService();
+  const routes = buildRoutes(service);
   let lastSeen = Date.now();
   let closing = false;
-
-  const handlers = {
-    '/api/state': () => ({ profiles: manager.listProfiles() }),
-    '/api/add': body => manager.addProfile(body.alias),
-    '/api/remove': body => manager.removeProfile(body.alias),
-    '/api/launch': body => manager.launchProfile(body.alias),
-    '/api/stop': body => manager.stopProfile(body.alias),
-    '/api/ping': () => ({ ok: true }),
-  };
 
   const server = http.createServer(async (req, res) => {
     if (!allowedHost(req.headers.host)) {
@@ -68,13 +78,12 @@ function startServer(options = {}) {
     if (url.pathname === '/' && req.method === 'GET') {
       if (supplied !== token) {
         res.writeHead(403, { 'content-type': 'text/plain' });
-        res.end('Forbidden. Open the URL printed by ClaudeCron.');
+        res.end('Forbidden. Open the URL printed in your terminal.');
         return;
       }
       lastSeen = Date.now();
-      const html = renderPage(token);
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
-      res.end(html);
+      res.end(renderPage(token));
       return;
     }
 
@@ -90,7 +99,7 @@ function startServer(options = {}) {
       return;
     }
 
-    const handler = handlers[url.pathname];
+    const handler = routes[url.pathname];
     if (!handler) {
       sendJson(res, 404, { error: 'Not found.' });
       return;
@@ -132,5 +141,6 @@ function startServer(options = {}) {
 module.exports = {
   IDLE_TIMEOUT,
   allowedHost,
+  buildRoutes,
   startServer,
 };

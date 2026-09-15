@@ -8,7 +8,7 @@ const { launchArgs, windowsCandidates } = require('../scripts/lib/profiles/app')
 const paths = require('../scripts/lib/profiles/paths');
 const procs = require('../scripts/lib/profiles/procs');
 const registry = require('../scripts/lib/profiles/registry');
-const { allowedHost, startServer } = require('../scripts/lib/profiles/server');
+const { allowedHost, startServer } = require('../scripts/lib/web/server');
 
 const env = { APPDATA: 'C:\\Users\\tester\\AppData\\Roaming', LOCALAPPDATA: 'C:\\Users\\tester\\AppData\\Local' };
 
@@ -31,9 +31,10 @@ test('default alias maps to the real Claude Desktop profile', () => {
 
 test('registry add rejects duplicates and the reserved default alias', () => {
   let data = registry.emptyRegistry();
-  data = registry.add(data, 'work', new Date('2026-01-01T00:00:00Z'));
+  data = registry.add(data, 'work', 'Work Account', new Date('2026-01-01T00:00:00Z'));
   assert.strictEqual(data.profiles.length, 1);
   assert.strictEqual(data.profiles[0].createdAt, '2026-01-01T00:00:00.000Z');
+  assert.strictEqual(data.profiles[0].label, 'Work Account');
   assert.throws(() => registry.add(data, 'work'), /already exists/);
   assert.throws(() => registry.add(data, 'WORK'), /already exists/);
   assert.throws(() => registry.add(data, 'default'), /reserved/);
@@ -67,6 +68,29 @@ test('registry survives a round trip through disk', () => {
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('deriveAlias turns a free text name into a safe folder name', () => {
+  assert.strictEqual(paths.deriveAlias('work@example.com'), 'work-example.com');
+  assert.strictEqual(paths.deriveAlias('  Marvel Collin  '), 'marvel-collin');
+  assert.strictEqual(paths.deriveAlias('***side***'), 'side');
+  assert.ok(paths.isValidAlias(paths.deriveAlias('a'.repeat(80))));
+  assert.throws(() => paths.deriveAlias('***'), /Cannot build a folder name/);
+  assert.throws(() => paths.deriveAlias(''), /Cannot build a folder name/);
+});
+
+test('setLabel renames only the display name', () => {
+  let data = registry.add(registry.emptyRegistry(), 'work', 'Work');
+  data = registry.setLabel(data, 'WORK', '  Personal  ');
+  assert.strictEqual(data.profiles[0].label, 'Personal');
+  assert.strictEqual(data.profiles[0].alias, 'work');
+  assert.throws(() => registry.setLabel(data, 'work', '   '), /cannot be empty/);
+  assert.throws(() => registry.setLabel(data, 'ghost', 'x'), /not found/);
+});
+
+test('normalize falls back to the alias when no label is stored', () => {
+  const data = registry.normalize({ profiles: [{ alias: 'work' }] });
+  assert.strictEqual(data.profiles[0].label, 'work');
 });
 
 test('launchArgs omits the flag for the default profile', () => {
@@ -161,7 +185,7 @@ test('server rejects requests without the session token', async () => {
 
     const html = await fetch(`${base}/?token=secret`);
     assert.strictEqual(html.status, 200);
-    assert.ok((await html.text()).includes('Claude Desktop Profiles'));
+    assert.ok((await html.text()).includes('Claude Desktop accounts'));
   } finally {
     session.close();
   }

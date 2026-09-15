@@ -87,36 +87,45 @@ Use English day names: `Monday`, `Tuesday`, `Wednesday`, `Thursday`, `Friday`, `
 
 After changing the config manually, run `claudecron` and choose `Run Background` so Windows Task Scheduler or macOS launchd is updated.
 
+## Control Panel
+
+Everything ClaudeCron does is also available as a page in your browser. Run:
+
+```bash
+claudecron web
+```
+
+That serves a page on `127.0.0.1`, opens it, and prints the address. The server only lives while the tab is open and stops about ten seconds after you close it. There is no tray icon, no background service and no port left listening. Every request needs a session token that is generated per run, and requests from other hostnames are refused.
+
+From the page you can edit the schedule, start or stop the background task, trigger a single run, read the log, and manage Claude Desktop accounts. The terminal menu still works and its `Open Control Panel` entry opens the same page.
+
 ## Switch Claude Desktop Accounts
 
 Claude Desktop keeps its login in a Chromium profile directory. ClaudeCron creates extra profile directories and launches Claude Desktop against them with `--user-data-dir`, so several accounts run side by side in separate windows. Nothing is decrypted and no token is copied.
 
-Choose `Switch Account` in the menu, or run:
+Add an account in the Control Panel, or from the command line:
 
 ```bash
-claudecron profiles
+claudecron web list
+claudecron web add work@example.com
+claudecron web launch work-example.com
+claudecron web label work-example.com Work Account
+claudecron web stop work-example.com
+claudecron web remove work-example.com
 ```
 
-That serves a small page on `127.0.0.1` and opens it in your browser. The server only lives while the tab is open and stops about ten seconds after you close it. There is no tray icon and no background service.
+The name you type is kept as the display name. A folder name is derived from it, and that derived name is the alias the other commands take. `default` is your existing Claude Desktop login and cannot be removed.
 
-Command line equivalents:
-
-```bash
-claudecron profiles list
-claudecron profiles add work
-claudecron profiles launch work
-claudecron profiles stop work
-claudecron profiles remove work
-```
-
-`default` is your existing Claude Desktop login and cannot be removed. A new profile starts signed out, so launch it once and sign in with the other account. Extra profiles live in:
+A new profile starts signed out, so launch it once and sign in with the other account. Extra profiles live in:
 
 ```text
-%APPDATA%\ClaudeCron\profiles       Windows
-~/Library/Application Support/ClaudeCron/profiles       macOS
+%APPDATA%\ClaudeCron\profiles                            Windows
+~/Library/Application Support/ClaudeCron/profiles        macOS
 ```
 
 `remove` deletes that directory, including the saved login. A profile must be stopped before it can be removed.
+
+Claude Code sessions are not covered by this. They read `~/.claude/.credentials.json`, which is shared by every profile, so the Code tab uses the same login in all windows.
 
 ## Publish
 
