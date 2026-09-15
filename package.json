@@ -16,7 +16,8 @@
     "access": "public"
   },
   "bin": {
-    "claudedeck": "bin/claudedeck.js"
+    "claudedeck": "bin/claudedeck.js",
+    "cdeck": "bin/cdeck.js"
   },
   "files": [
     "bin",

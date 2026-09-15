@@ -226,3 +226,14 @@ test('legacy ClaudeCron data folder is moved to ClaudeDeck once', () => {
     fs.rmSync(base, { recursive: true, force: true });
   }
 });
+
+test('every declared bin entry points at a real file', () => {
+  const root = path.join(__dirname, '..');
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  assert.deepStrictEqual(Object.keys(pkg.bin).sort(), ['cdeck', 'claudedeck']);
+  for (const target of Object.values(pkg.bin)) {
+    const file = path.join(root, target);
+    assert.ok(fs.existsSync(file), target + ' is missing');
+    assert.ok(fs.readFileSync(file, 'utf8').startsWith('#!/usr/bin/env node'), target + ' has no shebang');
+  }
+});
