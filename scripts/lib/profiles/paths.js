@@ -22,6 +22,19 @@ function registryPath(platform = process.platform, env = process.env) {
   return path.join(roamingDir(platform, env), 'ClaudeDeck', 'profiles.json');
 }
 
+function sessionsRoot(platform = process.platform, env = process.env) {
+  return path.join(roamingDir(platform, env), 'ClaudeDeck', 'sessions');
+}
+
+function sessionSlot(alias, platform = process.platform, env = process.env) {
+  assertValidAlias(alias);
+  return path.join(sessionsRoot(platform, env), alias);
+}
+
+function codeCredentialsPath(env = process.env) {
+  return path.join(env.USERPROFILE || env.HOME || os.homedir(), '.claude', '.credentials.json');
+}
+
 function isDefaultAlias(alias) {
   return String(alias).toLowerCase() === DEFAULT_ALIAS;
 }
@@ -60,6 +73,7 @@ function profilePath(alias, platform = process.platform, env = process.env) {
 module.exports = {
   DEFAULT_ALIAS,
   assertValidAlias,
+  codeCredentialsPath,
   deriveAlias,
   desktopProfileDir,
   isDefaultAlias,
@@ -68,4 +82,6 @@ module.exports = {
   profilesRoot,
   registryPath,
   roamingDir,
+  sessionSlot,
+  sessionsRoot,
 };

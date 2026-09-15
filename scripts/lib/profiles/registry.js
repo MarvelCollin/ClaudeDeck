@@ -5,7 +5,17 @@ const { assertValidAlias, isDefaultAlias, registryPath } = require('./paths');
 const VERSION = 1;
 
 function emptyRegistry() {
-  return { version: VERSION, profiles: [], identities: {} };
+  return { version: VERSION, profiles: [], identities: {}, sessions: [] };
+}
+
+function normalizeSession(entry) {
+  if (!entry || typeof entry.alias !== 'string' || typeof entry.email !== 'string') return null;
+  return {
+    alias: entry.alias,
+    email: entry.email,
+    name: typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : entry.email.split('@')[0],
+    savedAt: entry.savedAt || null,
+  };
 }
 
 function normalizeIdentity(value) {
@@ -40,7 +50,40 @@ function normalize(data) {
       if (identity) identities[alias.toLowerCase()] = identity;
     }
   }
-  return { version: VERSION, profiles, identities };
+  const sessions = [];
+  const seenSession = new Set();
+  if (Array.isArray(data.sessions)) {
+    for (const entry of data.sessions) {
+      const session = normalizeSession(entry);
+      if (!session || seenSession.has(session.alias.toLowerCase())) continue;
+      seenSession.add(session.alias.toLowerCase());
+      sessions.push(session);
+    }
+  }
+  return { version: VERSION, profiles, identities, sessions };
+}
+
+function findSession(registry, alias) {
+  const wanted = String(alias).toLowerCase();
+  return (registry.sessions || []).find(entry => entry.alias.toLowerCase() === wanted) || null;
+}
+
+function sessionByEmail(registry, email) {
+  const wanted = String(email).toLowerCase();
+  return (registry.sessions || []).find(entry => entry.email.toLowerCase() === wanted) || null;
+}
+
+function saveSession(registry, session, now = new Date()) {
+  const value = normalizeSession(session);
+  if (!value) throw new Error('A saved session needs an alias and an email.');
+  value.savedAt = now.toISOString();
+  const rest = (registry.sessions || []).filter(entry => entry.alias.toLowerCase() !== value.alias.toLowerCase());
+  return { ...registry, sessions: [...rest, value] };
+}
+
+function removeSession(registry, alias) {
+  const wanted = String(alias).toLowerCase();
+  return { ...registry, sessions: (registry.sessions || []).filter(entry => entry.alias.toLowerCase() !== wanted) };
 }
 
 function identityFor(registry, alias) {
@@ -131,13 +174,18 @@ module.exports = {
   add,
   emptyRegistry,
   find,
+  findSession,
   forgetIdentity,
   identityFor,
   normalize,
   normalizeIdentity,
+  normalizeSession,
   read,
   rememberIdentity,
   remove,
+  removeSession,
+  saveSession,
+  sessionByEmail,
   setLabel,
   touch,
   write,
