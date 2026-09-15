@@ -26,6 +26,10 @@ function sessionsRoot(platform = process.platform, env = process.env) {
   return path.join(roamingDir(platform, env), 'ClaudeDeck', 'sessions');
 }
 
+function sharedRoot(platform = process.platform, env = process.env) {
+  return path.join(roamingDir(platform, env), 'ClaudeDeck', 'shared');
+}
+
 function sessionSlot(alias, platform = process.platform, env = process.env) {
   assertValidAlias(alias);
   return path.join(sessionsRoot(platform, env), alias);
@@ -84,4 +88,5 @@ module.exports = {
   roamingDir,
   sessionSlot,
   sessionsRoot,
+  sharedRoot,
 };
