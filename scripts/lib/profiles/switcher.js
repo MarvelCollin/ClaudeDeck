@@ -2,10 +2,11 @@ const fs = require('fs');
 const path = require('path');
 const { launch, launchArgs, locateApp } = require('./app');
 const { readIdentity } = require('./identity');
-const { codeCredentialsPath, deriveAlias, desktopProfileDir, sessionSlot } = require('./paths');
+const { codeCredentialsPath, deriveAlias, desktopProfileDir, sessionSlot, sharedRoot } = require('./paths');
 const { groupProcesses, killPids, listClaudeProcesses } = require('./procs');
 const registry = require('./registry');
 const session = require('./session');
+const shared = require('./shared');
 
 const DESKTOP_SUBDIR = 'desktop';
 const CODE_FILE = 'code.json';
@@ -14,6 +15,7 @@ function defaultDeps() {
   return {
     profileDir: desktopProfileDir(),
     credPath: codeCredentialsPath(),
+    sharedDir: sharedRoot(),
     slotOf: alias => sessionSlot(alias),
     registryFile: undefined,
     readIdentity,
@@ -45,20 +47,48 @@ function createSwitcher(overrides = {}) {
     return groups.get('default') || [];
   }
 
-  function saveInto(alias) {
+  function sharingEnabled(data = readRegistry()) {
+    return registry.settingsOf(data).shareSession;
+  }
+
+  function swappedDesktopItems(data) {
+    return shared.swappedItems(session.DESKTOP_ITEMS, shared.SHARED_DESKTOP_ITEMS, sharingEnabled(data));
+  }
+
+  function captureShared() {
+    return shared.capture(deps.profileDir, deps.sharedDir);
+  }
+
+  function applyShared() {
+    return shared.apply(deps.sharedDir, deps.profileDir);
+  }
+
+  function saveInto(alias, data) {
     const slot = deps.slotOf(alias);
-    const desktopItems = session.snapshotDesktop(deps.profileDir, path.join(slot, DESKTOP_SUBDIR));
+    const desktopItems = session.snapshotDesktop(deps.profileDir, path.join(slot, DESKTOP_SUBDIR), swappedDesktopItems(data));
     const codeSaved = session.snapshotCode(deps.credPath, path.join(slot, CODE_FILE));
     return { desktopItems, codeSaved };
+  }
+
+  function setSharing(enabled) {
+    const data = readRegistry();
+    writeRegistry(registry.setSetting(data, 'shareSession', Boolean(enabled)));
+    if (!enabled) return { shareSession: false, captured: [], pruned: [] };
+    const captured = captureShared();
+    const slots = (readRegistry().sessions || []).map(entry => path.join(deps.slotOf(entry.alias), DESKTOP_SUBDIR));
+    const pruned = shared.clearFromSlots(slots);
+    return { shareSession: true, captured, pruned };
   }
 
   function sync(options = {}) {
     const identity = currentIdentity();
     if (!identity) throw new Error('No Claude account detected. Sign in to Claude Desktop first, then save.');
     const alias = deriveAlias(identity.email);
+    const data = readRegistry();
     const stopped = options.stop === false ? 0 : stopDesktop();
-    saveInto(alias);
-    writeRegistry(registry.saveSession(readRegistry(), { alias, email: identity.email, name: identity.name }, deps.now()));
+    saveInto(alias, data);
+    if (sharingEnabled(data)) captureShared();
+    writeRegistry(registry.saveSession(data, { alias, email: identity.email, name: identity.name }, deps.now()));
     let relaunched = false;
     if (stopped && options.relaunch !== false) {
       deps.launch(deps.locate(), launchArgs(deps.profileDir, true));
@@ -98,6 +128,9 @@ function createSwitcher(overrides = {}) {
     return {
       running,
       current: identity,
+      shareSession: sharingEnabled(data),
+      sharedItems: shared.SHARED_DESKTOP_ITEMS,
+      sharedCodeItems: shared.SHARED_CODE_ITEMS,
       sessions: (data.sessions || []).map(entry => ({
         ...entry,
         active: activeEmail === entry.email.toLowerCase(),
@@ -112,10 +145,10 @@ function createSwitcher(overrides = {}) {
     return pids.length;
   }
 
-  function restoreFrom(alias) {
+  function restoreFrom(alias, data) {
     const slot = deps.slotOf(alias);
     if (!fs.existsSync(slot)) throw new Error(`No saved session for "${alias}". Sync it first.`);
-    const desktopItems = session.restoreDesktop(path.join(slot, DESKTOP_SUBDIR), deps.profileDir);
+    const desktopItems = session.restoreDesktop(path.join(slot, DESKTOP_SUBDIR), deps.profileDir, swappedDesktopItems(data));
     const codeRestored = session.restoreCode(path.join(slot, CODE_FILE), deps.credPath);
     return { desktopItems, codeRestored };
   }
@@ -127,21 +160,24 @@ function createSwitcher(overrides = {}) {
 
     const identity = currentIdentity();
     const stopped = stopDesktop();
+    const sharing = sharingEnabled(data);
 
     const snapshotCurrent = options.snapshotCurrent !== false;
     if (snapshotCurrent && identity && identity.email.toLowerCase() !== target.email.toLowerCase()) {
       const known = registry.sessionByEmail(data, identity.email);
-      if (known) saveInto(known.alias);
+      if (known) saveInto(known.alias, data);
     }
 
-    const result = restoreFrom(alias);
+    if (sharing) captureShared();
+    const result = restoreFrom(alias, data);
+    const sharedItems = sharing ? applyShared() : [];
 
     let relaunched = false;
     if (options.relaunch !== false) {
       deps.launch(deps.locate(), launchArgs(deps.profileDir, true));
       relaunched = true;
     }
-    return { alias: target.alias, email: target.email, name: target.name, stopped, relaunched, ...result };
+    return { alias: target.alias, email: target.email, name: target.name, stopped, relaunched, sharedItems, ...result };
   }
 
   function forget(alias) {
@@ -157,6 +193,9 @@ function createSwitcher(overrides = {}) {
     currentIdentity,
     forget,
     listSessions,
+    setSharing,
+    sharingEnabled,
+    swappedDesktopItems,
     switchTo,
     sync,
   };
