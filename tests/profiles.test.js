@@ -9,6 +9,7 @@ const paths = require('../scripts/lib/profiles/paths');
 const procs = require('../scripts/lib/profiles/procs');
 const registry = require('../scripts/lib/profiles/registry');
 const shared = require('../scripts/lib/profiles/shared');
+const { routeCommand } = require('../scripts/lib/task/router');
 const { allowedHost, buildRoutes, startServer } = require('../scripts/lib/web/server');
 
 const env = { APPDATA: 'C:\\Users\\tester\\AppData\\Roaming', LOCALAPPDATA: 'C:\\Users\\tester\\AppData\\Local' };
@@ -644,4 +645,17 @@ test("the web panel exposes a sharing route", () => {
   assert.strictEqual(typeof routes["/api/accounts/sharing"], "function");
   routes["/api/accounts/sharing"]({ enabled: false });
   assert.deepStrictEqual(calls, [{ enabled: false }]);
+});
+
+test('the bare command opens the panel and account commands skip the web prefix', () => {
+  assert.deepStrictEqual(routeCommand([]), { kind: 'panel', args: [] });
+  assert.deepStrictEqual(routeCommand(['help']), { kind: 'help', args: [] });
+  assert.deepStrictEqual(routeCommand(['-h']), { kind: 'help', args: [] });
+  assert.deepStrictEqual(routeCommand(['menu']), { kind: 'menu', args: [] });
+  assert.deepStrictEqual(routeCommand(['switch', 'work']), { kind: 'web', args: ['switch', 'work'] });
+  assert.deepStrictEqual(routeCommand(['share', 'off']), { kind: 'web', args: ['share', 'off'] });
+  assert.deepStrictEqual(routeCommand(['web', 'list']), { kind: 'web', args: ['list'] });
+  assert.deepStrictEqual(routeCommand(['profiles']), { kind: 'web', args: [] });
+  assert.deepStrictEqual(routeCommand(['run']), { kind: 'task', args: ['run'] });
+  assert.deepStrictEqual(routeCommand(['status']), { kind: 'task', args: ['status'] });
 });
