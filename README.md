@@ -87,3 +87,13 @@ Use English day names: `Monday`, `Tuesday`, `Wednesday`, `Thursday`, `Friday`, `
 
 After changing the config manually, run `claudecron` and choose `Run Background` so Windows Task Scheduler or macOS launchd is updated.
 
+## Publish
+
+Add an npm automation token to GitHub Actions as `NPM_TOKEN`. To publish a new version:
+
+```bash
+npm version patch
+git push --follow-tags
+```
+
+The workflow publishes to npm when a `v*` tag is pushed. Do not publish every normal push because npm rejects the same package version twice.
