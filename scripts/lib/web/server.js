@@ -73,7 +73,7 @@ function startServer(options = {}) {
       return;
     }
     const url = new URL(req.url, `http://${HOST}`);
-    const supplied = req.headers['x-claudecron-token'] || url.searchParams.get('token');
+    const supplied = req.headers['x-claudedeck-token'] || url.searchParams.get('token');
 
     if (url.pathname === '/' && req.method === 'GET') {
       if (supplied !== token) {

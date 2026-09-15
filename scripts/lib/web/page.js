@@ -6,7 +6,7 @@ function renderPage(token) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ClaudeCron</title>
+<title>ClaudeDeck</title>
 <style>
 :root{
   --bg:#f6f7f9;
@@ -161,7 +161,7 @@ footer{margin-top:24px;font-size:13px;color:var(--faint)}
 <body>
 <div class="wrap">
 <header>
-  <h1>ClaudeCron</h1>
+  <h1>ClaudeDeck</h1>
   <span class="spacer"></span>
   <span class="where" id="configpath"></span>
   <button id="theme" class="icon quiet" aria-label="Switch colour theme">Theme</button>
@@ -241,12 +241,12 @@ var flashTimer = null;
 
 function applyTheme(mode) {
   document.documentElement.setAttribute('data-theme', mode);
-  try { localStorage.setItem('claudecron-theme', mode); } catch (e) {}
+  try { localStorage.setItem('claudedeck-theme', mode); } catch (e) {}
   document.getElementById('theme').textContent = mode === 'dark' ? 'Light theme' : 'Dark theme';
 }
 (function () {
   var saved = null;
-  try { saved = localStorage.getItem('claudecron-theme'); } catch (e) {}
+  try { saved = localStorage.getItem('claudedeck-theme'); } catch (e) {}
   var system = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   applyTheme(saved || system);
 })();
@@ -257,7 +257,7 @@ document.getElementById('theme').onclick = function () {
 function api(path, body) {
   return fetch(path, {
     method: body ? 'POST' : 'GET',
-    headers: { 'x-claudecron-token': TOKEN, 'content-type': 'application/json' },
+    headers: { 'x-claudedeck-token': TOKEN, 'content-type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined
   }).then(function (res) {
     return res.json().catch(function () { return {}; }).then(function (data) {

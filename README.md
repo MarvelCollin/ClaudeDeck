@@ -1,12 +1,12 @@
-# ClaudeCron
+# ClaudeDeck
 
 Command-line scheduler for running Claude CLI prompts in the background.
 
 ## Install
 
 ```bash
-npm i -g claudecron-cli
-claudecron
+npm i -g claudedeck-cli
+claudedeck
 ```
 
 Run Claude CLI login first if Claude is not authenticated yet.
@@ -17,18 +17,18 @@ claude auth
 
 ## macOS
 
-ClaudeCron supports macOS through `launchd`.
+ClaudeDeck supports macOS through `launchd`.
 
 ```bash
-npm i -g claudecron-cli
+npm i -g claudedeck-cli
 claude auth
-claudecron
+claudedeck
 ```
 
 Choose `Configure Schedule` to edit the JSON config, then choose `Run Background` to install or update the LaunchAgent at:
 
 ```text
-~/Library/LaunchAgents/com.claudecron.plist
+~/Library/LaunchAgents/com.claudedeck.plist
 ```
 
 The Mac must be powered on and signed in for local scheduled runs. It cannot run after a full shutdown.
@@ -36,25 +36,25 @@ The Mac must be powered on and signed in for local scheduled runs. It cannot run
 ## Manage Schedule
 
 ```bash
-claudecron
+claudedeck
 ```
 
 Use the arrow keys to choose `Configure Schedule`, `Run Background`, `Stop Background`, `Run once now`, or `Open log`. The menu shows whether the background schedule is on, whether a run is active, the last run time, the next run time, and run counts.
 
 ## Config Tutorial
 
-On first run, ClaudeCron creates `claudecron.config.json` in your user app data folder.
+On first run, ClaudeDeck creates `claudedeck.config.json` in your user app data folder.
 
 Windows:
 
 ```text
-%APPDATA%\ClaudeCron\claudecron.config.json
+%APPDATA%\ClaudeDeck\claudedeck.config.json
 ```
 
 macOS:
 
 ```text
-~/Library/Application Support/ClaudeCron/claudecron.config.json
+~/Library/Application Support/ClaudeDeck/claudedeck.config.json
 ```
 
 Use `Configure Schedule` in the menu for the easiest setup. It opens the real JSON config file; save and close the editor, then choose whether to apply the updated background schedule.
@@ -63,8 +63,8 @@ You can also edit the config file manually.
 
 ```json
 {
-  "taskName": "ClaudeCron",
-  "macLabel": "com.claudecron",
+  "taskName": "ClaudeDeck",
+  "macLabel": "com.claudedeck",
   "prompt": "hi",
   "model": "haiku",
   "logFile": "claude-run.log",
@@ -85,14 +85,14 @@ You can also edit the config file manually.
 
 Use English day names: `Monday`, `Tuesday`, `Wednesday`, `Thursday`, `Friday`, `Saturday`, `Sunday`. Use 24-hour `HH:mm` times. Add another schedule block when different days need different times. Keep `"model": "haiku"` because the runner enforces Haiku only.
 
-After changing the config manually, run `claudecron` and choose `Run Background` so Windows Task Scheduler or macOS launchd is updated.
+After changing the config manually, run `claudedeck` and choose `Run Background` so Windows Task Scheduler or macOS launchd is updated.
 
 ## Control Panel
 
-Everything ClaudeCron does is also available as a page in your browser. Run:
+Everything ClaudeDeck does is also available as a page in your browser. Run:
 
 ```bash
-claudecron web
+claudedeck web
 ```
 
 That serves a page on `127.0.0.1`, opens it, and prints the address. The server only lives while the tab is open and stops about ten seconds after you close it. There is no tray icon, no background service and no port left listening. Every request needs a session token that is generated per run, and requests from other hostnames are refused.
@@ -101,17 +101,17 @@ From the page you can edit the schedule, start or stop the background task, trig
 
 ## Switch Claude Desktop Accounts
 
-Claude Desktop keeps its login in a Chromium profile directory. ClaudeCron creates extra profile directories and launches Claude Desktop against them with `--user-data-dir`, so several accounts run side by side in separate windows. Nothing is decrypted and no token is copied.
+Claude Desktop keeps its login in a Chromium profile directory. ClaudeDeck creates extra profile directories and launches Claude Desktop against them with `--user-data-dir`, so several accounts run side by side in separate windows. Nothing is decrypted and no token is copied.
 
 Add an account in the Control Panel, or from the command line:
 
 ```bash
-claudecron web list
-claudecron web add work@example.com
-claudecron web launch work-example.com
-claudecron web label work-example.com Work Account
-claudecron web stop work-example.com
-claudecron web remove work-example.com
+claudedeck web list
+claudedeck web add work@example.com
+claudedeck web launch work-example.com
+claudedeck web label work-example.com Work Account
+claudedeck web stop work-example.com
+claudedeck web remove work-example.com
 ```
 
 The name you type is kept as the display name. A folder name is derived from it, and that derived name is the alias the other commands take. `default` is your existing Claude Desktop login and cannot be removed.
@@ -119,8 +119,8 @@ The name you type is kept as the display name. A folder name is derived from it,
 A new profile starts signed out, so launch it once and sign in with the other account. Extra profiles live in:
 
 ```text
-%APPDATA%\ClaudeCron\profiles                            Windows
-~/Library/Application Support/ClaudeCron/profiles        macOS
+%APPDATA%\ClaudeDeck\profiles                            Windows
+~/Library/Application Support/ClaudeDeck/profiles        macOS
 ```
 
 `remove` deletes that directory, including the saved login. A profile must be stopped before it can be removed.

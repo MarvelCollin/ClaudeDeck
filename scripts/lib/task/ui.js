@@ -1,4 +1,4 @@
-const repoUrl = 'https://github.com/MarvelCollin/ClaudeCron';
+const repoUrl = 'https://github.com/MarvelCollin/ClaudeDeck';
 
 const menuItems = [
   { label: 'Configure Schedule', choice: 'config', code: '33' },
@@ -11,12 +11,11 @@ const menuItems = [
 ];
 
 const titleArt = [
-  "   ______  __                        __          ______                           ",
-  " .' ___  |[  |                      |  ]       .' ___  |                          ",
-  "/ .'   \\_| | |  ,--.  __   _    .--.| | .---. / .'   \\_| _ .--.   .--.   _ .--.   ",
-  "| |        | | `'_\\ :[  | | | / /'`\\' |/ /__\\\\| |       [ `/'`\\]/ .'`\\ \\[ `.-. |  ",
-  "\\ `.___.'\\ | | // | |,| \\_/ |,| \\__/  || \\__.,\\ `.___.'\\ | |    | \\__. | | | | |  ",
-  " `.____ .'[___]\\'-;__/'.__.'_/ '.__.;__]'.__.' `.____ .'[___]    '.__.' [___||__] ",
+  " ██████ ██       █████  ██   ██ ██████  ███████ ██████  ███████  ██████ ██   ██",
+  "██      ██      ██   ██ ██   ██ ██   ██ ██      ██   ██ ██      ██      ██  ██ ",
+  "██      ██      ███████ ██   ██ ██   ██ █████   ██   ██ █████   ██      █████  ",
+  "██      ██      ██   ██ ██   ██ ██   ██ ██      ██   ██ ██      ██      ██  ██ ",
+  " ██████ ███████ ██   ██  ██████ ██████  ███████ ██████  ███████  ██████ ██   ██",
 ];
 
 const uiWidth = Math.max(...titleArt.map(line => line.length));
@@ -104,7 +103,7 @@ function showMenu(context, platform, info, selected = 0, message = '') {
   for (const line of titleArt) console.log(color(theme.title, line));
   console.log('');
   console.log(boxLine('+', '-', '+'));
-  console.log(boxRow(color('1;37', 'ClaudeCron Control Center')));
+  console.log(boxRow(color('1;37', 'ClaudeDeck Control Center')));
   console.log(blankRow());
   console.log(boxRow(field('Task', color(theme.text, name))));
   console.log(boxRow(field('Background', statusText(info.enabled, '32'))));
@@ -120,7 +119,7 @@ function showMenu(context, platform, info, selected = 0, message = '') {
     console.log(boxRow(actionRow(item, index === selected)));
   }
   console.log(blankRow());
-  console.log(boxRow(`${color(theme.label, 'Repository'.padEnd(12))} ${color(theme.text, link('MarvelCollin/ClaudeCron', repoUrl))}`));
+  console.log(boxRow(`${color(theme.label, 'Repository'.padEnd(12))} ${color(theme.text, link('MarvelCollin/ClaudeDeck', repoUrl))}`));
   console.log(boxRow(`${color(theme.label, 'Website'.padEnd(12))} ${color(theme.text, repoUrl)}`));
   console.log(boxRow(`${color(theme.label, 'Made by'.padEnd(12))} ${color(theme.text, 'Marvel Collin with \u2764\uFE0F')}`));
   console.log(blankRow());

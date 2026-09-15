@@ -1,6 +1,6 @@
 {
-  "taskName": "ClaudeCron",
-  "macLabel": "com.claudecron",
+  "taskName": "ClaudeDeck",
+  "macLabel": "com.claudedeck",
   "prompt": "hi",
   "model": "haiku",
   "logFile": "claude-run.log",

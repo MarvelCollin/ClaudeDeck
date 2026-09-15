@@ -26,7 +26,7 @@ test('default alias maps to the real Claude Desktop profile', () => {
   assert.ok(paths.isDefaultAlias('default'));
   assert.ok(paths.isDefaultAlias('DEFAULT'));
   assert.strictEqual(paths.profilePath('default', 'win32', env), path.join(env.APPDATA, 'Claude'));
-  assert.strictEqual(paths.profilePath('work', 'win32', env), path.join(env.APPDATA, 'ClaudeCron', 'profiles', 'work'));
+  assert.strictEqual(paths.profilePath('work', 'win32', env), path.join(env.APPDATA, 'ClaudeDeck', 'profiles', 'work'));
 });
 
 test('registry add rejects duplicates and the reserved default alias', () => {
@@ -129,13 +129,13 @@ test('process lines parse into pid and command line', () => {
 test('processes map back to the profile that owns them', () => {
   const profiles = [
     { alias: 'default', dir: 'C:\\Roaming\\Claude' },
-    { alias: 'work', dir: 'C:\\Roaming\\ClaudeCron\\profiles\\work' },
+    { alias: 'work', dir: 'C:\\Roaming\\ClaudeDeck\\profiles\\work' },
   ];
   const defaultDir = 'C:\\Roaming\\Claude';
   assert.strictEqual(procs.aliasForCommandLine('Claude.exe', profiles, defaultDir), 'default');
   assert.strictEqual(procs.aliasForCommandLine('Claude.exe --user-data-dir="C:\\Roaming\\Claude"', profiles, defaultDir), 'default');
   assert.strictEqual(
-    procs.aliasForCommandLine('Claude.exe --user-data-dir="C:\\Roaming\\ClaudeCron\\profiles\\work"', profiles, defaultDir),
+    procs.aliasForCommandLine('Claude.exe --user-data-dir="C:\\Roaming\\ClaudeDeck\\profiles\\work"', profiles, defaultDir),
     'work'
   );
   assert.strictEqual(procs.aliasForCommandLine('Claude.exe --user-data-dir="C:\\elsewhere"', profiles, defaultDir), null);
@@ -143,8 +143,8 @@ test('processes map back to the profile that owns them', () => {
   const groups = procs.groupProcesses(
     [
       { pid: 1, commandLine: 'Claude.exe' },
-      { pid: 2, commandLine: 'Claude.exe --user-data-dir="C:\\Roaming\\ClaudeCron\\profiles\\work"' },
-      { pid: 3, commandLine: 'Claude.exe --user-data-dir="C:\\Roaming\\ClaudeCron\\profiles\\work"' },
+      { pid: 2, commandLine: 'Claude.exe --user-data-dir="C:\\Roaming\\ClaudeDeck\\profiles\\work"' },
+      { pid: 3, commandLine: 'Claude.exe --user-data-dir="C:\\Roaming\\ClaudeDeck\\profiles\\work"' },
       { pid: 4, commandLine: 'Claude.exe --user-data-dir="C:\\unknown"' },
     ],
     profiles,
@@ -176,11 +176,11 @@ test('server rejects requests without the session token', async () => {
     const page = await fetch(`${base}/`);
     assert.strictEqual(page.status, 403);
 
-    const allowed = await fetch(`${base}/api/ping`, { method: 'POST', headers: { 'x-claudecron-token': 'secret' } });
+    const allowed = await fetch(`${base}/api/ping`, { method: 'POST', headers: { 'x-claudedeck-token': 'secret' } });
     assert.strictEqual(allowed.status, 200);
     assert.deepStrictEqual(await allowed.json(), { ok: true });
 
-    const missing = await fetch(`${base}/api/nope`, { headers: { 'x-claudecron-token': 'secret' } });
+    const missing = await fetch(`${base}/api/nope`, { headers: { 'x-claudedeck-token': 'secret' } });
     assert.strictEqual(missing.status, 404);
 
     const html = await fetch(`${base}/?token=secret`);
@@ -195,4 +195,34 @@ test('server shuts itself down when the page stops pinging', async () => {
   const session = await startServer({ token: 'secret', idleTimeout: 1 }).listen();
   await new Promise(resolve => session.server.once('close', resolve));
   assert.ok(true);
+});
+
+test('legacy ClaudeCron data folder is moved to ClaudeDeck once', () => {
+  const appPaths = require('../scripts/lib/paths');
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'cd-migrate-'));
+  const previous = process.env.APPDATA;
+  process.env.APPDATA = base;
+  try {
+    const legacy = path.join(base, 'ClaudeCron');
+    fs.mkdirSync(path.join(legacy, 'profiles'), { recursive: true });
+    fs.writeFileSync(path.join(legacy, 'claudecron.config.json'), '{}', 'utf8');
+    fs.writeFileSync(path.join(legacy, 'claude-run.log'), 'run', 'utf8');
+
+    const moved = appPaths.migrateLegacyData('win32');
+    assert.strictEqual(moved, path.join(base, 'ClaudeDeck'));
+    assert.ok(!fs.existsSync(legacy));
+    assert.ok(fs.existsSync(path.join(moved, 'claudedeck.config.json')));
+    assert.ok(!fs.existsSync(path.join(moved, 'claudecron.config.json')));
+    assert.strictEqual(fs.readFileSync(path.join(moved, 'claude-run.log'), 'utf8'), 'run');
+    assert.ok(fs.existsSync(path.join(moved, 'profiles')));
+
+    fs.mkdirSync(legacy, { recursive: true });
+    fs.writeFileSync(path.join(legacy, 'stale.txt'), 'stale', 'utf8');
+    appPaths.migrateLegacyData('win32');
+    assert.ok(fs.existsSync(path.join(legacy, 'stale.txt')));
+  } finally {
+    if (previous === undefined) delete process.env.APPDATA;
+    else process.env.APPDATA = previous;
+    fs.rmSync(base, { recursive: true, force: true });
+  }
 });

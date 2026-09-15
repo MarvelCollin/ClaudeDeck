@@ -52,7 +52,7 @@ async function runInteractive(context, platform, actions) {
       process.stdin.pause();
       process.stdin.off('keypress', onKeypress);
       clearConsole();
-      console.log('ClaudeCron closed.');
+      console.log('ClaudeDeck closed.');
       resolve();
     }
 

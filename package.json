@@ -1,14 +1,14 @@
 {
-  "name": "claudecron-cli",
+  "name": "claudedeck",
   "version": "1.0.1",
-  "description": "Command-line Claude automation for scheduled runs.",
-  "homepage": "https://github.com/MarvelCollin/ClaudeCron#readme",
+  "description": "Scheduled Claude CLI runs and multi-account Claude Desktop switching from one local control panel.",
+  "homepage": "https://github.com/MarvelCollin/ClaudeDeck#readme",
   "bugs": {
-    "url": "https://github.com/MarvelCollin/ClaudeCron/issues"
+    "url": "https://github.com/MarvelCollin/ClaudeDeck/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MarvelCollin/ClaudeCron.git"
+    "url": "git+https://github.com/MarvelCollin/ClaudeDeck.git"
   },
   "license": "MIT",
   "author": "Marvel Collin",
@@ -16,23 +16,26 @@
     "access": "public"
   },
   "bin": {
-    "claudecron": "bin/claudecron.js"
+    "claudedeck": "bin/claudedeck.js"
   },
   "files": [
     "bin",
     "scripts",
-    "claudecron.config.json",
+    "claudedeck.config.json",
     "LICENSE",
     "README.md"
   ],
   "keywords": [
     "claude",
     "claude-code",
+    "claude-desktop",
     "cron",
     "scheduler",
     "task-scheduler",
     "launchd",
-    "automation"
+    "automation",
+    "profiles",
+    "account-switcher"
   ],
   "engines": {
     "node": ">=18"
@@ -44,7 +47,7 @@
     "install-task": "node scripts/cli/task.js install",
     "check": "node scripts/dev/check.js",
     "test": "node --test tests/*.test.js",
-    "profiles": "node bin/claudecron.js profiles",
-    "prepublishOnly": "npm run check"
+    "prepublishOnly": "npm run check",
+    "web": "node bin/claudedeck.js web"
   }
 }

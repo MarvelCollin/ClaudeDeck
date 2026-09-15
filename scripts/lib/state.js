@@ -5,10 +5,10 @@ const path = require('path');
 function statePath(platform = process.platform) {
   if (platform === 'win32') {
     const base = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
-    return path.join(base, 'ClaudeCron', 'state.json');
+    return path.join(base, 'ClaudeDeck', 'state.json');
   }
-  if (platform === 'darwin') return path.join(os.homedir(), 'Library', 'Application Support', 'ClaudeCron', 'state.json');
-  return path.join(os.homedir(), '.claudecron-state.json');
+  if (platform === 'darwin') return path.join(os.homedir(), 'Library', 'Application Support', 'ClaudeDeck', 'state.json');
+  return path.join(os.homedir(), '.claudedeck-state.json');
 }
 
 function readState() {

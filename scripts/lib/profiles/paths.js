@@ -15,11 +15,11 @@ function desktopProfileDir(platform = process.platform, env = process.env) {
 }
 
 function profilesRoot(platform = process.platform, env = process.env) {
-  return path.join(roamingDir(platform, env), 'ClaudeCron', 'profiles');
+  return path.join(roamingDir(platform, env), 'ClaudeDeck', 'profiles');
 }
 
 function registryPath(platform = process.platform, env = process.env) {
-  return path.join(roamingDir(platform, env), 'ClaudeCron', 'profiles.json');
+  return path.join(roamingDir(platform, env), 'ClaudeDeck', 'profiles.json');
 }
 
 function isDefaultAlias(alias) {

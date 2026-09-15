@@ -16,7 +16,7 @@ function createActions(context, platform) {
   function syncInstalledTask() {
     if (!platform.exists(context)) return;
     if (readState().configHash === context.configHash) return;
-    console.log('Updating background task from claudecron.config.json...');
+    console.log('Updating background task from claudedeck.config.json...');
     install();
   }
 

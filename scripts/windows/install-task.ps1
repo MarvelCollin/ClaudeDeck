@@ -1,5 +1,5 @@
 param(
-  [string]$ConfigPath = (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) 'claudecron.config.json')
+  [string]$ConfigPath = (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) 'claudedeck.config.json')
 )
 
 $ErrorActionPreference = 'Stop'

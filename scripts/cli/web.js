@@ -3,7 +3,7 @@ const manager = require('../lib/profiles/manager');
 const { startServer } = require('../lib/web/server');
 
 const USAGE = [
-  'Usage: claudecron web [command]',
+  'Usage: claudedeck web [command]',
   '',
   '  (no command)       open the control panel in your browser',
   '  list               print every Claude Desktop profile',
@@ -30,7 +30,7 @@ function requireArg(value, command, what) {
 
 async function openUi() {
   const session = await startServer().listen();
-  console.log(`ClaudeCron control panel: ${session.url}`);
+  console.log(`ClaudeDeck control panel: ${session.url}`);
   console.log('Close the browser tab to stop the server.');
   openUrl(session.url);
   await new Promise(resolve => session.server.once('close', resolve));
@@ -44,7 +44,7 @@ async function runWeb(argv = []) {
   if (command === 'add') {
     const created = manager.addProfile(requireArg(first, 'add', 'a name'));
     console.log(`Created ${created.label} at ${created.dir}`);
-    console.log(`Run "claudecron web launch ${created.alias}" and sign in with that account.`);
+    console.log(`Run "claudedeck web launch ${created.alias}" and sign in with that account.`);
     return undefined;
   }
   if (command === 'label') {
