@@ -15,6 +15,24 @@ Run Claude CLI login first if Claude is not authenticated yet.
 claude auth
 ```
 
+## macOS
+
+ClaudeCron supports macOS through `launchd`.
+
+```bash
+npm i -g claudecron-cli
+claude auth
+claudecron
+```
+
+Choose `Configure Schedule` to edit the JSON config, then choose `Run Background` to install or update the LaunchAgent at:
+
+```text
+~/Library/LaunchAgents/com.claudecron.plist
+```
+
+The Mac must be powered on and signed in for local scheduled runs. It cannot run after a full shutdown.
+
 ## Manage Schedule
 
 ```bash
@@ -68,3 +86,4 @@ You can also edit the config file manually.
 Use English day names: `Monday`, `Tuesday`, `Wednesday`, `Thursday`, `Friday`, `Saturday`, `Sunday`. Use 24-hour `HH:mm` times. Add another schedule block when different days need different times. Keep `"model": "haiku"` because the runner enforces Haiku only.
 
 After changing the config manually, run `claudecron` and choose `Run Background` so Windows Task Scheduler or macOS launchd is updated.
+
