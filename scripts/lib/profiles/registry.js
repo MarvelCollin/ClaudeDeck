@@ -19,6 +19,7 @@ function normalize(data) {
     seen.add(key);
     profiles.push({
       alias: entry.alias,
+      label: typeof entry.label === 'string' && entry.label.trim() ? entry.label.trim() : entry.alias,
       createdAt: entry.createdAt || null,
       lastLaunchedAt: entry.lastLaunchedAt || null,
     });
@@ -47,12 +48,23 @@ function find(registry, alias) {
   return registry.profiles.find(entry => entry.alias.toLowerCase() === wanted) || null;
 }
 
-function add(registry, alias, now = new Date()) {
+function add(registry, alias, label = alias, now = new Date()) {
   assertValidAlias(alias);
   if (isDefaultAlias(alias)) throw new Error('Alias "default" is reserved for the existing Claude Desktop profile.');
   if (find(registry, alias)) throw new Error(`Profile "${alias}" already exists.`);
-  const entry = { alias, createdAt: now.toISOString(), lastLaunchedAt: null };
+  const entry = { alias, label: String(label).trim() || alias, createdAt: now.toISOString(), lastLaunchedAt: null };
   return { ...registry, profiles: [...registry.profiles, entry] };
+}
+
+function setLabel(registry, alias, label) {
+  const text = String(label || '').trim();
+  if (!text) throw new Error('Label cannot be empty.');
+  if (!find(registry, alias)) throw new Error(`Profile "${alias}" not found.`);
+  const wanted = String(alias).toLowerCase();
+  return {
+    ...registry,
+    profiles: registry.profiles.map(entry => (entry.alias.toLowerCase() === wanted ? { ...entry, label: text } : entry)),
+  };
 }
 
 function remove(registry, alias) {
@@ -80,6 +92,7 @@ module.exports = {
   normalize,
   read,
   remove,
+  setLabel,
   touch,
   write,
 };

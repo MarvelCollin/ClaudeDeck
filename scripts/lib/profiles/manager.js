@@ -1,6 +1,6 @@
 const fs = require('fs');
 const { launch, launchArgs, locateApp } = require('./app');
-const { DEFAULT_ALIAS, desktopProfileDir, isDefaultAlias, profilePath } = require('./paths');
+const { DEFAULT_ALIAS, deriveAlias, desktopProfileDir, isDefaultAlias, profilePath } = require('./paths');
 const { groupProcesses, killPids, listClaudeProcesses } = require('./procs');
 const registry = require('./registry');
 
@@ -20,6 +20,7 @@ function listProfiles() {
     const pids = groups.get(profile.alias) || [];
     return {
       alias: profile.alias,
+      label: profile.label || profile.alias,
       dir: profile.dir,
       isDefault: Boolean(profile.isDefault),
       exists: fs.existsSync(profile.dir),
@@ -31,11 +32,18 @@ function listProfiles() {
   });
 }
 
-function addProfile(alias) {
-  const data = registry.add(registry.read(), alias);
+function addProfile(name) {
+  const label = String(name || '').trim();
+  const alias = deriveAlias(label);
+  const data = registry.add(registry.read(), alias, label);
   registry.write(data);
   fs.mkdirSync(profilePath(alias), { recursive: true });
-  return describe(alias);
+  return { ...describe(alias), label };
+}
+
+function labelProfile(alias, label) {
+  registry.write(registry.setLabel(registry.read(), alias, label));
+  return { alias, label: String(label).trim() };
 }
 
 function removeProfile(alias) {
@@ -70,6 +78,7 @@ module.exports = {
   addProfile,
   allProfiles,
   describe,
+  labelProfile,
   launchProfile,
   listProfiles,
   removeProfile,

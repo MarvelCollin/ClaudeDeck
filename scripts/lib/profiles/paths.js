@@ -37,6 +37,20 @@ function assertValidAlias(alias) {
   return alias;
 }
 
+function deriveAlias(label) {
+  const alias = String(label || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^[^a-z0-9]+/, '')
+    .replace(/[^a-z0-9]+$/, '')
+    .slice(0, 32)
+    .replace(/[^a-z0-9]+$/, '');
+  if (!alias) throw new Error(`Cannot build a folder name from "${label}". Use letters or digits.`);
+  return alias;
+}
+
 function profilePath(alias, platform = process.platform, env = process.env) {
   if (isDefaultAlias(alias)) return desktopProfileDir(platform, env);
   assertValidAlias(alias);
@@ -46,6 +60,7 @@ function profilePath(alias, platform = process.platform, env = process.env) {
 module.exports = {
   DEFAULT_ALIAS,
   assertValidAlias,
+  deriveAlias,
   desktopProfileDir,
   isDefaultAlias,
   isValidAlias,
