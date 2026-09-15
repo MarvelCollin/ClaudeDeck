@@ -2,12 +2,39 @@ const { loadConfig } = require('../lib/config');
 const { createActions } = require('../lib/task/actions');
 const { runInteractive } = require('../lib/task/interactive');
 const { selectPlatform } = require('../lib/task/platform');
-const { runWeb } = require('./web');
+const { routeCommand } = require('../lib/task/router');
+const { USAGE, runWeb } = require('./web');
+
+const HELP = [
+  'Usage: claudedeck [command]',
+  '',
+  '  (no command)       open the control panel in your browser',
+  '  menu               use the terminal menu instead',
+  '',
+  USAGE.split('\n').slice(3).join('\n'),
+  '',
+  '  install            install the background task',
+  '  start              install if needed, then enable the background task',
+  '  stop-background    disable the background task',
+  '  run                run Claude once, now',
+  '  log                open the run log',
+  '  status             show the background task status',
+  '  delete             remove the background task',
+].join('\n');
 
 async function main() {
-  const command = process.argv[2];
-  if (command === 'web' || command === 'profiles') {
-    await runWeb(process.argv.slice(3));
+  const route = routeCommand(process.argv.slice(2));
+
+  if (route.kind === 'panel') {
+    await runWeb([]);
+    return;
+  }
+  if (route.kind === 'help') {
+    console.log(HELP);
+    return;
+  }
+  if (route.kind === 'web') {
+    await runWeb(route.args);
     return;
   }
 
@@ -15,12 +42,12 @@ async function main() {
   const platform = selectPlatform();
   const actions = createActions(context, platform);
 
-  if (command) {
-    await actions.execute(command);
+  if (route.kind === 'menu') {
+    actions.syncInstalledTask();
+    await runInteractive(context, platform, actions);
     return;
   }
-  actions.syncInstalledTask();
-  await runInteractive(context, platform, actions);
+  await actions.execute(route.args[0]);
 }
 
 main().catch(err => {
