@@ -3,6 +3,8 @@ const path = require('path');
 
 const DESKTOP_ITEMS = ['Local State', 'Network', 'Local Storage', 'Session Storage', 'IndexedDB'];
 const CODE_KEY = 'claudeAiOauth';
+const CONFIG_KEYS = ['lastKnownAccountUuid'];
+const CONFIG_PREFIXES = ['oauth:'];
 
 function copyItem(src, dst) {
   if (!fs.existsSync(src)) return false;
@@ -70,14 +72,58 @@ function restoreCode(slotFile, credPath) {
   return true;
 }
 
+function isAccountConfigKey(key) {
+  return CONFIG_KEYS.includes(key) || CONFIG_PREFIXES.some(prefix => key.startsWith(prefix));
+}
+
+function readJson(file) {
+  if (!fs.existsSync(file)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (err) {
+    return null;
+  }
+}
+
+function accountConfigKeys(config) {
+  return Object.keys(config || {}).filter(isAccountConfigKey);
+}
+
+function snapshotConfig(configPath, slotFile) {
+  const config = readJson(configPath);
+  if (!config) return false;
+  const picked = {};
+  for (const key of accountConfigKeys(config)) picked[key] = config[key];
+  fs.mkdirSync(path.dirname(slotFile), { recursive: true });
+  fs.writeFileSync(slotFile, `${JSON.stringify(picked, null, 2)}\n`, 'utf8');
+  return true;
+}
+
+function restoreConfig(slotFile, configPath) {
+  const picked = readJson(slotFile);
+  if (!picked) return false;
+  const config = readJson(configPath) || {};
+  for (const key of accountConfigKeys(config)) delete config[key];
+  Object.assign(config, picked);
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+  return true;
+}
+
 module.exports = {
   CODE_KEY,
+  CONFIG_KEYS,
+  CONFIG_PREFIXES,
   DESKTOP_ITEMS,
+  accountConfigKeys,
   copyItem,
+  isAccountConfigKey,
   readCodeBlock,
   readCredentials,
   restoreCode,
+  restoreConfig,
   restoreDesktop,
   snapshotCode,
+  snapshotConfig,
   snapshotDesktop,
 };

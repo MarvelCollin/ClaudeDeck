@@ -1,8 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 const { launch, launchArgs, locateApp } = require('./app');
-const { readIdentity } = require('./identity');
-const { codeCredentialsPath, deriveAlias, desktopProfileDir, sessionSlot, sharedRoot } = require('./paths');
+const { readDesktopAccountUuid, readIdentity } = require('./identity');
+const { codeAccountPath, codeCredentialsPath, deriveAlias, desktopConfigPath, desktopProfileDir, sessionSlot, sharedRoot } = require('./paths');
 const { groupProcesses, killPids, listClaudeProcesses } = require('./procs');
 const registry = require('./registry');
 const session = require('./session');
@@ -10,11 +10,13 @@ const shared = require('./shared');
 
 const DESKTOP_SUBDIR = 'desktop';
 const CODE_FILE = 'code.json';
+const CONFIG_FILE = 'config.json';
 
 function defaultDeps() {
   return {
     profileDir: desktopProfileDir(),
     credPath: codeCredentialsPath(),
+    accountPath: codeAccountPath(),
     sharedDir: sharedRoot(),
     slotOf: alias => sessionSlot(alias),
     registryFile: undefined,
@@ -38,8 +40,17 @@ function createSwitcher(overrides = {}) {
     return registry.write(data, deps.registryFile);
   }
 
+  function lookupSavedAccount(uuid) {
+    return registry.sessionByUuid(readRegistry(), uuid);
+  }
+
   function currentIdentity() {
-    return fs.existsSync(deps.profileDir) ? deps.readIdentity(deps.profileDir) : null;
+    if (!fs.existsSync(deps.profileDir)) return null;
+    return deps.readIdentity(deps.profileDir, { codeAccountPath: deps.accountPath, lookup: lookupSavedAccount });
+  }
+
+  function currentAccountUuid() {
+    return fs.existsSync(deps.profileDir) ? readDesktopAccountUuid(deps.profileDir) : null;
   }
 
   function desktopRunning() {
@@ -67,7 +78,8 @@ function createSwitcher(overrides = {}) {
     const slot = deps.slotOf(alias);
     const desktopItems = session.snapshotDesktop(deps.profileDir, path.join(slot, DESKTOP_SUBDIR), swappedDesktopItems(data));
     const codeSaved = session.snapshotCode(deps.credPath, path.join(slot, CODE_FILE));
-    return { desktopItems, codeSaved };
+    const configSaved = session.snapshotConfig(desktopConfigPath(deps.profileDir), path.join(slot, CONFIG_FILE));
+    return { desktopItems, codeSaved, configSaved };
   }
 
   function setSharing(enabled) {
@@ -88,13 +100,19 @@ function createSwitcher(overrides = {}) {
     const stopped = options.stop === false ? 0 : stopDesktop();
     saveInto(alias, data);
     if (sharingEnabled(data)) captureShared();
-    writeRegistry(registry.saveSession(data, { alias, email: identity.email, name: identity.name }, deps.now()));
+    writeRegistry(
+      registry.saveSession(
+        data,
+        { alias, email: identity.email, name: identity.name, accountUuid: identity.accountUuid || null },
+        deps.now()
+      )
+    );
     let relaunched = false;
     if (stopped && options.relaunch !== false) {
       deps.launch(deps.locate(), launchArgs(deps.profileDir, true));
       relaunched = true;
     }
-    return { alias, email: identity.email, name: identity.name, stopped, relaunched };
+    return { alias, email: identity.email, name: identity.name, accountUuid: identity.accountUuid || null, stopped, relaunched };
   }
 
   function desktopCaptured(alias) {
@@ -123,17 +141,21 @@ function createSwitcher(overrides = {}) {
     autoSyncCode();
     const data = readRegistry();
     const identity = currentIdentity();
+    const activeUuid = currentAccountUuid();
     const activeEmail = identity ? identity.email.toLowerCase() : null;
     const running = desktopRunning().length > 0;
+    const isActive = entry => (activeUuid && entry.accountUuid ? entry.accountUuid === activeUuid : activeEmail === entry.email.toLowerCase());
     return {
       running,
       current: identity,
+      accountUuid: activeUuid,
+      unknownAccount: Boolean(activeUuid && !identity),
       shareSession: sharingEnabled(data),
       sharedItems: shared.SHARED_DESKTOP_ITEMS,
       sharedCodeItems: shared.SHARED_CODE_ITEMS,
       sessions: (data.sessions || []).map(entry => ({
         ...entry,
-        active: activeEmail === entry.email.toLowerCase(),
+        active: isActive(entry),
         desktopCaptured: desktopCaptured(entry.alias),
       })),
     };
@@ -150,7 +172,8 @@ function createSwitcher(overrides = {}) {
     if (!fs.existsSync(slot)) throw new Error(`No saved session for "${alias}". Sync it first.`);
     const desktopItems = session.restoreDesktop(path.join(slot, DESKTOP_SUBDIR), deps.profileDir, swappedDesktopItems(data));
     const codeRestored = session.restoreCode(path.join(slot, CODE_FILE), deps.credPath);
-    return { desktopItems, codeRestored };
+    const configRestored = session.restoreConfig(path.join(slot, CONFIG_FILE), desktopConfigPath(deps.profileDir));
+    return { desktopItems, codeRestored, configRestored };
   }
 
   function switchTo(alias, options = {}) {
@@ -190,6 +213,7 @@ function createSwitcher(overrides = {}) {
 
   return {
     autoSyncCode,
+    currentAccountUuid,
     currentIdentity,
     forget,
     listSessions,

@@ -36,6 +36,7 @@ function normalizeSession(entry) {
     alias: entry.alias,
     email: entry.email,
     name: typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : entry.email.split('@')[0],
+    accountUuid: typeof entry.accountUuid === 'string' && entry.accountUuid ? entry.accountUuid : null,
     savedAt: entry.savedAt || null,
   };
 }
@@ -93,6 +94,11 @@ function findSession(registry, alias) {
 function sessionByEmail(registry, email) {
   const wanted = String(email).toLowerCase();
   return (registry.sessions || []).find(entry => entry.email.toLowerCase() === wanted) || null;
+}
+
+function sessionByUuid(registry, accountUuid) {
+  if (!accountUuid) return null;
+  return (registry.sessions || []).find(entry => entry.accountUuid === accountUuid) || null;
 }
 
 function saveSession(registry, session, now = new Date()) {
@@ -210,6 +216,7 @@ module.exports = {
   removeSession,
   saveSession,
   sessionByEmail,
+  sessionByUuid,
   setLabel,
   setSetting,
   settingsOf,
