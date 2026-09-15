@@ -5,7 +5,7 @@ Switch the active Claude account across Claude Desktop and Claude Code, and sche
 ## Install
 
 ```bash
-npm i -g claudedeck-cli
+npm i -g claudedeck
 claudedeck
 ```
 
@@ -22,7 +22,7 @@ claude auth
 ClaudeDeck supports macOS through `launchd`.
 
 ```bash
-npm i -g claudedeck-cli
+npm i -g claudedeck
 claude auth
 claudedeck menu
 ```
@@ -105,12 +105,23 @@ From the page you can edit the schedule, start or stop the background task, trig
 
 ClaudeDeck keeps one Claude Desktop and swaps the active account in place, so Claude Desktop and Claude Code always sit on the same login. It saves the session files each account produces after you sign in, then restores them on demand. Nothing is decrypted, no password is typed, and nothing leaves your machine.
 
-Two stores make up an account session:
+Three stores make up an account session:
 
 - Claude **Code** reads `~/.claude/.credentials.json`. This file is never locked, so ClaudeDeck keeps the active account's copy in sync automatically.
 - Claude **Desktop** chat reads its Chromium session files under `%APPDATA%\Claude`. Windows locks these while the app runs, so capturing or restoring them needs Claude Desktop to close and reopen, about two seconds.
+- Claude **Desktop** also keeps its OAuth token cache and the active account id in `%APPDATA%\Claude\config.json`. ClaudeDeck swaps only the `oauth:` keys and `lastKnownAccountUuid` out of that file and leaves your window layout and other preferences alone.
 
 Because of that lock, switching restarts Claude Desktop. Claude Code picks up the new login on its next message without a restart.
+
+### How the signed-in account is detected
+
+Claude Desktop does not store your email in plain text. ClaudeDeck reads `lastKnownAccountUuid` from `%APPDATA%\Claude\config.json` to learn which account is active, then puts a name to that id in this order:
+
+1. `~/.claude.json`, where Claude Code records `oauthAccount` with the email and display name, when its account id matches.
+2. The ClaudeDeck registry, for any account you have already saved.
+3. A scan of the claude.ai IndexedDB files, which older Claude Desktop builds used.
+
+If Claude Desktop is signed in but the id is new to both Claude Code and ClaudeDeck, the panel says so and names the id. Open Claude Code once on that account and reload.
 
 ```bash
 claudedeck list
@@ -150,7 +161,7 @@ The shared store lives next to the saved sessions:
 ~/Library/Application Support/ClaudeDeck/shared          macOS
 ```
 
-`Local State`, `Network`, and `IndexedDB` stay per account. They hold the cookies and the account identity, which is what makes an account an account.
+`Local State`, `Network`, `IndexedDB`, and the `oauth:` keys in `config.json` stay per account. They hold the cookies, the token cache, and the account identity, which is what makes an account an account.
 
 Turn sharing off with the checkbox in the control panel or `claudedeck share off`, and each account goes back to its own history. Turning it back on adopts whatever is live right now as the shared copy and prunes the per-account copies.
 
