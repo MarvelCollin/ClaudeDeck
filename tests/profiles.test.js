@@ -185,7 +185,7 @@ test('server rejects requests without the session token', async () => {
 
     const html = await fetch(`${base}/?token=secret`);
     assert.strictEqual(html.status, 200);
-    assert.ok((await html.text()).includes('Claude Desktop accounts'));
+    assert.ok((await html.text()).includes('Claude accounts'));
   } finally {
     session.close();
   }
@@ -327,5 +327,134 @@ test('registry identities survive normalize and a disk round trip', () => {
     assert.deepStrictEqual(junk.identities, {});
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+const session = require('../scripts/lib/profiles/session');
+const { createSwitcher } = require('../scripts/lib/profiles/switcher');
+
+function seedDesktop(dir, cookie) {
+  fs.mkdirSync(path.join(dir, 'Network'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'Network', 'Cookies'), cookie);
+  fs.writeFileSync(path.join(dir, 'Local State'), 'state-' + cookie);
+  fs.mkdirSync(path.join(dir, 'Local Storage'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'Local Storage', 'leveldb.log'), 'ls-' + cookie);
+}
+
+function accountBlobFile(dir, email, name) {
+  const db = path.join(dir, 'IndexedDB', 'https_claude.ai_0.indexeddb.blob');
+  fs.mkdirSync(db, { recursive: true });
+  fs.writeFileSync(path.join(db, '1'), accountBlob(email, name, name));
+}
+
+test('snapshot and restore round trips the desktop session bundle', () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'cd-sess-'));
+  try {
+    const live = path.join(base, 'Claude');
+    const slot = path.join(base, 'slot');
+    seedDesktop(live, 'AAA');
+    session.snapshotDesktop(live, slot);
+    seedDesktop(live, 'BBB');
+    assert.strictEqual(fs.readFileSync(path.join(live, 'Network', 'Cookies'), 'utf8'), 'BBB');
+    session.restoreDesktop(slot, live);
+    assert.strictEqual(fs.readFileSync(path.join(live, 'Network', 'Cookies'), 'utf8'), 'AAA');
+    assert.strictEqual(fs.readFileSync(path.join(live, 'Local State'), 'utf8'), 'state-AAA');
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+});
+
+test('code credential snapshot keeps only the claudeAiOauth block and backs up on restore', () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'cd-code-'));
+  try {
+    const cred = path.join(base, '.credentials.json');
+    const slot = path.join(base, 'code.json');
+    fs.writeFileSync(cred, JSON.stringify({ claudeAiOauth: { accessToken: 'tok-A' }, mcpOAuth: { keep: 1 } }));
+    assert.ok(session.snapshotCode(cred, slot));
+    assert.deepStrictEqual(JSON.parse(fs.readFileSync(slot, 'utf8')), { accessToken: 'tok-A' });
+
+    fs.writeFileSync(cred, JSON.stringify({ claudeAiOauth: { accessToken: 'tok-B' }, mcpOAuth: { keep: 1 } }));
+    assert.ok(session.restoreCode(slot, cred));
+    const after = JSON.parse(fs.readFileSync(cred, 'utf8'));
+    assert.strictEqual(after.claudeAiOauth.accessToken, 'tok-A');
+    assert.deepStrictEqual(after.mcpOAuth, { keep: 1 });
+    assert.ok(fs.existsSync(cred + '.claudedeck.bak'));
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+});
+
+test('registry stores and finds saved sessions by alias and email', () => {
+  let data = registry.saveSession(registry.emptyRegistry(), { alias: 'work', email: 'w@e.com', name: 'W' }, new Date('2026-04-04T00:00:00Z'));
+  assert.strictEqual(data.sessions.length, 1);
+  assert.strictEqual(data.sessions[0].savedAt, '2026-04-04T00:00:00.000Z');
+  assert.strictEqual(registry.findSession(data, 'WORK').email, 'w@e.com');
+  assert.strictEqual(registry.sessionByEmail(data, 'W@E.COM').alias, 'work');
+  data = registry.saveSession(data, { alias: 'work', email: 'w@e.com', name: 'W2' });
+  assert.strictEqual(data.sessions.length, 1);
+  assert.strictEqual(data.sessions[0].name, 'W2');
+  data = registry.removeSession(data, 'work');
+  assert.strictEqual(data.sessions.length, 0);
+  assert.throws(() => registry.saveSession(data, { alias: 'x' }), /needs an alias and an email/);
+});
+
+function switcherHarness() {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'cd-switch-'));
+  const profileDir = path.join(base, 'Claude');
+  const credPath = path.join(base, '.credentials.json');
+  const events = [];
+  const deps = {
+    profileDir,
+    credPath,
+    slotOf: alias => path.join(base, 'sessions', alias),
+    registryFile: path.join(base, 'profiles.json'),
+    listProcesses: () => events.includes('killed') ? [] : [{ pid: 10, commandLine: 'Claude.exe' }],
+    kill: pids => { if (pids.length) events.push('killed'); return pids.length; },
+    launch: () => { events.push('launched'); return 999; },
+    locate: () => 'C:/Claude.exe',
+    now: () => new Date('2026-05-05T00:00:00Z'),
+  };
+  return { base, profileDir, credPath, deps, events };
+}
+
+test('sync saves the live account and switchTo restores another', () => {
+  const h = switcherHarness();
+  try {
+    seedDesktop(h.profileDir, 'SESSION-A');
+    accountBlobFile(h.profileDir, 'a@team.com', 'Person A');
+    fs.writeFileSync(h.credPath, JSON.stringify({ claudeAiOauth: { accessToken: 'code-A' } }));
+
+    const first = createSwitcher(h.deps).sync();
+    assert.strictEqual(first.alias, 'a-team.com');
+    assert.strictEqual(first.email, 'a@team.com');
+
+    seedDesktop(h.profileDir, 'SESSION-B');
+    accountBlobFile(h.profileDir, 'b@team.com', 'Person B');
+    fs.writeFileSync(h.credPath, JSON.stringify({ claudeAiOauth: { accessToken: 'code-B' } }));
+    createSwitcher(h.deps).sync();
+
+    const listed = createSwitcher(h.deps).listSessions();
+    assert.strictEqual(listed.sessions.length, 2);
+    assert.ok(listed.sessions.find(s => s.email === 'b@team.com').active);
+
+    const result = createSwitcher(h.deps).switchTo('a-team.com');
+    assert.strictEqual(result.email, 'a@team.com');
+    assert.ok(h.events.includes('killed'));
+    assert.ok(h.events.includes('launched'));
+    assert.strictEqual(fs.readFileSync(path.join(h.profileDir, 'Network', 'Cookies'), 'utf8'), 'SESSION-A');
+    assert.strictEqual(JSON.parse(fs.readFileSync(h.credPath, 'utf8')).claudeAiOauth.accessToken, 'code-A');
+  } finally {
+    fs.rmSync(h.base, { recursive: true, force: true });
+  }
+});
+
+test('switchTo refuses an unknown account and sync refuses when signed out', () => {
+  const h = switcherHarness();
+  try {
+    fs.mkdirSync(h.profileDir, { recursive: true });
+    assert.throws(() => createSwitcher(h.deps).sync(), /Sign in to Claude Desktop first/);
+    assert.throws(() => createSwitcher(h.deps).switchTo('ghost'), /No saved session/);
+  } finally {
+    fs.rmSync(h.base, { recursive: true, force: true });
   }
 });
