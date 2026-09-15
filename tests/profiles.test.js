@@ -458,3 +458,52 @@ test('switchTo refuses an unknown account and sync refuses when signed out', () 
     fs.rmSync(h.base, { recursive: true, force: true });
   }
 });
+
+test('autoSyncCode mirrors the code login without touching desktop files', () => {
+  const h = switcherHarness();
+  try {
+    seedDesktop(h.profileDir, 'SESSION-A');
+    accountBlobFile(h.profileDir, 'a@team.com', 'Person A');
+    fs.writeFileSync(h.credPath, JSON.stringify({ claudeAiOauth: { accessToken: 'code-A1' } }));
+    createSwitcher(h.deps).sync();
+
+    assert.deepStrictEqual(createSwitcher(h.deps).autoSyncCode(), { alias: 'a-team.com', updated: false });
+
+    fs.writeFileSync(h.credPath, JSON.stringify({ claudeAiOauth: { accessToken: 'code-A2' } }));
+    const result = createSwitcher(h.deps).autoSyncCode();
+    assert.deepStrictEqual(result, { alias: 'a-team.com', updated: true });
+    const slotCode = path.join(h.base, 'sessions', 'a-team.com', 'code.json');
+    assert.strictEqual(JSON.parse(fs.readFileSync(slotCode, 'utf8')).accessToken, 'code-A2');
+
+    const again = createSwitcher(h.deps).autoSyncCode();
+    assert.deepStrictEqual(again, { alias: 'a-team.com', updated: false });
+  } finally {
+    fs.rmSync(h.base, { recursive: true, force: true });
+  }
+});
+
+test('autoSyncCode does nothing for an account that was never saved', () => {
+  const h = switcherHarness();
+  try {
+    seedDesktop(h.profileDir, 'X');
+    accountBlobFile(h.profileDir, 'new@team.com', 'New');
+    fs.writeFileSync(h.credPath, JSON.stringify({ claudeAiOauth: { accessToken: 'code' } }));
+    assert.strictEqual(createSwitcher(h.deps).autoSyncCode(), null);
+  } finally {
+    fs.rmSync(h.base, { recursive: true, force: true });
+  }
+});
+
+test('listSessions reports whether each account has a captured desktop session', () => {
+  const h = switcherHarness();
+  try {
+    seedDesktop(h.profileDir, 'S');
+    accountBlobFile(h.profileDir, 'a@team.com', 'Person A');
+    fs.writeFileSync(h.credPath, JSON.stringify({ claudeAiOauth: { accessToken: 'c' } }));
+    createSwitcher(h.deps).sync();
+    const listed = createSwitcher(h.deps).listSessions();
+    assert.strictEqual(listed.sessions[0].desktopCaptured, true);
+  } finally {
+    fs.rmSync(h.base, { recursive: true, force: true });
+  }
+});

@@ -67,7 +67,30 @@ function createSwitcher(overrides = {}) {
     return { alias, email: identity.email, name: identity.name, stopped, relaunched };
   }
 
+  function desktopCaptured(alias) {
+    return fs.existsSync(path.join(deps.slotOf(alias), DESKTOP_SUBDIR));
+  }
+
+  function autoSyncCode() {
+    const identity = currentIdentity();
+    if (!identity) return null;
+    const known = registry.sessionByEmail(readRegistry(), identity.email);
+    if (!known) return null;
+    const slotCode = path.join(deps.slotOf(known.alias), CODE_FILE);
+    try {
+      const current = session.readCodeBlock(deps.credPath);
+      if (!current) return null;
+      const prev = fs.existsSync(slotCode) ? JSON.parse(fs.readFileSync(slotCode, 'utf8')) : null;
+      if (JSON.stringify(prev) === JSON.stringify(current)) return { alias: known.alias, updated: false };
+      session.snapshotCode(deps.credPath, slotCode);
+      return { alias: known.alias, updated: true };
+    } catch (err) {
+      return null;
+    }
+  }
+
   function listSessions() {
+    autoSyncCode();
     const data = readRegistry();
     const identity = currentIdentity();
     const activeEmail = identity ? identity.email.toLowerCase() : null;
@@ -78,7 +101,7 @@ function createSwitcher(overrides = {}) {
       sessions: (data.sessions || []).map(entry => ({
         ...entry,
         active: activeEmail === entry.email.toLowerCase(),
-        stored: fs.existsSync(path.join(deps.slotOf(entry.alias), CODE_FILE)),
+        desktopCaptured: desktopCaptured(entry.alias),
       })),
     };
   }
@@ -130,6 +153,7 @@ function createSwitcher(overrides = {}) {
   }
 
   return {
+    autoSyncCode,
     currentIdentity,
     forget,
     listSessions,

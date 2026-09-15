@@ -441,8 +441,10 @@ function renderCurrent(accounts) {
     who.append(name, el('div', 'sub', accounts.current.email));
     box.appendChild(who);
 
-    var saved = accounts.sessions.some(function (s) { return s.active; });
-    var save = el('button', 'primary', saved ? 'Update saved copy' : 'Save this account');
+    var active = accounts.sessions.filter(function (s) { return s.active; })[0];
+    var captured = active && active.desktopCaptured;
+    var save = el('button', 'primary', captured ? 'Re-save desktop session' : 'Save this account');
+    if (captured) save.className = 'button quiet';
     save.onclick = function () {
       if (!confirm('Save ' + accounts.current.name + '?\\n\\nClaude Desktop will briefly close and reopen so its session can be copied.')) return;
       busy(save, true, 'Saving');
@@ -452,6 +454,7 @@ function renderCurrent(accounts) {
       }).catch(function (err) { busy(save, false); flash(err.message, true); });
     };
     box.appendChild(save);
+    if (active) box.appendChild(el('span', 'sub muted', 'Code login auto-syncs'));
   } else {
     box.appendChild(avatarFor('?', false));
     var note = el('div', 'who');
@@ -471,9 +474,11 @@ function switchRow(s) {
   who.append(name, el('div', 'sub', s.email));
   row.appendChild(who);
 
+  if (!s.desktopCaptured && !s.active) who.appendChild(el('div', 'sub muted', 'Desktop session not saved yet. Press Save this account while signed in as ' + s.name + '.'));
+
   var swap = el('button', 'primary', 'Switch');
-  swap.disabled = s.active;
-  swap.title = s.active ? 'This account is already active' : '';
+  swap.disabled = s.active || !s.desktopCaptured;
+  swap.title = s.active ? 'This account is already active' : (!s.desktopCaptured ? 'Save this account\\'s desktop session first' : '');
   swap.onclick = function () {
     if (!confirm('Switch to ' + s.name + '?\\n\\nClaude Desktop will close and reopen on this account. Claude Code switches too.')) return;
     busy(swap, true, 'Switching');
