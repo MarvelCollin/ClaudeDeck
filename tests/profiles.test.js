@@ -277,11 +277,16 @@ test('parseAccount rejects blobs without a usable email', () => {
 test('readIdentity finds the account inside a claude.ai IndexedDB folder', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cd-identity-'));
   try {
-    assert.strictEqual(identity.readIdentity(dir), null);
+    const noCode = { codeAccountPath: path.join(dir, 'absent.json') };
+    assert.strictEqual(identity.readIdentity(dir, noCode), null);
     const db = path.join(dir, 'IndexedDB', 'https_claude.ai_0.indexeddb.blob', '4', '00');
     fs.mkdirSync(db, { recursive: true });
     fs.writeFileSync(path.join(db, '13'), accountBlob('work@example.com', 'Work Person', 'Work Person'));
-    assert.deepStrictEqual(identity.readIdentity(dir), { email: 'work@example.com', name: 'Work Person' });
+    assert.deepStrictEqual(identity.readIdentity(dir, noCode), {
+      email: 'work@example.com',
+      name: 'Work Person',
+      accountUuid: null,
+    });
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -293,7 +298,7 @@ test('readIdentity ignores IndexedDB folders for other origins', () => {
     const db = path.join(dir, 'IndexedDB', 'https_example.com_0.indexeddb.blob');
     fs.mkdirSync(db, { recursive: true });
     fs.writeFileSync(path.join(db, '1'), accountBlob('someone@example.com', 'Someone', null));
-    assert.strictEqual(identity.readIdentity(dir), null);
+    assert.strictEqual(identity.readIdentity(dir, { codeAccountPath: path.join(dir, 'absent.json') }), null);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -408,6 +413,7 @@ function switcherHarness() {
   const deps = {
     profileDir,
     credPath,
+    accountPath: path.join(base, 'no-claude-account.json'),
     sharedDir: path.join(base, 'shared'),
     slotOf: alias => path.join(base, 'sessions', alias),
     registryFile: path.join(base, 'profiles.json'),
