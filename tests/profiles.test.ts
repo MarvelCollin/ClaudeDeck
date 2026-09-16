@@ -10,6 +10,7 @@ import * as procs from '../src/accounts/processes';
 import * as registry from '../src/accounts/registry';
 import * as shared from '../src/accounts/shared-store';
 import * as usage from '../src/accounts/usage';
+import { createInstances } from '../src/accounts/instances';
 import { routeCommand } from '../src/cli/router';
 import { allowedHost, buildRoutes, startServer } from '../src/web/server';
 import * as appPaths from '../src/core/paths';
@@ -651,6 +652,112 @@ test('usage percentages are clamped and partial samples still report', () => {
   assert.strictEqual(partial?.weekly, null);
 
   assert.strictEqual(usage.usageFor(samples, 'q'), null, 'a sample with no numbers is not usage');
+});
+
+function instanceHarness() {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'cd-inst-'));
+  const launched: string[][] = [];
+  const killed: number[] = [];
+  let procs: { pid: number; commandLine: string }[] = [];
+  const deps = {
+    slotOf: (alias: string) => path.join(base, 'sessions', alias),
+    dirOf: (alias: string) => path.join(base, 'profiles', alias),
+    listProcesses: () => procs,
+    kill: (pids: number[]) => { killed.push(...pids); return pids.length; },
+    launch: (exe: string, args: string[]) => { launched.push([exe, ...args]); return 4242; },
+    locate: () => 'C:/Claude.exe',
+    defaultDir: path.join(base, 'default'),
+  };
+  return {
+    base,
+    deps,
+    launched,
+    killed,
+    setProcs: (value: typeof procs) => { procs = value; },
+  };
+}
+
+const savedFor = (alias: string) => ({
+  alias,
+  email: alias + '@team.com',
+  name: alias,
+  accountUuid: null,
+  orgUuid: null,
+  installs: ['code'],
+  savedAt: null,
+});
+
+test('opening an account seeds its own profile from the saved session', () => {
+  const h = instanceHarness();
+  try {
+    const instances = createInstances(h.deps);
+    const sessions = [savedFor('work')];
+
+    const slot = path.join(h.base, 'sessions', 'work', 'desktop');
+    fs.mkdirSync(path.join(slot, 'Network'), { recursive: true });
+    fs.writeFileSync(path.join(slot, 'Network', 'Cookies'), 'SESSION-WORK');
+    fs.writeFileSync(path.join(slot, 'Local State'), 'state-work');
+
+    assert.deepStrictEqual(instances.describe(sessions)[0].seeded, false);
+
+    const opened = instances.open('work', sessions);
+    assert.strictEqual(opened.alreadyRunning, false);
+    assert.strictEqual(opened.pid, 4242);
+    assert.ok(opened.seededFrom, 'a saved session seeds the new profile');
+
+    const dir = path.join(h.base, 'profiles', 'work');
+    assert.strictEqual(fs.readFileSync(path.join(dir, 'Network', 'Cookies'), 'utf8'), 'SESSION-WORK');
+    assert.deepStrictEqual(h.launched, [['C:/Claude.exe', '--user-data-dir=' + dir]]);
+    assert.strictEqual(instances.describe(sessions)[0].seeded, true);
+  } finally {
+    fs.rmSync(h.base, { recursive: true, force: true });
+  }
+});
+
+test('an account already open is not launched twice', () => {
+  const h = instanceHarness();
+  try {
+    const instances = createInstances(h.deps);
+    const sessions = [savedFor('work')];
+    const dir = path.join(h.base, 'profiles', 'work');
+    h.setProcs([{ pid: 77, commandLine: 'Claude.exe --user-data-dir="' + dir + '"' }]);
+
+    const described = instances.describe(sessions)[0];
+    assert.strictEqual(described.running, true);
+    assert.deepStrictEqual(described.pids, [77]);
+
+    const opened = instances.open('work', sessions);
+    assert.strictEqual(opened.alreadyRunning, true);
+    assert.deepStrictEqual(h.launched, [], 'no second launch');
+
+    assert.deepStrictEqual(instances.stop('work', sessions), { alias: 'work', stopped: 1 });
+    assert.deepStrictEqual(h.killed, [77]);
+  } finally {
+    fs.rmSync(h.base, { recursive: true, force: true });
+  }
+});
+
+test('each open account reports usage from its own profile', () => {
+  const h = instanceHarness();
+  try {
+    const instances = createInstances(h.deps);
+    const sessions = [savedFor('a'), savedFor('b')];
+    for (const [alias, fh, org] of [['a', 20, 'org-a'], ['b', 70, 'org-b']] as const) {
+      const dir = path.join(h.base, 'profiles', alias);
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(
+        path.join(dir, usage.USAGE_FILE),
+        JSON.stringify({ version: 2, samples: [{ t: 1, org, u: { fh, sd: 5 } }] })
+      );
+    }
+    const described = instances.describe(sessions);
+    assert.strictEqual(described[0].usage?.session?.leftPercent, 80);
+    assert.strictEqual(described[0].usage?.orgUuid, 'org-a');
+    assert.strictEqual(described[1].usage?.session?.leftPercent, 30);
+    assert.strictEqual(described[1].usage?.orgUuid, 'org-b');
+  } finally {
+    fs.rmSync(h.base, { recursive: true, force: true });
+  }
 });
 
 test('registry settings default to sharing and reject unknown keys', () => {

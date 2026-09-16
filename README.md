@@ -181,6 +181,42 @@ Saved sessions live in:
 ~/Library/Application Support/ClaudeDeck/sessions        macOS
 ```
 
+## Run accounts side by side
+
+Switching closes and reopens Claude Desktop. If you would rather keep every account signed in at once, open each one in its own window instead:
+
+```bash
+claudedeck open marvelcollin7-gmail.com
+claudedeck open work-example.com
+claudedeck close work-example.com
+```
+
+The control panel has an **Open window** button on each account that does the same thing.
+
+Each account gets its own Claude Desktop profile directory:
+
+```text
+%APPDATA%\ClaudeDeck\profiles\<alias>                   Windows
+~/Library/Application Support/ClaudeDeck/profiles/<alias> macOS
+```
+
+Claude Desktop is an Electron app, and its single instance lock lives inside the profile directory, so one window per directory runs happily alongside the others. The first `open` seeds the new profile from that account's saved session, so it starts already signed in rather than asking you to log in again.
+
+Because nothing is swapped, nothing can go stale: every window stays signed in for as long as you leave it alone, and `switch` is only needed if you want a single window instead.
+
+Two things to know:
+
+- Claude **Code** still has one login at a time, because it reads a single `~/.claude/.credentials.json`. Side by side windows cover Claude Desktop only.
+- Each window is a full Claude Desktop, so several at once use more memory than one.
+
+`claudedeck list` marks an open account with `>`:
+
+```text
+> kowlin   marvelgamerzgt@gmail.com    open            5h 85% left  week 48% left
+* kolin    marvelcollin7@gmail.com     ready           5h 76% left  week 73% left
+  Bet      bertrand13022005@gmail.com  not opened yet  usage unknown
+```
+
 ## Usage left per account
 
 Every saved account shows how much of its plan is still available:
@@ -200,7 +236,9 @@ The figures come from Claude Desktop itself. It keeps a rolling record in `plan-
 
 `fh` is the five hour limit and `sd` is the weekly one, both as a percentage already used, so ClaudeDeck shows `100 - value` as the amount left. Nothing is fetched over the network and no token is spent reading it.
 
-Samples are tagged by organisation rather than by account, so ClaudeDeck records which organisation an account was using when you saved it, and refreshes that link whenever the account is the signed-in one. Two consequences:
+An account opened in its own window reads its own profile's file directly, so its figures are exact and need no organisation lookup at all.
+
+For accounts that share the single swapped profile, samples are tagged by organisation rather than by account, so ClaudeDeck records which organisation an account was using when you saved it, and refreshes that link whenever the account is the signed-in one. Two consequences:
 
 - An account saved before this feature reads `usage unknown` until the next time it is signed in.
 - If one account belongs to several organisations, the figures follow whichever organisation it used most recently. The panel prints the measurement time so you can tell how fresh it is.
