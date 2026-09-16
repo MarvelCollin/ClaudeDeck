@@ -1,9 +1,12 @@
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
 export const DEFAULT_ALIAS = 'default';
 
 const ALIAS_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,31}$/;
+const PACKAGED_FAMILY_PREFIX = 'Claude_';
+const PACKAGED_PROFILE_PARTS = ['LocalCache', 'Roaming', 'Claude'];
 
 export function roamingDir(platform: NodeJS.Platform = process.platform, env = process.env): string {
   if (platform === 'win32') return env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
@@ -11,8 +14,31 @@ export function roamingDir(platform: NodeJS.Platform = process.platform, env = p
   return env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
 }
 
+export function localDir(platform: NodeJS.Platform = process.platform, env = process.env): string {
+  if (platform === 'win32') return env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
+  return roamingDir(platform, env);
+}
+
+export function packagedProfileDirs(platform: NodeJS.Platform = process.platform, env = process.env): string[] {
+  if (platform !== 'win32') return [];
+  const packages = path.join(localDir(platform, env), 'Packages');
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(packages, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return entries
+    .filter(entry => entry.isDirectory() && entry.name.startsWith(PACKAGED_FAMILY_PREFIX))
+    .map(entry => path.join(packages, entry.name, ...PACKAGED_PROFILE_PARTS))
+    .filter(dir => fs.existsSync(dir))
+    .sort();
+}
+
 export function desktopProfileDir(platform: NodeJS.Platform = process.platform, env = process.env): string {
-  return path.join(roamingDir(platform, env), 'Claude');
+  const classic = path.join(roamingDir(platform, env), 'Claude');
+  if (platform !== 'win32' || fs.existsSync(classic)) return classic;
+  return packagedProfileDirs(platform, env)[0] ?? classic;
 }
 
 function deckDir(platform: NodeJS.Platform, env: NodeJS.ProcessEnv, ...parts: string[]): string {
