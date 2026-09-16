@@ -279,7 +279,7 @@ function renderCurrent(accounts) {
         el('div', 'sub muted', 'Claude Desktop is on account ' + accounts.accountUuid + '. Open Claude Code once on this account so its email can be read, then reload.')
       );
     } else {
-      note.append(el('div', 'name', 'No account detected'), el('div', 'sub muted', 'Sign in to Claude Desktop, then reload this page.'));
+      note.append(el('div', 'name', 'No account detected'), el('div', 'sub muted', 'Sign in to Claude Desktop or Claude Code, then reload this page.'));
     }
     box.appendChild(note);
   }
