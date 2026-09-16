@@ -353,13 +353,17 @@ function renderSessions(accounts) {
 function renderSharing(accounts) {
   var box = document.getElementById('share');
   box.checked = accounts.shareSession;
+  var toggle = box.closest('label');
+  if (toggle) toggle.style.display = accounts.sharedItems.length ? '' : 'none';
   var hint = document.getElementById('share-hint');
-  if (accounts.shareSession) {
+  var common = accounts.sharedCodeItems.join(', ') + ' in Claude Code stay common for every account.';
+  if (accounts.sharedItems.length) {
     hint.textContent = 'Kept common for every account: ' + accounts.sharedItems.join(', ') +
-      ' in Claude Desktop, and ' + accounts.sharedCodeItems.join(', ') + ' in Claude Code. Only the login itself is swapped.';
-  } else {
-    hint.textContent = 'Each account keeps its own Claude Desktop history and app state. Claude Code files stay common either way.';
+      ' in Claude Desktop, and ' + accounts.sharedCodeItems.join(', ') + ' in Claude Code.';
+    return;
   }
+  hint.textContent = 'Claude Desktop keeps its whole profile per account, because its local storage holds the signed-in session. ' +
+    common + ' Your chats live on claude.ai and follow the account you switch to.';
 }
 
 function refresh(silent) {
