@@ -186,6 +186,30 @@ Turn sharing off with the checkbox in the control panel or `claudedeck share off
 
 `forget` deletes a saved session. Before overwriting `~/.claude/.credentials.json`, ClaudeDeck copies it to `.credentials.json.claudedeck.bak`.
 
+## Develop
+
+ClaudeDeck is written in TypeScript. `src` compiles to `dist`, which is what the `bin` entry points and the published package load.
+
+```bash
+npm install
+npm run build        # tsc, then copy the control panel assets into dist
+npm run dev          # run the CLI straight from src through tsx
+npm test             # node:test over tests/*.test.ts
+npm run check        # typecheck plus the config and PowerShell parse checks
+```
+
+Layout:
+
+```text
+src/core        config, logging, paths, process helpers
+src/accounts    identity, registry, session snapshots, switcher
+src/scheduler   Windows Task Scheduler and macOS launchd adapters
+src/web         control panel server, service, and HTML/CSS/JS assets
+src/cli         command router, terminal menu, entry points
+```
+
+Every folder keeps its types in an `interfaces` directory, one `I{Name}.ts` file per interface, re-exported from `interfaces/index.ts`. The control panel markup lives in real `src/web/assets/panel.html`, `panel.css`, and `panel.js` files rather than inline strings.
+
 ## Publish
 
 Add an npm automation token to GitHub Actions as `NPM_TOKEN`. To publish a new version:

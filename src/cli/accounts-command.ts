@@ -1,0 +1,84 @@
+import { createSwitcher } from '../accounts/switcher';
+import { openUrl } from '../accounts/desktop-app';
+import { startServer } from '../web/server';
+
+export const USAGE = [
+  'Usage: claudedeck web [command]',
+  '',
+  '  (no command)       open the control panel in your browser',
+  '  list               show every saved account and which one is active',
+  '  save               save the account you are signed into now',
+  '  switch <alias>     restore a saved account and restart Claude Desktop',
+  '  forget <alias>     delete a saved account session',
+  '  share [on|off]     share local history and app state across every account',
+].join('\n');
+
+function requireArg(value: string | undefined, command: string, what: string): string {
+  if (!value) throw new Error(`Command "${command}" needs ${what}.`);
+  return value;
+}
+
+function printList(): void {
+  const { sessions, current, shareSession } = createSwitcher().listSessions();
+  if (current) console.log(`Signed in now: ${current.name} <${current.email}>`);
+  console.log(`Shared session history: ${shareSession ? 'on' : 'off'}`);
+  if (!sessions.length) {
+    console.log('No saved accounts yet. Run "claudedeck save" to keep the current one.');
+    return;
+  }
+  const width = Math.max(...sessions.map(entry => entry.name.length), 7);
+  for (const entry of sessions) {
+    console.log(`${entry.active ? '* ' : '  '}${entry.name.padEnd(width)}  ${entry.email}`);
+  }
+}
+
+export async function openUi(): Promise<void> {
+  const session = await startServer().listen();
+  console.log(`ClaudeDeck control panel: ${session.url}`);
+  console.log('Close the browser tab to stop the server.');
+  openUrl(session.url);
+  await new Promise<void>(resolve => session.server.once('close', () => resolve()));
+  console.log('Control panel closed.');
+}
+
+function runShare(value: string | undefined): void {
+  const switcher = createSwitcher();
+  if (!value) {
+    console.log(`Shared session history is ${switcher.sharingEnabled() ? 'on' : 'off'}.`);
+    return;
+  }
+  if (value !== 'on' && value !== 'off') throw new Error('Command "share" needs "on" or "off".');
+  const result = switcher.setSharing(value === 'on');
+  console.log(`Shared session history is ${result.shareSession ? 'on' : 'off'}.`);
+}
+
+export async function runAccountsCommand(argv: string[] = []): Promise<void> {
+  const [command, first] = argv;
+
+  if (!command) return openUi();
+
+  if (command === 'list') {
+    printList();
+    return;
+  }
+  if (command === 'save' || command === 'sync') {
+    const saved = createSwitcher().sync();
+    console.log(`Saved ${saved.name} <${saved.email}>.`);
+    return;
+  }
+  if (command === 'switch') {
+    const result = createSwitcher().switchTo(requireArg(first, 'switch', 'an account alias'));
+    console.log(`Switched to ${result.name} <${result.email}>. Claude Desktop is reopening.`);
+    return;
+  }
+  if (command === 'share') {
+    runShare(first);
+    return;
+  }
+  if (command === 'forget') {
+    const forgotten = createSwitcher().forget(requireArg(first, 'forget', 'an account alias'));
+    console.log(`Forgot ${forgotten.alias}.`);
+    return;
+  }
+  console.log(USAGE);
+}
