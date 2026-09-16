@@ -21,7 +21,8 @@
   },
   "files": [
     "bin",
-    "scripts",
+    "dist",
+    "scripts/windows",
     "claudedeck.config.json",
     "LICENSE",
     "README.md"
@@ -39,16 +40,24 @@
     "automation"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=18.19"
   },
   "scripts": {
-    "start": "node scripts/runner/run-claude.js",
+    "build": "tsc --project tsconfig.json && node tools/copy-assets.mjs",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "typecheck": "tsc --project tsconfig.test.json",
+    "dev": "tsx src/bin/claudedeck.ts",
+    "web": "tsx src/bin/claudedeck.ts web",
+    "start": "tsx src/bin/run-claude.ts",
     "login": "claude auth",
-    "task": "node scripts/cli/task.js",
-    "install-task": "node scripts/cli/task.js install",
-    "check": "node scripts/dev/check.js",
-    "test": "node --test tests/*.test.js",
-    "prepublishOnly": "npm run check",
-    "web": "node bin/claudedeck.js web"
+    "check": "npm run typecheck && tsx src/dev/check.ts",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run clean && npm run build && npm run check"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.3",
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.3"
   }
 }

@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ClaudeDeck</title>
+<link rel="icon" type="image/svg+xml" href="__CLAUDEDECK_FAVICON__">
+<style>
+__CLAUDEDECK_STYLES__
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <span class="logo">__CLAUDEDECK_LOGO__</span>
+  <h1>ClaudeDeck</h1>
+  <span class="spacer"></span>
+  <span class="where" id="configpath"></span>
+  <button id="theme" class="icon quiet" aria-label="Switch colour theme">Theme</button>
+</header>
+
+<dl class="strip skeleton" id="strip">
+  <div class="cell"><dt>Background</dt><dd>loading</dd></div>
+  <div class="cell"><dt>Right now</dt><dd>loading</dd></div>
+  <div class="cell"><dt>Last run</dt><dd>loading</dd></div>
+  <div class="cell"><dt>Next run</dt><dd>loading</dd></div>
+  <div class="cell"><dt>Runs</dt><dd>loading</dd></div>
+</dl>
+
+<div class="cols">
+  <section aria-labelledby="sched-h">
+    <h2 id="sched-h">Schedule</h2>
+    <div class="body">
+      <div class="bar">
+        <button id="b-start" class="primary">Start background</button>
+        <button id="b-stop">Stop background</button>
+        <button id="b-run">Run once now</button>
+      </div>
+    </div>
+    <div class="body">
+      <p class="hint" id="weekcount"></p>
+      <div id="blocks"></div>
+      <button id="b-addblock" class="quiet">Add another schedule block</button>
+    </div>
+    <div class="body">
+      <div class="grid2">
+        <div>
+          <label for="prompt">Prompt sent to Claude</label>
+          <textarea id="prompt"></textarea>
+        </div>
+        <div>
+          <label id="beh">Run behaviour</label>
+          <div role="group" aria-labelledby="beh">
+            <label class="check"><input type="checkbox" id="wake"> Wake the machine to run</label>
+            <label class="check"><input type="checkbox" id="locked"> Run while the screen is locked</label>
+          </div>
+        </div>
+      </div>
+      <div class="bar" style="margin-top:14px">
+        <button id="b-save" class="primary">Save schedule</button>
+        <span class="hint" style="margin:0" id="dirty"></span>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="acct-h">
+    <h2 id="acct-h">Claude accounts</h2>
+    <div class="body" id="current"></div>
+    <div class="rows" id="sessions"></div>
+    <div class="body">
+      <label class="check"><input type="checkbox" id="share"> Share history and app state across every account</label>
+      <div class="hint" id="share-hint"></div>
+    </div>
+    <div class="body">
+      <details id="howto">
+        <summary>How to add another account</summary>
+        <ol class="steps">
+          <li>Press <b>Save this account</b> above so the one you use now is kept.</li>
+          <li>In Claude Desktop, sign out and sign in with the other account.</li>
+          <li>Come back here and press <b>Save this account</b> again.</li>
+          <li>Both are saved. Use <b>Switch</b> to jump between them.</li>
+        </ol>
+      </details>
+    </div>
+  </section>
+</div>
+
+<section style="margin-top:20px" aria-labelledby="log-h">
+  <h2 id="log-h">Run log <button id="b-log" class="quiet icon" style="float:right;margin-top:-2px">Refresh</button></h2>
+  <pre class="log" id="log" tabindex="0" aria-live="off">Loading the log...</pre>
+</section>
+
+<footer id="footnote"></footer>
+</div>
+
+<div id="flash" role="status" aria-live="polite"></div>
+
+<script>
+__CLAUDEDECK_SCRIPT__
+</script>
+</body>
+</html>
