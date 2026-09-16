@@ -2,7 +2,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { errorCode, readJsonFile } from '../core/fs/json';
 
-export const DESKTOP_ITEMS = ['Local State', 'Network', 'Local Storage', 'Session Storage', 'IndexedDB'] as const;
+export const DESKTOP_ITEMS = [
+  'Local State',
+  'Preferences',
+  'Network',
+  'Local Storage',
+  'Session Storage',
+  'WebStorage',
+  'IndexedDB',
+] as const;
 export const CODE_KEY = 'claudeAiOauth';
 export const CONFIG_KEYS = ['lastKnownAccountUuid'] as const;
 export const CONFIG_PREFIXES = ['oauth:'] as const;
