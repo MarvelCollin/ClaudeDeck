@@ -95,9 +95,8 @@ function renderBlocks() {
     var head = el('header');
     head.appendChild(el('h3', null, 'Block ' + (index + 1)));
     if (draft.schedules.length > 1) {
-      var del = el('button', 'quiet icon', 'Remove block');
+      var del = el('button', 'quiet icon push', 'Remove block');
       del.type = 'button';
-      del.style.marginLeft = 'auto';
       del.onclick = function () { draft.schedules.splice(index, 1); renderBlocks(); markDirty(); };
       head.appendChild(del);
     }
@@ -120,8 +119,7 @@ function renderBlocks() {
     });
     box.appendChild(days);
 
-    var times = el('div', 'chips');
-    times.style.marginTop = '10px';
+    var times = el('div', 'chips times');
     block.times.forEach(function (time, ti) {
       var chip = el('span', 'chip time');
       chip.appendChild(document.createTextNode(time));
@@ -144,12 +142,19 @@ function renderBlocks() {
     addBtn.type = 'button';
     addBtn.onclick = function () {
       var value = input.value.trim();
-      if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(value)) { flash('Times use 24-hour HH:mm, for example 09:30.', true); input.focus(); return; }
+      if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(value)) {
+        input.setAttribute('aria-invalid', 'true');
+        flash('Times use 24-hour HH:mm, for example 09:30.', true);
+        input.focus();
+        return;
+      }
+      input.removeAttribute('aria-invalid');
       if (block.times.indexOf(value) === -1) block.times.push(value);
       block.times.sort();
       renderBlocks();
       markDirty();
     };
+    input.oninput = function () { input.removeAttribute('aria-invalid'); };
     input.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); addBtn.click(); } };
     adder.append(input, addBtn);
     box.appendChild(adder);
@@ -187,8 +192,7 @@ function renderCurrent(accounts) {
 
     var active = accounts.sessions.filter(function (s) { return s.active; })[0];
     var captured = active && active.desktopCaptured;
-    var save = el('button', 'primary', captured ? 'Re-save desktop session' : 'Save this account');
-    if (captured) save.className = 'button quiet';
+    var save = el('button', captured ? 'quiet' : 'primary', captured ? 'Re-save desktop session' : 'Save this account');
     save.onclick = function () {
       if (!confirm('Save ' + accounts.current.name + '?\n\nClaude Desktop will briefly close and reopen so its session can be copied.')) return;
       busy(save, true, 'Saving');
