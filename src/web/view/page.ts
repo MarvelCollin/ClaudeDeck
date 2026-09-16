@@ -1,26 +1,37 @@
-import { DAYS, renderClientScript } from './client-script';
-import { faviconHref } from './logo';
-import { renderMarkup } from './markup';
-import { PAGE_STYLES } from './styles';
+import fs from 'node:fs';
+import path from 'node:path';
+import { faviconHref, LOGO_SVG } from './logo';
 
-export function renderPage(token: string): string {
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ClaudeDeck</title>
-<link rel="icon" type="image/svg+xml" href="${faviconHref()}">
-<style>${PAGE_STYLES}</style>
-</head>
-<body>
-${renderMarkup()}
+export const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
 
-<script>
-${renderClientScript(token)}
-</script>
-</body>
-</html>`;
+const ASSET_DIR = path.join(__dirname, '..', 'assets');
+
+const cache = new Map<string, string>();
+
+function asset(name: string): string {
+  const cached = cache.get(name);
+  if (cached !== undefined) return cached;
+  const text = fs.readFileSync(path.join(ASSET_DIR, name), 'utf8');
+  cache.set(name, text);
+  return text;
 }
 
-export { DAYS };
+function fill(template: string, values: Record<string, string>): string {
+  return Object.entries(values).reduce((text, [key, value]) => text.split(key).join(value), template);
+}
+
+export function renderClientScript(token: string): string {
+  return fill(asset('panel.js'), {
+    __CLAUDEDECK_TOKEN__: token,
+    __CLAUDEDECK_DAYS__: JSON.stringify(DAYS),
+  });
+}
+
+export function renderPage(token: string): string {
+  return fill(asset('panel.html'), {
+    __CLAUDEDECK_FAVICON__: faviconHref(),
+    __CLAUDEDECK_LOGO__: LOGO_SVG,
+    __CLAUDEDECK_STYLES__: asset('panel.css'),
+    __CLAUDEDECK_SCRIPT__: renderClientScript(token),
+  });
+}
