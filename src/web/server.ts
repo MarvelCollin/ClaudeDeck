@@ -14,7 +14,9 @@ const BODY_LIMIT = 65536;
 
 export const IDLE_TIMEOUT = 10000;
 export const STARTUP_TIMEOUT = 120000;
+export const EVENTS_PATH = '/api/events';
 const HEARTBEAT_INTERVAL = 2000;
+const STREAM_KEEPALIVE_INTERVAL = 15000;
 
 export function allowedHost(header: string | undefined): boolean {
   if (!header) return false;
@@ -53,6 +55,7 @@ export function startServer(options: IServerOptions = {}): IPanelServer {
   const idleTimeout = options.idleTimeout || IDLE_TIMEOUT;
   const startupTimeout = options.startupTimeout || STARTUP_TIMEOUT;
   const routes = buildRoutes(options.service ?? createService());
+  const streams = new Set<ServerResponse>();
   let lastSeen = Date.now();
   let opened = false;
   let closing = false;
@@ -84,6 +87,11 @@ export function startServer(options: IServerOptions = {}): IPanelServer {
     }
     lastSeen = Date.now();
 
+    if (url.pathname === EVENTS_PATH) {
+      openStream(req, res);
+      return;
+    }
+
     if (url.pathname === '/api/close') {
       sendJson(res, 200, { ok: true });
       close();
@@ -104,16 +112,53 @@ export function startServer(options: IServerOptions = {}): IPanelServer {
     }
   });
 
+  server.timeout = 0;
+  server.headersTimeout = 0;
+  server.requestTimeout = 0;
+
+  function openStream(req: IncomingMessage, res: ServerResponse): void {
+    res.writeHead(200, {
+      'content-type': 'text/event-stream',
+      'cache-control': 'no-store',
+      connection: 'keep-alive',
+      'x-accel-buffering': 'no',
+    });
+    res.write('retry: 2000\n\n');
+    req.socket.setTimeout(0);
+    req.socket.setNoDelay(true);
+    req.socket.setKeepAlive(true);
+    streams.add(res);
+    const drop = (): void => {
+      streams.delete(res);
+      lastSeen = Date.now();
+    };
+    req.on('close', drop);
+    req.on('error', drop);
+  }
+
   const heartbeat = setInterval(() => {
+    if (streams.size > 0) {
+      lastSeen = Date.now();
+      return;
+    }
     if (Date.now() - lastSeen > (opened ? idleTimeout : startupTimeout)) close();
   }, HEARTBEAT_INTERVAL);
   heartbeat.unref();
+
+  const keepalive = setInterval(() => {
+    for (const stream of streams) stream.write(': keepalive\n\n');
+  }, STREAM_KEEPALIVE_INTERVAL);
+  keepalive.unref();
 
   function close(): void {
     if (closing) return;
     closing = true;
     clearInterval(heartbeat);
+    clearInterval(keepalive);
+    for (const stream of streams) stream.end();
+    streams.clear();
     server.close();
+    setTimeout(() => server.closeAllConnections?.(), 250).unref();
   }
 
   function listen(): Promise<IServerSession> {

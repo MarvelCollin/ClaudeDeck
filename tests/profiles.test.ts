@@ -240,6 +240,29 @@ test('server waits for a slow browser instead of closing on the idle timeout', a
   }
 });
 
+test('an open event stream keeps the server alive past the idle timeout', async () => {
+  const panel = startServer({ token: 'secret', idleTimeout: 1, startupTimeout: 60000 });
+  const session = await panel.listen();
+  const stopped = new Promise(resolve => session.server.once('close', resolve));
+  try {
+    assert.strictEqual((await fetch(session.url)).status, 200);
+
+    const abort = new AbortController();
+    const stream = await fetch(`http://127.0.0.1:${session.port}/api/events?token=secret`, { signal: abort.signal });
+    assert.strictEqual(stream.status, 200);
+    assert.strictEqual(stream.headers.get('content-type'), 'text/event-stream');
+
+    await new Promise(resolve => setTimeout(resolve, 2600));
+    assert.strictEqual(session.server.listening, true, 'server must stay up while the tab holds the stream');
+
+    abort.abort();
+    await stopped;
+    assert.strictEqual(session.server.listening, false);
+  } finally {
+    session.close();
+  }
+});
+
 test('server gives up when no browser ever opens the panel', async () => {
   const panel = startServer({ token: 'secret', startupTimeout: 1 });
   const session = await panel.listen();

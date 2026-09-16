@@ -474,9 +474,18 @@ document.getElementById('b-save').onclick = function () {
     return refresh();
   }).catch(function (err) { busy(button, false); flash(err.message, true); });
 };
-setInterval(function () { api('/api/ping', {}).catch(function () {}); }, 3000);
+var live = null;
+function holdOpen() {
+  if (live || typeof EventSource === 'undefined') return;
+  live = new EventSource('/api/events?token=' + encodeURIComponent(TOKEN));
+  live.onerror = function () {
+    if (live && live.readyState === EventSource.CLOSED) { live = null; setTimeout(holdOpen, 2000); }
+  };
+}
+holdOpen();
 setInterval(function () { if (!draft || !document.getElementById('dirty').textContent) refresh(true); }, 6000);
 addEventListener('pagehide', function () {
+  if (live) { live.close(); live = null; }
   navigator.sendBeacon('/api/close?token=' + encodeURIComponent(TOKEN));
 });
 refresh().then(loadLog);
