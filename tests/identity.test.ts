@@ -1,12 +1,12 @@
-const assert = require('assert');
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
-const { test } = require('node:test');
+import assert from 'node:assert';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { test } from 'node:test';
 
-const identity = require('../scripts/lib/profiles/identity');
-const session = require('../scripts/lib/profiles/session');
-const { createSwitcher } = require('../scripts/lib/profiles/switcher');
+import * as identity from '../src/accounts/identity';
+import * as session from '../src/accounts/session-store';
+import { createSwitcher } from '../src/accounts/switcher';
 
 function writeDesktopConfig(dir, extra) {
   fs.mkdirSync(dir, { recursive: true });
@@ -29,7 +29,7 @@ function seedDesktop(dir, cookie) {
 function switcherHarness() {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'cd-ident-'));
   const profileDir = path.join(base, 'Claude');
-  const events = [];
+  const events: string[] = [];
   const deps = {
     profileDir,
     credPath: path.join(base, '.credentials.json'),
@@ -69,7 +69,7 @@ test('readCodeAccount pulls the email and name out of the Claude Code account fi
     writeCodeAccount(file, 'uuid-a', 'a@team.com', 'Person A');
     assert.deepStrictEqual(identity.readCodeAccount(file), { accountUuid: 'uuid-a', email: 'a@team.com', name: 'Person A' });
     fs.writeFileSync(file, JSON.stringify({ oauthAccount: { accountUuid: 'uuid-b', emailAddress: 'b@team.com' } }));
-    assert.strictEqual(identity.readCodeAccount(file).name, 'b');
+    assert.strictEqual(identity.readCodeAccount(file)!.name, 'b');
     fs.writeFileSync(file, JSON.stringify({ oauthAccount: {} }));
     assert.strictEqual(identity.readCodeAccount(file), null);
   } finally {
@@ -160,11 +160,11 @@ test('switching carries the account config keys and marks the active account by 
     createSwitcher(h.deps).sync();
 
     const listed = createSwitcher(h.deps).listSessions();
-    assert.strictEqual(listed.current.email, 'b@team.com');
+    assert.strictEqual(listed.current!.email, 'b@team.com');
     assert.strictEqual(listed.accountUuid, 'uuid-b');
     assert.strictEqual(listed.unknownAccount, false);
-    assert.ok(listed.sessions.find(s => s.email === 'b@team.com').active);
-    assert.strictEqual(listed.sessions.find(s => s.email === 'a@team.com').accountUuid, 'uuid-a');
+    assert.ok(listed.sessions.find(s => s.email === 'b@team.com')!.active);
+    assert.strictEqual(listed.sessions.find(s => s.email === 'a@team.com')!.accountUuid, 'uuid-a');
 
     createSwitcher(h.deps).switchTo('a-team.com');
     const config = JSON.parse(fs.readFileSync(path.join(h.profileDir, 'config.json'), 'utf8'));

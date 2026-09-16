@@ -2,7 +2,12 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "rootDir": ".",
-    "noEmit": true
+    "noEmit": true,
+    "noUncheckedIndexedAccess": false,
+    "noImplicitAny": false
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts"]
+  "include": [
+    "src/**/*.ts",
+    "tests/**/*.ts"
+  ]
 }
