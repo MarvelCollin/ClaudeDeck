@@ -9,6 +9,12 @@ npm i -g claudedeck
 claudedeck
 ```
 
+To run it from a clone instead, link it once:
+
+```bash
+npm link
+```
+
 `claudedeck` on its own opens the control panel in your browser. Everything else is a subcommand, and `claudedeck help` lists them all.
 
 Run Claude CLI login first if Claude is not authenticated yet.
@@ -16,6 +22,19 @@ Run Claude CLI login first if Claude is not authenticated yet.
 ```bash
 claude auth
 ```
+
+## Two commands
+
+`cdeck` is the short alias for `claudedeck`. Either one on its own opens the control panel in your browser.
+
+```bash
+cdeck
+claudedeck
+```
+
+`claudedeck menu` opens the terminal menu, which does the same things without a browser.
+
+Both names accept the same subcommands, so `cdeck list`, `claudedeck list`, and `claudedeck web list` are equivalent.
 
 ## macOS
 
@@ -94,7 +113,7 @@ After changing the config manually, run `claudedeck` and choose `Run Background`
 Everything ClaudeDeck does is also available as a page in your browser. Run:
 
 ```bash
-claudedeck web
+cdeck
 ```
 
 That serves a page on `127.0.0.1`, opens it, and prints the address. The server only lives while the tab is open and stops about ten seconds after you close it. There is no tray icon, no background service and no port left listening. Every request needs a session token that is generated per run, and requests from other hostnames are refused.
