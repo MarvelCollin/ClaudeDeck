@@ -1,4 +1,5 @@
 export { IAliasBody } from './IAliasBody';
+export { IInstallBody } from './IInstallBody';
 export { ILogView } from './ILogView';
 export { IPanelServer } from './IPanelServer';
 export { IPanelService } from './IPanelService';

@@ -1,5 +1,6 @@
 import { ISessionListing, ISharingResult, ISwitchResult, ISyncResult } from '../../accounts/interfaces';
 import { IAliasBody } from './IAliasBody';
+import { IInstallBody } from './IInstallBody';
 import { ILogView } from './ILogView';
 import { IPanelState } from './IPanelState';
 import { IScheduleDraft } from './IScheduleDraft';
@@ -20,5 +21,5 @@ export interface IPanelService {
   state(): IPanelState;
   stopBackground(): IScheduleState;
   switchAccount(body: IAliasBody): ISwitchResult;
-  syncCurrent(): ISyncResult;
+  syncCurrent(body: IInstallBody): ISyncResult;
 }

@@ -3,5 +3,6 @@ export interface ISavedSession {
   email: string;
   name: string;
   accountUuid: string | null;
+  installs: string[];
   savedAt: string | null;
 }

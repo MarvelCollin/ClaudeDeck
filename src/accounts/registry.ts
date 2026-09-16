@@ -57,6 +57,14 @@ export function setSetting<K extends SettingKey>(
   return { ...registry, settings: { ...settingsOf(registry), [key]: value } };
 }
 
+export const LEGACY_INSTALL = 'code';
+
+function normalizeInstalls(value: unknown): string[] {
+  if (!Array.isArray(value)) return [LEGACY_INSTALL];
+  const ids = value.filter((id): id is string => typeof id === 'string' && Boolean(id));
+  return ids.length ? [...new Set(ids)] : [LEGACY_INSTALL];
+}
+
 export function normalizeSession(entry: unknown): ISavedSession | null {
   const value = entry as Partial<ISavedSession> | null;
   if (!value || typeof value.alias !== 'string' || typeof value.email !== 'string') return null;
@@ -65,6 +73,7 @@ export function normalizeSession(entry: unknown): ISavedSession | null {
     email: value.email,
     name: trimmedOr(value.name, fallbackName(value.email)),
     accountUuid: nullableString(value.accountUuid),
+    installs: normalizeInstalls(value.installs),
     savedAt: value.savedAt ?? null,
   };
 }
@@ -149,6 +158,8 @@ export function saveSession(registry: IRegistry, session: unknown, now = new Dat
   const value = normalizeSession(session);
   if (!value) throw new Error('A saved session needs an alias and an email.');
   value.savedAt = now.toISOString();
+  const previous = findSession(registry, value.alias);
+  if (previous) value.installs = [...new Set([...previous.installs, ...value.installs])];
   const rest = (registry.sessions ?? []).filter(entry => lower(entry.alias) !== lower(value.alias));
   return { ...registry, sessions: [...rest, value] };
 }

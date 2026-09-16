@@ -124,6 +124,6 @@ export function createService(): IPanelService {
     state,
     stopBackground,
     switchAccount: body => switcher.switchTo(requireAlias(body, 'Which account should I switch to?')),
-    syncCurrent: () => switcher.sync(),
+    syncCurrent: body => switcher.sync({ install: typeof body?.install === 'string' ? body.install : undefined }),
   };
 }
