@@ -116,7 +116,7 @@ Everything ClaudeDeck does is also available as a page in your browser. Run:
 cdeck
 ```
 
-That serves a page on `127.0.0.1`, opens it, and prints the address. The server only lives while the tab is open and stops about ten seconds after you close it. There is no tray icon, no background service and no port left listening. Every request needs a session token that is generated per run, and requests from other hostnames are refused.
+That serves a page on `127.0.0.1`, opens it, and prints the address. The server waits up to two minutes for the browser to load the page, so a cold browser start or a pasted URL still gets through. Once the tab is open the server only lives while it stays open, and stops about ten seconds after you close it. There is no tray icon, no background service and no port left listening. Every request needs a session token that is generated per run, and requests from other hostnames are refused.
 
 From the page you can edit the schedule, start or stop the background task, trigger a single run, read the log, and manage Claude Desktop accounts. The terminal menu still works and its `Open Control Panel` entry opens the same page.
 

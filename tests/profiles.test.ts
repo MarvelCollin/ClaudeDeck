@@ -196,9 +196,35 @@ test('server rejects requests without the session token', async () => {
 });
 
 test('server shuts itself down when the page stops pinging', async () => {
-  const session = await startServer({ token: 'secret', idleTimeout: 1 }).listen();
+  const session = await startServer({ token: 'secret', idleTimeout: 1, startupTimeout: 60000 }).listen();
+  const page = await fetch(session.url);
+  assert.strictEqual(page.status, 200);
   await new Promise(resolve => session.server.once('close', resolve));
   assert.ok(true);
+});
+
+test('server waits for a slow browser instead of closing on the idle timeout', async () => {
+  const panel = startServer({ token: 'secret', idleTimeout: 1, startupTimeout: 60000 });
+  const session = await panel.listen();
+  try {
+    assert.strictEqual(panel.connected(), false);
+    await new Promise(resolve => setTimeout(resolve, 2600));
+    assert.strictEqual(session.server.listening, true);
+    assert.strictEqual(panel.connected(), false);
+
+    const page = await fetch(session.url);
+    assert.strictEqual(page.status, 200);
+    assert.strictEqual(panel.connected(), true);
+  } finally {
+    session.close();
+  }
+});
+
+test('server gives up when no browser ever opens the panel', async () => {
+  const panel = startServer({ token: 'secret', startupTimeout: 1 });
+  const session = await panel.listen();
+  await new Promise(resolve => session.server.once('close', resolve));
+  assert.strictEqual(panel.connected(), false);
 });
 
 test('legacy ClaudeCron data folder is moved to ClaudeDeck once', () => {
