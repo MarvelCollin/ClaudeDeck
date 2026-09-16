@@ -45,6 +45,10 @@ export function fromPackageRoot(...parts: string[]): string {
   return path.join(packageRoot, ...parts);
 }
 
+export function runnerScriptPath(): string {
+  return path.join(__dirname, '..', 'bin', `run-claude${path.extname(__filename)}`);
+}
+
 export function resolveFromConfig(value: string, configPath: string): string {
   return path.isAbsolute(value) ? value : path.join(path.dirname(configPath), value);
 }
