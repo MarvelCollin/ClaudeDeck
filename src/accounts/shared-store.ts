@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { copyItem } from './session-store';
 
-export const SHARED_DESKTOP_ITEMS = ['Local Storage', 'Session Storage'] as const;
+export const SHARED_DESKTOP_ITEMS: readonly string[] = [];
 export const SHARED_CODE_ITEMS = ['projects', 'history.jsonl', 'todos', 'statsig'] as const;
 
 export function swappedItems(
