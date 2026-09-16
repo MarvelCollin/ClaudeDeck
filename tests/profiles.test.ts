@@ -560,6 +560,14 @@ test('listSessions reports whether each account has a captured desktop session',
     createSwitcher(h.deps).sync();
     const listed = createSwitcher(h.deps).listSessions();
     assert.strictEqual(listed.sessions[0].desktopCaptured, true);
+
+    const slot = path.join(h.base, 'sessions', 'a-team.com', 'desktop');
+    fs.rmSync(slot, { recursive: true, force: true });
+    fs.mkdirSync(slot, { recursive: true });
+    assert.strictEqual(createSwitcher(h.deps).listSessions().sessions[0].desktopCaptured, false);
+
+    fs.rmSync(slot, { recursive: true, force: true });
+    assert.strictEqual(createSwitcher(h.deps).listSessions().sessions[0].desktopCaptured, false);
   } finally {
     fs.rmSync(h.base, { recursive: true, force: true });
   }
