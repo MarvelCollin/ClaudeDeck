@@ -1,4 +1,5 @@
 export { IAccountIdentity } from './IAccountIdentity';
+export { IAccountInstance } from './IAccountInstance';
 export { IAccountUsage } from './IAccountUsage';
 export { IAutoSyncResult } from './IAutoSyncResult';
 export { ICachedIdentity } from './ICachedIdentity';
@@ -7,6 +8,8 @@ export { IClaudeProcess } from './IClaudeProcess';
 export { ICodeAccountFile } from './ICodeAccountFile';
 export { IIdentityLookupOptions } from './IIdentityLookupOptions';
 export { IInstallState } from './IInstallState';
+export { IInstanceDeps } from './IInstanceDeps';
+export { IOpenResult } from './IOpenResult';
 export { IParsedAccount } from './IParsedAccount';
 export { IProfileEntry } from './IProfileEntry';
 export { IProfileLocation } from './IProfileLocation';

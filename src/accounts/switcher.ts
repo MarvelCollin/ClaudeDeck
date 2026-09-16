@@ -2,13 +2,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { launch, launchArgs, locateApp } from './desktop-app';
 import { readCodeAccount, readDesktopAccountUuid, readIdentity } from './identity';
+import { createInstances } from './instances';
 import { CODE_INSTALL, claudeInstalls, installFileName, PRIMARY_INSTALL_LABEL } from './installs';
 import {
   IAccountIdentity,
+  IAccountInstance,
   IAccountUsage,
   IAutoSyncResult,
   IClaudeInstall,
   IInstallState,
+  IOpenResult,
   IRegistry,
   IRestoreResult,
   ISaveResult,
@@ -63,6 +66,7 @@ function defaultDeps(): ISwitcherDeps {
 export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitcher {
   const deps: ISwitcherDeps = { ...defaultDeps(), ...overrides };
 
+  const instances = createInstances(deps.instances);
   const readRegistry = (): IRegistry => registry.read(deps.registryFile);
   const writeRegistry = (data: IRegistry): IRegistry => registry.write(data, deps.registryFile);
   const lookupSavedAccount = (uuid: string) => registry.sessionByUuid(readRegistry(), uuid);
@@ -244,6 +248,11 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
     const activeAlias = (data.sessions ?? []).find(isActive)?.alias ?? null;
     data = rememberActiveOrg(data, activeAlias, liveOrg);
 
+    const sessionList = data.sessions ?? [];
+    const byAlias = new Map<string, IAccountInstance>(
+      instances.describe(sessionList).map(entry => [entry.alias, entry])
+    );
+
     return {
       running: desktopRunning().length > 0,
       current: identity,
@@ -253,12 +262,16 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
       sharedItems: shared.SHARED_DESKTOP_ITEMS,
       sharedCodeItems: shared.SHARED_CODE_ITEMS,
       installs: installStates(data),
-      sessions: (data.sessions ?? []).map(entry => ({
-        ...entry,
-        active: isActive(entry),
-        desktopCaptured: desktopCaptured(entry.alias),
-        usage: usage.usageFor(samples, entry.orgUuid),
-      })),
+      sessions: sessionList.map(entry => {
+        const instance = byAlias.get(entry.alias) as IAccountInstance;
+        return {
+          ...entry,
+          active: isActive(entry),
+          desktopCaptured: desktopCaptured(entry.alias),
+          usage: instance.usage ?? usage.usageFor(samples, entry.orgUuid),
+          instance,
+        };
+      }),
     };
   }
 
@@ -322,10 +335,24 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
     return { alias };
   }
 
+  function openAccount(alias: string): IOpenResult {
+    const data = readRegistry();
+    if (!registry.findSession(data, alias)) throw new Error(`No saved session for "${alias}".`);
+    const result = instances.open(alias, data.sessions ?? []);
+    writeRegistry(registry.touch(data, alias));
+    return result;
+  }
+
+  function closeAccount(alias: string): { alias: string; stopped: number } {
+    return instances.stop(alias, readRegistry().sessions ?? []);
+  }
+
   return {
     autoSyncCode,
     currentAccountUuid,
     currentIdentity,
+    closeAccount,
+    openAccount,
     forget,
     listSessions,
     setSharing,

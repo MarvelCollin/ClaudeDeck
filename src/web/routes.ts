@@ -14,6 +14,8 @@ export function buildRoutes(service: IPanelService): Record<string, RouteHandler
     '/api/accounts/sync': body => service.syncCurrent(body as IInstallBody),
     '/api/accounts/switch': body => service.switchAccount(body as IAliasBody),
     '/api/accounts/forget': body => service.forgetAccount(body as IAliasBody),
+    '/api/accounts/open': body => service.openAccount(body as IAliasBody),
+    '/api/accounts/close': body => service.closeAccount(body as IAliasBody),
     '/api/accounts/sharing': body => service.setSharing(body as ISharingBody),
   };
 }
