@@ -19,13 +19,17 @@ __CLAUDEDECK_STYLES__
   <button id="theme" class="icon quiet" aria-label="Switch colour theme">Theme</button>
 </header>
 
-<dl class="strip skeleton" id="strip">
-  <div class="cell"><dt>Background</dt><dd>loading</dd></div>
-  <div class="cell"><dt>Right now</dt><dd>loading</dd></div>
-  <div class="cell"><dt>Last run</dt><dd>loading</dd></div>
-  <div class="cell"><dt>Next run</dt><dd>loading</dd></div>
-  <div class="cell"><dt>Runs</dt><dd>loading</dd></div>
+<div class="banner" id="conn" role="alert" hidden></div>
+
+<dl class="strip" id="strip" aria-busy="true">
+  <div class="cell"><dt>Background</dt><dd><span class="skel line tall w55"></span></dd></div>
+  <div class="cell"><dt>Right now</dt><dd><span class="skel line tall w55"></span></dd></div>
+  <div class="cell"><dt>Last run</dt><dd><span class="skel line tall w70"></span></dd></div>
+  <div class="cell"><dt>Next run</dt><dd><span class="skel line tall w70"></span></dd></div>
+  <div class="cell"><dt>Runs</dt><dd><span class="skel line tall w40"></span></dd></div>
 </dl>
+
+<div class="notice spaced" id="stateerror" role="alert" hidden></div>
 
 <div class="cols">
   <section aria-labelledby="sched-h">
@@ -65,8 +69,31 @@ __CLAUDEDECK_STYLES__
 
   <section aria-labelledby="acct-h">
     <div class="head"><h2 id="acct-h">Claude accounts</h2></div>
-    <div class="body" id="current"></div>
-    <div class="rows" id="sessions"></div>
+    <div class="body" id="current" aria-busy="true">
+      <div class="current-row">
+        <div class="avatar skel"></div>
+        <div class="who">
+          <span class="skel line w40"></span>
+          <span class="skel line w70"></span>
+        </div>
+      </div>
+    </div>
+    <div class="rows" id="sessions" aria-busy="true">
+      <div class="row">
+        <div class="avatar skel"></div>
+        <div class="who">
+          <span class="skel line w40"></span>
+          <span class="skel line w90"></span>
+        </div>
+      </div>
+      <div class="row">
+        <div class="avatar skel"></div>
+        <div class="who">
+          <span class="skel line w25"></span>
+          <span class="skel line w70"></span>
+        </div>
+      </div>
+    </div>
     <div class="body">
       <label class="check"><input type="checkbox" id="share"> Share history and app state across every account</label>
       <div class="hint inline" id="share-hint"></div>
@@ -90,7 +117,8 @@ __CLAUDEDECK_STYLES__
     <h2 id="log-h">Run log</h2>
     <button id="b-log" class="quiet icon push">Refresh</button>
   </div>
-  <pre class="log" id="log" tabindex="0" aria-live="off">Loading the log...</pre>
+  <div class="notice flat" id="logerror" role="alert" hidden></div>
+  <pre class="log" id="log" tabindex="0" aria-live="off" aria-busy="true"><span class="skel line w90"></span><span class="skel line w70"></span><span class="skel line w90"></span><span class="skel line w55"></span><span class="skel line w70"></span></pre>
 </section>
 
 <footer id="footnote"></footer>
