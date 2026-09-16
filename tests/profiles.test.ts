@@ -9,6 +9,7 @@ import * as paths from '../src/accounts/paths';
 import * as procs from '../src/accounts/processes';
 import * as registry from '../src/accounts/registry';
 import * as shared from '../src/accounts/shared-store';
+import * as usage from '../src/accounts/usage';
 import { routeCommand } from '../src/cli/router';
 import { allowedHost, buildRoutes, startServer } from '../src/web/server';
 import * as appPaths from '../src/core/paths';
@@ -594,6 +595,62 @@ test('listSessions reports whether each account has a captured desktop session',
   } finally {
     fs.rmSync(h.base, { recursive: true, force: true });
   }
+});
+
+test('usage history yields percent left per organisation', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cd-usage-'));
+  try {
+    assert.deepStrictEqual(usage.readSamples(dir), []);
+    assert.strictEqual(usage.activeOrgUuid([]), null);
+    assert.strictEqual(usage.usageFor([], 'org-a'), null);
+
+    fs.writeFileSync(path.join(dir, usage.USAGE_FILE), JSON.stringify({
+      version: 2,
+      samples: [
+        { t: 3000, org: 'org-b', u: { fh: 90, sd: 10 } },
+        { t: 1000, org: 'org-a', u: { fh: 20, sd: 30 } },
+        { t: 2000, org: 'org-a', u: { fh: 40, sd: 35 } },
+        { nope: true },
+        null,
+      ],
+    }));
+
+    const samples = usage.readSamples(dir);
+    assert.strictEqual(samples.length, 3, 'junk entries are dropped');
+    assert.deepStrictEqual(samples.map(s => s.t), [1000, 2000, 3000], 'samples are sorted by time');
+    assert.strictEqual(usage.activeOrgUuid(samples), 'org-b', 'newest sample decides the active org');
+
+    const a = usage.usageFor(samples, 'org-a');
+    assert.strictEqual(a?.session?.usedPercent, 40, 'newest sample for that org wins');
+    assert.strictEqual(a?.session?.leftPercent, 60);
+    assert.strictEqual(a?.weekly?.leftPercent, 65);
+
+    const b = usage.usageFor(samples, 'org-b');
+    assert.strictEqual(b?.session?.leftPercent, 10);
+    assert.strictEqual(b?.weekly?.leftPercent, 90);
+
+    assert.strictEqual(usage.usageFor(samples, 'org-missing'), null);
+    assert.strictEqual(usage.usageFor(samples, null), null);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('usage percentages are clamped and partial samples still report', () => {
+  const samples = [
+    { t: 1, org: 'o', u: { fh: 140, sd: -20 } },
+    { t: 2, org: 'p', u: { fh: 5 } },
+    { t: 3, org: 'q', u: {} },
+  ];
+  const clamped = usage.usageFor(samples, 'o');
+  assert.strictEqual(clamped?.session?.usedPercent, 100);
+  assert.strictEqual(clamped?.weekly?.usedPercent, 0);
+
+  const partial = usage.usageFor(samples, 'p');
+  assert.strictEqual(partial?.session?.leftPercent, 95);
+  assert.strictEqual(partial?.weekly, null);
+
+  assert.strictEqual(usage.usageFor(samples, 'q'), null, 'a sample with no numbers is not usage');
 });
 
 test('registry settings default to sharing and reject unknown keys', () => {

@@ -1,4 +1,5 @@
 export { IAccountIdentity } from './IAccountIdentity';
+export { IAccountUsage } from './IAccountUsage';
 export { IAutoSyncResult } from './IAutoSyncResult';
 export { ICachedIdentity } from './ICachedIdentity';
 export { IClaudeInstall } from './IClaudeInstall';
@@ -23,5 +24,7 @@ export { ISwitcher } from './ISwitcher';
 export { ISwitcherDeps } from './ISwitcherDeps';
 export { ISyncOptions } from './ISyncOptions';
 export { ISyncResult } from './ISyncResult';
+export { IUsageSample } from './IUsageSample';
+export { IUsageWindow } from './IUsageWindow';
 export { IV8String } from './IV8String';
 export { IVarint } from './IVarint';
