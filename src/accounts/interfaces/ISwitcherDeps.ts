@@ -2,6 +2,7 @@ import { IAccountIdentity } from './IAccountIdentity';
 import { IClaudeInstall } from './IClaudeInstall';
 import { IClaudeProcess } from './IClaudeProcess';
 import { IIdentityLookupOptions } from './IIdentityLookupOptions';
+import { IInstanceDeps } from './IInstanceDeps';
 
 export interface ISwitcherDeps {
   profileDir: string;
@@ -16,5 +17,6 @@ export interface ISwitcherDeps {
   kill: (pids: number[]) => number;
   launch: (exe: string, args: string[]) => number | undefined;
   locate: () => string;
+  instances?: Partial<IInstanceDeps>;
   now: () => Date;
 }
