@@ -61,12 +61,11 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
   const lookupSavedAccount = (uuid: string) => registry.sessionByUuid(readRegistry(), uuid);
 
   function currentIdentity(): IAccountIdentity | null {
-    if (!fs.existsSync(deps.profileDir)) return null;
     return deps.readIdentity(deps.profileDir, { codeAccountPath: deps.accountPath, lookup: lookupSavedAccount });
   }
 
   function currentAccountUuid(): string | null {
-    return fs.existsSync(deps.profileDir) ? readDesktopAccountUuid(deps.profileDir) : null;
+    return readDesktopAccountUuid(deps.profileDir);
   }
 
   function desktopRunning(): number[] {
@@ -114,7 +113,7 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
 
   function sync(options: ISyncOptions = {}): ISyncResult {
     const identity = currentIdentity();
-    if (!identity) throw new Error('No Claude account detected. Sign in to Claude Desktop first, then save.');
+    if (!identity) throw new Error('No Claude account detected. Sign in to Claude Desktop or Claude Code first, then save.');
     const alias = deriveAlias(identity.email);
     const data = readRegistry();
     const stopped = options.stop === false ? 0 : stopDesktop();

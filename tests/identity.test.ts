@@ -94,6 +94,39 @@ test('readIdentity names the desktop account from the Claude Code account file',
   }
 });
 
+test('the panel reports the Claude Code account when Claude Desktop is not installed', () => {
+  const h = switcherHarness();
+  try {
+    assert.strictEqual(fs.existsSync(h.profileDir), false);
+    writeCodeAccount(h.deps.accountPath, 'uuid-code', 'solo@team.com', 'Solo');
+
+    const listed = createSwitcher(h.deps).listSessions();
+    assert.deepStrictEqual(listed.current, { accountUuid: 'uuid-code', email: 'solo@team.com', name: 'Solo' });
+    assert.strictEqual(listed.accountUuid, null);
+    assert.strictEqual(listed.unknownAccount, false);
+  } finally {
+    fs.rmSync(h.base, { recursive: true, force: true });
+  }
+});
+
+test('saving works with only a Claude Code account and no desktop profile', () => {
+  const h = switcherHarness();
+  try {
+    writeCodeAccount(h.deps.accountPath, 'uuid-code', 'solo@team.com', 'Solo');
+    fs.writeFileSync(h.deps.credPath, JSON.stringify({ claudeAiOauth: { accessToken: 'tok-solo' } }));
+
+    const saved = createSwitcher(h.deps).sync({ relaunch: false });
+    assert.strictEqual(saved.email, 'solo@team.com');
+    assert.strictEqual(saved.alias, 'solo-team.com');
+
+    const listed = createSwitcher(h.deps).listSessions();
+    assert.strictEqual(listed.sessions.length, 1);
+    assert.strictEqual(listed.sessions[0].active, true);
+  } finally {
+    fs.rmSync(h.base, { recursive: true, force: true });
+  }
+});
+
 test('readIdentity falls back to a saved account and refuses to guess a stale one', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cd-stale-'));
   try {

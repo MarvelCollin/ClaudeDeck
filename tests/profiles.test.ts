@@ -462,7 +462,7 @@ test('switchTo refuses an unknown account and sync refuses when signed out', () 
   const h = switcherHarness();
   try {
     fs.mkdirSync(h.profileDir, { recursive: true });
-    assert.throws(() => createSwitcher(h.deps).sync(), /Sign in to Claude Desktop first/);
+    assert.throws(() => createSwitcher(h.deps).sync(), /Sign in to Claude Desktop or Claude Code first/);
     assert.throws(() => createSwitcher(h.deps).switchTo('ghost'), /No saved session/);
   } finally {
     fs.rmSync(h.base, { recursive: true, force: true });

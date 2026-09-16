@@ -142,6 +142,8 @@ Claude Desktop does not store your email in plain text. ClaudeDeck reads `lastKn
 
 If Claude Desktop is signed in but the id is new to both Claude Code and ClaudeDeck, the panel says so and names the id. Open Claude Code once on that account and reload.
 
+Claude Desktop is not required. When `%APPDATA%\Claude` is absent, ClaudeDeck reads the account straight from `~/.claude.json`, so a machine with only Claude Code still shows its account and can save and switch it. Desktop session files are simply skipped.
+
 ```bash
 claudedeck list
 claudedeck save
