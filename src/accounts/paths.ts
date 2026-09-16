@@ -52,6 +52,14 @@ export function codeAccountPath(env = process.env): string {
   return path.join(homeDir(env), '.claude.json');
 }
 
+export function codeInsidersCredentialsPath(env = process.env): string {
+  return path.join(homeDir(env), '.claude-insiders', '.credentials.json');
+}
+
+export function codeInsidersAccountPath(env = process.env): string {
+  return path.join(homeDir(env), '.claude-insiders', '.claude.json');
+}
+
 export function desktopConfigPath(profileDir: string): string {
   return path.join(profileDir, 'config.json');
 }

@@ -1,9 +1,11 @@
 export { IAccountIdentity } from './IAccountIdentity';
 export { IAutoSyncResult } from './IAutoSyncResult';
 export { ICachedIdentity } from './ICachedIdentity';
+export { IClaudeInstall } from './IClaudeInstall';
 export { IClaudeProcess } from './IClaudeProcess';
 export { ICodeAccountFile } from './ICodeAccountFile';
 export { IIdentityLookupOptions } from './IIdentityLookupOptions';
+export { IInstallState } from './IInstallState';
 export { IParsedAccount } from './IParsedAccount';
 export { IProfileEntry } from './IProfileEntry';
 export { IProfileLocation } from './IProfileLocation';

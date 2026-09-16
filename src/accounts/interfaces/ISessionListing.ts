@@ -1,4 +1,5 @@
 import { IAccountIdentity } from './IAccountIdentity';
+import { IInstallState } from './IInstallState';
 import { ISessionListEntry } from './ISessionListEntry';
 
 export interface ISessionListing {
@@ -9,5 +10,6 @@ export interface ISessionListing {
   shareSession: boolean;
   sharedItems: readonly string[];
   sharedCodeItems: readonly string[];
+  installs: IInstallState[];
   sessions: ISessionListEntry[];
 }

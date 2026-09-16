@@ -144,6 +144,17 @@ If Claude Desktop is signed in but the id is new to both Claude Code and ClaudeD
 
 Claude Desktop is not required. When `%APPDATA%\Claude` is absent, ClaudeDeck reads the account straight from `~/.claude.json`, so a machine with only Claude Code still shows its account and can save and switch it. Desktop session files are simply skipped.
 
+### Two Claude Code installs
+
+The stable and insiders builds of Claude Code keep separate logins, so they can sit on different accounts at the same time:
+
+| Install | Account file | Credentials |
+|---|---|---|
+| Claude Desktop and Claude Code | `~/.claude.json` | `~/.claude/.credentials.json` |
+| Claude Code Insiders | `~/.claude-insiders/.claude.json` | `~/.claude-insiders/.credentials.json` |
+
+The panel lists both under **Signed in on this machine** and each one saves and switches on its own. A saved account records which installs it covers, so switching restores only those. If the same account is signed in to both, one saved entry holds a credential file per install and switching restores both at once.
+
 ```bash
 claudedeck list
 claudedeck save

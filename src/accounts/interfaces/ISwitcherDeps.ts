@@ -1,4 +1,5 @@
 import { IAccountIdentity } from './IAccountIdentity';
+import { IClaudeInstall } from './IClaudeInstall';
 import { IClaudeProcess } from './IClaudeProcess';
 import { IIdentityLookupOptions } from './IIdentityLookupOptions';
 
@@ -6,6 +7,7 @@ export interface ISwitcherDeps {
   profileDir: string;
   credPath: string;
   accountPath: string;
+  installs?: IClaudeInstall[];
   sharedDir: string;
   slotOf: (alias: string) => string;
   registryFile: string | undefined;

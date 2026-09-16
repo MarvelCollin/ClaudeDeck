@@ -232,7 +232,7 @@ input[aria-invalid=true]{border-color:var(--danger);background:var(--danger-soft
 .tagline.live{color:var(--live)}
 
 .empty{padding:var(--s4);color:var(--muted);font-size:var(--t-sm);border-top:1px solid var(--line)}
-.current-row{display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap}
+.subhead{margin:0;padding:var(--s3) var(--s4) 0;font-size:var(--t-sm);font-weight:600;color:var(--muted)}
 details#howto{font-size:var(--t-sm);color:var(--muted)}
 details#howto summary{cursor:pointer;font-weight:600;color:var(--text);border-radius:var(--r-sm)}
 details#howto summary:focus-visible{outline:2px solid var(--ring);outline-offset:2px}

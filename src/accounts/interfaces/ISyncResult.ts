@@ -3,6 +3,7 @@ export interface ISyncResult {
   email: string;
   name: string;
   accountUuid: string | null;
+  install: string;
   stopped: number;
   relaunched: boolean;
 }

@@ -444,6 +444,7 @@ function switcherHarness() {
     sharedDir: path.join(base, 'shared'),
     slotOf: alias => path.join(base, 'sessions', alias),
     registryFile: path.join(base, 'profiles.json'),
+    installs: [],
     listProcesses: () => events.includes('killed') ? [] : [{ pid: 10, commandLine: 'Claude.exe' }],
     kill: pids => { if (pids.length) events.push('killed'); return pids.length; },
     launch: () => { events.push('launched'); return 999; },

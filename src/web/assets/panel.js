@@ -243,50 +243,61 @@ function avatarFor(name, active) {
   return el('div', 'avatar' + (active ? '' : ' idle'), initialsOf(name));
 }
 
+function installRow(install) {
+  var row = el('div', 'row');
+  row.appendChild(avatarFor(install.name || '?', install.signedIn));
+
+  var who = el('div', 'who');
+  var name = el('div', 'name');
+  name.appendChild(document.createTextNode(install.label));
+  if (install.saved) name.appendChild(el('span', 'tagline live', 'saved'));
+  who.appendChild(name);
+  if (install.signedIn) who.appendChild(el('div', 'sub', install.name + ' · ' + install.email));
+  else who.appendChild(el('div', 'sub muted', 'Not signed in on this machine.'));
+  row.appendChild(who);
+
+  var save = el('button', install.saved ? 'quiet' : 'primary', install.saved ? 'Re-save' : 'Save');
+  save.disabled = !install.signedIn;
+  save.title = install.signedIn ? '' : 'Sign in to ' + install.label + ' first';
+  save.onclick = function () {
+    if (!confirm('Save ' + install.email + ' from ' + install.label + '?\n\nClaude Desktop will briefly close and reopen so its session can be copied.')) return;
+    busy(save, true, 'Saving');
+    api('/api/accounts/sync', { install: install.id }).then(function (r) {
+      flash('Saved ' + r.name + '. You can switch back to it any time.');
+      return refresh();
+    }).catch(function (err) { busy(save, false); flash(err.message, true); });
+  };
+  row.appendChild(save);
+  return row;
+}
+
 function renderCurrent(accounts) {
   var host = document.getElementById('current');
   host.setAttribute('aria-busy', 'false');
-  host.replaceChildren();
-  var box = el('div', 'current-row');
-  if (accounts.current) {
-    box.appendChild(avatarFor(accounts.current.name, true));
-    var who = el('div', 'who');
-    var name = el('div', 'name');
-    name.appendChild(document.createTextNode(accounts.current.name));
-    name.appendChild(el('span', 'tagline', 'signed in now'));
-    who.append(name, el('div', 'sub', accounts.current.email));
-    box.appendChild(who);
+  var installs = accounts.installs || [];
 
-    var active = accounts.sessions.filter(function (s) { return s.active; })[0];
-    var captured = active && active.desktopCaptured;
-    var save = el('button', captured ? 'quiet' : 'primary', captured ? 'Re-save desktop session' : 'Save this account');
-    save.onclick = function () {
-      if (!confirm('Save ' + accounts.current.name + '?\n\nClaude Desktop will briefly close and reopen so its session can be copied.')) return;
-      busy(save, true, 'Saving');
-      api('/api/accounts/sync', {}).then(function (r) {
-        flash('Saved ' + r.name + '. You can switch back to it any time.');
-        return refresh();
-      }).catch(function (err) { busy(save, false); flash(err.message, true); });
-    };
-    box.appendChild(save);
-    if (active) box.appendChild(el('span', 'sub muted', 'Code login auto-syncs'));
-  } else {
-    box.appendChild(avatarFor('?', false));
-    var note = el('div', 'who');
-    if (accounts.unknownAccount) {
-      note.append(
-        el('div', 'name', 'Signed in, account not recognised yet'),
-        el('div', 'sub muted', 'Claude Desktop is on account ' + accounts.accountUuid + '. Open Claude Code once on this account so its email can be read, then reload.')
-      );
-    } else {
-      note.append(el('div', 'name', 'No account detected'), el('div', 'sub muted', 'Sign in to Claude Desktop or Claude Code, then reload this page.'));
-    }
-    box.appendChild(note);
+  if (installs.some(function (i) { return i.signedIn; })) {
+    host.replaceChildren.apply(host, installs.map(installRow));
+    return;
   }
+
+  host.replaceChildren();
+  var box = el('div', 'row');
+  box.appendChild(avatarFor('?', false));
+  var note = el('div', 'who');
+  if (accounts.unknownAccount) {
+    note.append(
+      el('div', 'name', 'Signed in, account not recognised yet'),
+      el('div', 'sub muted', 'Claude Desktop is on account ' + accounts.accountUuid + '. Open Claude Code once on this account so its email can be read, then reload.')
+    );
+  } else {
+    note.append(el('div', 'name', 'No account detected'), el('div', 'sub muted', 'Sign in to Claude Desktop or Claude Code, then reload this page.'));
+  }
+  box.appendChild(note);
   host.appendChild(box);
 }
 
-function switchRow(s) {
+function switchRow(s, labels) {
   var row = el('div', 'row');
   row.appendChild(avatarFor(s.name, s.active));
   var who = el('div', 'who');
@@ -296,7 +307,11 @@ function switchRow(s) {
   who.append(name, el('div', 'sub', s.email));
   row.appendChild(who);
 
-  if (!s.desktopCaptured && !s.active) who.appendChild(el('div', 'sub muted', 'Desktop session not saved yet. Press Save this account while signed in as ' + s.name + '.'));
+  if (s.installs && s.installs.length) {
+    var where = s.installs.map(function (id) { return (labels && labels[id]) || id; });
+    who.appendChild(el('div', 'sub muted', 'Saved from ' + where.join(' and ') + '.'));
+  }
+  if (!s.desktopCaptured && !s.active) who.appendChild(el('div', 'sub muted', 'Desktop session not saved yet. Press Save while signed in as ' + s.name + '.'));
 
   var swap = el('button', 'primary', 'Switch');
   swap.disabled = s.active || !s.desktopCaptured;
@@ -327,7 +342,9 @@ function switchRow(s) {
 function renderSessions(accounts) {
   var host = document.getElementById('sessions');
   host.setAttribute('aria-busy', 'false');
-  host.replaceChildren.apply(host, accounts.sessions.map(switchRow));
+  var labels = {};
+  (accounts.installs || []).forEach(function (i) { labels[i.id] = i.label; });
+  host.replaceChildren.apply(host, accounts.sessions.map(function (s) { return switchRow(s, labels); }));
   if (!accounts.sessions.length) {
     host.appendChild(el('div', 'empty', 'No saved accounts yet. Save the current one, then follow the steps below to add another.'));
   }

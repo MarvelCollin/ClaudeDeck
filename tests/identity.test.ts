@@ -37,6 +37,7 @@ function switcherHarness() {
     sharedDir: path.join(base, 'shared'),
     slotOf: alias => path.join(base, 'sessions', alias),
     registryFile: path.join(base, 'profiles.json'),
+    installs: [],
     listProcesses: () => (events.includes('killed') ? [] : [{ pid: 10, commandLine: 'Claude.exe' }]),
     kill: pids => { if (pids.length) events.push('killed'); return pids.length; },
     launch: () => { events.push('launched'); return 999; },
@@ -122,6 +123,84 @@ test('saving works with only a Claude Code account and no desktop profile', () =
     const listed = createSwitcher(h.deps).listSessions();
     assert.strictEqual(listed.sessions.length, 1);
     assert.strictEqual(listed.sessions[0].active, true);
+  } finally {
+    fs.rmSync(h.base, { recursive: true, force: true });
+  }
+});
+
+function withInsiders(h) {
+  const dir = path.join(h.base, 'insiders');
+  fs.mkdirSync(dir, { recursive: true });
+  const accountPath = path.join(dir, '.claude.json');
+  const credPath = path.join(dir, '.credentials.json');
+  const deps = {
+    ...h.deps,
+    installs: [{ id: 'code-insiders', label: 'Claude Code Insiders', accountPath, credPath }],
+  };
+  return { deps, accountPath, credPath };
+}
+
+test('both Claude Code installs are detected with their own accounts', () => {
+  const h = switcherHarness();
+  try {
+    const ins = withInsiders(h);
+    writeCodeAccount(h.deps.accountPath, 'uuid-stable', 'stable@team.com', 'Stable');
+    writeCodeAccount(ins.accountPath, 'uuid-insiders', 'insiders@team.com', 'Ins');
+
+    const listed = createSwitcher(ins.deps).listSessions();
+    assert.strictEqual(listed.installs.length, 2);
+    assert.deepStrictEqual(listed.installs.map(i => i.id), ['code', 'code-insiders']);
+    assert.deepStrictEqual(listed.installs.map(i => i.email), ['stable@team.com', 'insiders@team.com']);
+    assert.ok(listed.installs.every(i => i.signedIn));
+    assert.ok(listed.installs.every(i => !i.saved));
+  } finally {
+    fs.rmSync(h.base, { recursive: true, force: true });
+  }
+});
+
+test('a signed out install is reported without an account', () => {
+  const h = switcherHarness();
+  try {
+    const ins = withInsiders(h);
+    writeCodeAccount(h.deps.accountPath, 'uuid-stable', 'stable@team.com', 'Stable');
+
+    const listed = createSwitcher(ins.deps).listSessions();
+    assert.strictEqual(listed.installs[1].signedIn, false);
+    assert.strictEqual(listed.installs[1].email, null);
+    assert.throws(() => createSwitcher(ins.deps).sync({ install: 'code-insiders' }), /No account signed in to Claude Code Insiders/);
+  } finally {
+    fs.rmSync(h.base, { recursive: true, force: true });
+  }
+});
+
+test('each install saves and restores its own Claude Code login', () => {
+  const h = switcherHarness();
+  try {
+    const ins = withInsiders(h);
+    writeCodeAccount(h.deps.accountPath, 'uuid-stable', 'stable@team.com', 'Stable');
+    writeCodeAccount(ins.accountPath, 'uuid-insiders', 'insiders@team.com', 'Ins');
+    fs.writeFileSync(h.deps.credPath, JSON.stringify({ claudeAiOauth: { accessToken: 'stable-1' } }));
+    fs.writeFileSync(ins.credPath, JSON.stringify({ claudeAiOauth: { accessToken: 'ins-1' } }));
+
+    const stable = createSwitcher(ins.deps).sync({ install: 'code', relaunch: false });
+    const insiders = createSwitcher(ins.deps).sync({ install: 'code-insiders', relaunch: false });
+    assert.strictEqual(stable.email, 'stable@team.com');
+    assert.strictEqual(stable.install, 'code');
+    assert.strictEqual(insiders.email, 'insiders@team.com');
+    assert.strictEqual(insiders.install, 'code-insiders');
+
+    assert.ok(fs.existsSync(path.join(h.base, 'sessions', 'stable-team.com', 'code.json')));
+    assert.ok(fs.existsSync(path.join(h.base, 'sessions', 'insiders-team.com', 'code-insiders.json')));
+    assert.ok(!fs.existsSync(path.join(h.base, 'sessions', 'insiders-team.com', 'code.json')));
+
+    const listed = createSwitcher(ins.deps).listSessions();
+    assert.deepStrictEqual(listed.installs.map(i => i.saved), [true, true]);
+    assert.deepStrictEqual(listed.sessions.find(s => s.alias === 'insiders-team.com')!.installs, ['code-insiders']);
+
+    fs.writeFileSync(ins.credPath, JSON.stringify({ claudeAiOauth: { accessToken: 'ins-2' } }));
+    createSwitcher(ins.deps).switchTo('insiders-team.com', { relaunch: false, snapshotCurrent: false });
+    assert.strictEqual(JSON.parse(fs.readFileSync(ins.credPath, 'utf8')).claudeAiOauth.accessToken, 'ins-1');
+    assert.strictEqual(JSON.parse(fs.readFileSync(h.deps.credPath, 'utf8')).claudeAiOauth.accessToken, 'stable-1');
   } finally {
     fs.rmSync(h.base, { recursive: true, force: true });
   }
