@@ -1,3 +1,4 @@
+import { IAccountUsage } from '../accounts/interfaces';
 import { createSwitcher } from '../accounts/switcher';
 import { openUrl } from '../accounts/desktop-app';
 import { startServer } from '../web/server';
@@ -18,6 +19,14 @@ function requireArg(value: string | undefined, command: string, what: string): s
   return value;
 }
 
+function usageText(usage: IAccountUsage | null): string {
+  if (!usage) return 'usage unknown';
+  const parts: string[] = [];
+  if (usage.session) parts.push(`5h ${usage.session.leftPercent}% left`);
+  if (usage.weekly) parts.push(`week ${usage.weekly.leftPercent}% left`);
+  return parts.join('  ');
+}
+
 function printList(): void {
   const { sessions, current, shareSession } = createSwitcher().listSessions();
   if (current) console.log(`Signed in now: ${current.name} <${current.email}>`);
@@ -27,8 +36,10 @@ function printList(): void {
     return;
   }
   const width = Math.max(...sessions.map(entry => entry.name.length), 7);
+  const emailWidth = Math.max(...sessions.map(entry => entry.email.length), 5);
   for (const entry of sessions) {
-    console.log(`${entry.active ? '* ' : '  '}${entry.name.padEnd(width)}  ${entry.email}`);
+    const marker = entry.active ? '* ' : '  ';
+    console.log(`${marker}${entry.name.padEnd(width)}  ${entry.email.padEnd(emailWidth)}  ${usageText(entry.usage)}`);
   }
 }
 

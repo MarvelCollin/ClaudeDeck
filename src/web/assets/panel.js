@@ -297,6 +297,31 @@ function renderCurrent(accounts) {
   host.appendChild(box);
 }
 
+function meter(label, window) {
+  var box = el('div', 'meter');
+  var head = el('div', 'meter-head');
+  head.append(el('span', 'meter-label', label), el('span', 'meter-value', window.leftPercent + '% left'));
+  var track = el('div', 'meter-track');
+  var fill = el('div', 'meter-fill' + (window.leftPercent <= 10 ? ' low' : window.leftPercent <= 30 ? ' warn' : ''));
+  fill.style.width = window.leftPercent + '%';
+  track.appendChild(fill);
+  box.append(head, track);
+  return box;
+}
+
+function usageBar(usage, who) {
+  var box = el('div', 'usage');
+  if (!usage) {
+    box.appendChild(el('div', 'sub muted', 'Usage unknown. It is read the next time ' + who + ' is the signed-in account.'));
+    return box;
+  }
+  if (usage.session) box.appendChild(meter('5-hour limit', usage.session));
+  if (usage.weekly) box.appendChild(meter('Weekly limit', usage.weekly));
+  var when = new Date(usage.sampledAt);
+  box.appendChild(el('div', 'sub muted', 'Measured ' + when.toLocaleString() + '.'));
+  return box;
+}
+
 function switchRow(s, labels) {
   var row = el('div', 'row');
   row.appendChild(avatarFor(s.name, s.active));
@@ -312,6 +337,7 @@ function switchRow(s, labels) {
     who.appendChild(el('div', 'sub muted', 'Saved from ' + where.join(' and ') + '.'));
   }
   if (!s.desktopCaptured && !s.active) who.appendChild(el('div', 'sub muted', 'Desktop session not saved yet. Press Save while signed in as ' + s.name + '.'));
+  who.appendChild(usageBar(s.usage, s.name));
 
   var swap = el('button', 'primary', 'Switch');
   swap.disabled = s.active || !s.desktopCaptured;
