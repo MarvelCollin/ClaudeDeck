@@ -11,10 +11,10 @@ __CLAUDEDECK_STYLES__
 </head>
 <body>
 <div class="wrap">
-<header>
+<header class="top">
   <span class="logo">__CLAUDEDECK_LOGO__</span>
   <h1>ClaudeDeck</h1>
-  <span class="spacer"></span>
+  <span class="push"></span>
   <span class="where" id="configpath"></span>
   <button id="theme" class="icon quiet" aria-label="Switch colour theme">Theme</button>
 </header>
@@ -29,7 +29,7 @@ __CLAUDEDECK_STYLES__
 
 <div class="cols">
   <section aria-labelledby="sched-h">
-    <h2 id="sched-h">Schedule</h2>
+    <div class="head"><h2 id="sched-h">Schedule</h2></div>
     <div class="body">
       <div class="bar">
         <button id="b-start" class="primary">Start background</button>
@@ -56,20 +56,20 @@ __CLAUDEDECK_STYLES__
           </div>
         </div>
       </div>
-      <div class="bar" style="margin-top:14px">
+      <div class="bar spaced">
         <button id="b-save" class="primary">Save schedule</button>
-        <span class="hint" style="margin:0" id="dirty"></span>
+        <span class="hint inline" id="dirty"></span>
       </div>
     </div>
   </section>
 
   <section aria-labelledby="acct-h">
-    <h2 id="acct-h">Claude accounts</h2>
+    <div class="head"><h2 id="acct-h">Claude accounts</h2></div>
     <div class="body" id="current"></div>
     <div class="rows" id="sessions"></div>
     <div class="body">
       <label class="check"><input type="checkbox" id="share"> Share history and app state across every account</label>
-      <div class="hint" id="share-hint"></div>
+      <div class="hint inline" id="share-hint"></div>
     </div>
     <div class="body">
       <details id="howto">
@@ -85,8 +85,11 @@ __CLAUDEDECK_STYLES__
   </section>
 </div>
 
-<section style="margin-top:20px" aria-labelledby="log-h">
-  <h2 id="log-h">Run log <button id="b-log" class="quiet icon" style="float:right;margin-top:-2px">Refresh</button></h2>
+<section class="wide" aria-labelledby="log-h">
+  <div class="head">
+    <h2 id="log-h">Run log</h2>
+    <button id="b-log" class="quiet icon push">Refresh</button>
+  </div>
   <pre class="log" id="log" tabindex="0" aria-live="off">Loading the log...</pre>
 </section>
 
