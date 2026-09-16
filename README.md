@@ -142,7 +142,9 @@ Claude Desktop does not store your email in plain text. ClaudeDeck reads `lastKn
 
 If Claude Desktop is signed in but the id is new to both Claude Code and ClaudeDeck, the panel says so and names the id. Open Claude Code once on that account and reload.
 
-Claude Desktop is not required. When `%APPDATA%\Claude` is absent, ClaudeDeck reads the account straight from `~/.claude.json`, so a machine with only Claude Code still shows its account and can save and switch it. Desktop session files are simply skipped.
+Claude Desktop is not required. When no Desktop profile is found, ClaudeDeck reads the account straight from `~/.claude.json`, so a machine with only Claude Code still shows its account and can save and switch it. Desktop session files are simply skipped.
+
+Windows has two Claude Desktop layouts. The classic installer uses `%APPDATA%\Claude`. The Store and MSIX build redirects that folder into its package container at `%LOCALAPPDATA%\Packages\Claude_<id>\LocalCache\Roaming\Claude`. ClaudeDeck prefers the classic path and falls back to the packaged one, so both installs are detected.
 
 ### Two Claude Code installs
 
@@ -179,23 +181,16 @@ Saved sessions live in:
 ~/Library/Application Support/ClaudeDeck/sessions        macOS
 ```
 
-## One shared session for every account
+## What is shared and what is swapped
 
-Switching swaps the login, not your work. Shared session history is on by default, so every account opens the same local history and app state:
+Switching swaps the login, not your work.
 
 - Claude **Code** keeps `projects`, `history.jsonl`, `todos`, and `statsig` under `~/.claude` untouched. Only the `claudeAiOauth` block inside `.credentials.json` is swapped, so transcripts, todos, and settings carry across accounts.
-- Claude **Desktop** keeps `Local Storage` and `Session Storage` in one shared store instead of one copy per account. Before a switch, ClaudeDeck captures the live copy into the shared store, restores only the login files from the target account, then writes the shared copy back.
+- Claude **Desktop** keeps its whole Chromium profile per account: `Local State`, `Preferences`, `Network`, `Local Storage`, `Session Storage`, `WebStorage`, and `IndexedDB`, plus the `oauth:` keys and `lastKnownAccountUuid` in `config.json`.
 
-The shared store lives next to the saved sessions:
+Your chats are not local. They live on claude.ai and follow whichever account you switch to, so nothing is lost by keeping the profile per account.
 
-```text
-%APPDATA%\ClaudeDeck\shared                              Windows
-~/Library/Application Support/ClaudeDeck/shared          macOS
-```
-
-`Local State`, `Network`, `IndexedDB`, and the `oauth:` keys in `config.json` stay per account. They hold the cookies, the token cache, and the account identity, which is what makes an account an account.
-
-Turn sharing off with the checkbox in the control panel or `claudedeck share off`, and each account goes back to its own history. Turning it back on adopts whatever is live right now as the shared copy and prunes the per-account copies.
+Earlier versions shared `Local Storage` and `Session Storage` across accounts to preserve local history. That is what forced a fresh Google sign-in on every switch: claude.ai keeps part of the signed-in session in local storage, so pairing one account's cookies with another account's local storage made the app throw the session away. Those stores are now per account and `claudedeck share on` no longer moves any Claude Desktop file.
 
 `forget` deletes a saved session. Before overwriting `~/.claude/.credentials.json`, ClaudeDeck copies it to `.credentials.json.claudedeck.bak`.
 
