@@ -1,8 +1,11 @@
 var TOKEN = '__CLAUDEDECK_TOKEN__';
 var DAYS = __CLAUDEDECK_DAYS__;
+var REQUEST_TIMEOUT = 12000;
 var state = null;
 var draft = null;
 var flashTimer = null;
+var failures = 0;
+var stateLoaded = false;
 
 function applyTheme(mode) {
   document.documentElement.setAttribute('data-theme', mode);
@@ -19,25 +22,44 @@ document.getElementById('theme').onclick = function () {
   applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
 };
 
+function describeError(err) {
+  if (!err) return 'Something went wrong. Try again.';
+  if (err.name === 'AbortError') return 'The panel server did not answer within ' + (REQUEST_TIMEOUT / 1000) + ' seconds.';
+  if (err.name === 'TypeError') return 'Cannot reach the panel server. It may have stopped, or the tab was left open too long.';
+  return err.message || 'Something went wrong. Try again.';
+}
+
 function api(path, body) {
+  var control = new AbortController();
+  var timer = setTimeout(function () { control.abort(); }, REQUEST_TIMEOUT);
   return fetch(path, {
     method: body ? 'POST' : 'GET',
     headers: { 'x-claudedeck-token': TOKEN, 'content-type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined
+    body: body ? JSON.stringify(body) : undefined,
+    signal: control.signal
   }).then(function (res) {
     return res.json().catch(function () { return {}; }).then(function (data) {
-      if (!res.ok) throw new Error(data.error || res.statusText);
+      if (res.status === 401 || res.status === 403) throw new Error('This tab lost its access token. Reload the page to get a new one.');
+      if (!res.ok) throw new Error(data.error || ('The server answered ' + res.status + ' ' + res.statusText + '.'));
       return data;
     });
+  }).then(function (data) {
+    clearTimeout(timer);
+    return data;
+  }, function (err) {
+    clearTimeout(timer);
+    throw new Error(describeError(err));
   });
 }
 
 function flash(text, bad) {
   var box = document.getElementById('flash');
+  box.setAttribute('role', bad ? 'alert' : 'status');
+  box.setAttribute('aria-live', bad ? 'assertive' : 'polite');
   box.textContent = text;
   box.className = 'show' + (bad ? ' bad' : '');
   clearTimeout(flashTimer);
-  flashTimer = setTimeout(function () { box.className = ''; }, 4000);
+  flashTimer = setTimeout(function () { box.className = ''; }, bad ? 7000 : 4000);
 }
 
 function el(tag, cls, text) {
@@ -52,6 +74,50 @@ function busy(button, on, label) {
   button.disabled = on;
   if (on) { button.dataset.idle = button.textContent; button.textContent = label || 'Working...'; }
   else if (button.dataset.idle) { button.textContent = button.dataset.idle; }
+}
+
+function settled(id) {
+  var host = document.getElementById(id);
+  if (host) host.setAttribute('aria-busy', 'false');
+}
+
+function showNotice(id, message, retryLabel, retry) {
+  var host = document.getElementById(id);
+  host.replaceChildren(el('span', 'msg', message));
+  if (retry) {
+    var again = el('button', 'icon', retryLabel);
+    again.type = 'button';
+    again.onclick = function () {
+      busy(again, true, 'Retrying');
+      retry();
+    };
+    host.appendChild(again);
+  }
+  host.hidden = false;
+}
+
+function hideNotice(id) {
+  var host = document.getElementById(id);
+  if (host.hidden) return;
+  host.hidden = true;
+  host.replaceChildren();
+}
+
+function setConnection(message) {
+  var host = document.getElementById('conn');
+  if (!message) {
+    if (!host.hidden) { host.hidden = true; host.replaceChildren(); }
+    return;
+  }
+  host.replaceChildren(el('span', 'msg', message));
+  var again = el('button', 'icon', 'Reconnect');
+  again.type = 'button';
+  again.onclick = function () {
+    busy(again, true, 'Reconnecting');
+    refresh().then(function () { busy(again, false); });
+  };
+  host.appendChild(again);
+  host.hidden = false;
 }
 
 function cell(term, valueNode, extra) {
@@ -73,7 +139,7 @@ function withDot(text, kind) {
 function renderStrip(s) {
   var counts = s.counts || {};
   var strip = document.getElementById('strip');
-  strip.classList.remove('skeleton');
+  strip.setAttribute('aria-busy', 'false');
   strip.replaceChildren(
     cell('Background', withDot(s.enabled ? 'On' : 'Off', s.enabled ? 'live' : null)),
     cell('Right now', withDot(s.running ? 'Running' : 'Idle', s.running ? 'busy' : null)),
@@ -179,6 +245,7 @@ function avatarFor(name, active) {
 
 function renderCurrent(accounts) {
   var host = document.getElementById('current');
+  host.setAttribute('aria-busy', 'false');
   host.replaceChildren();
   var box = el('div', 'current-row');
   if (accounts.current) {
@@ -246,10 +313,11 @@ function switchRow(s) {
   var forget = el('button', 'quiet icon danger', 'Forget');
   forget.onclick = function () {
     if (!confirm('Forget the saved session for ' + s.name + '? You would sign in again next time.')) return;
+    busy(forget, true, 'Forgetting');
     api('/api/accounts/forget', { alias: s.alias }).then(function () {
       flash('Forgot ' + s.name);
       return refresh();
-    }).catch(function (err) { flash(err.message, true); });
+    }).catch(function (err) { busy(forget, false); flash(err.message, true); });
   };
 
   row.append(swap, forget);
@@ -258,6 +326,7 @@ function switchRow(s) {
 
 function renderSessions(accounts) {
   var host = document.getElementById('sessions');
+  host.setAttribute('aria-busy', 'false');
   host.replaceChildren.apply(host, accounts.sessions.map(switchRow));
   if (!accounts.sessions.length) {
     host.appendChild(el('div', 'empty', 'No saved accounts yet. Save the current one, then follow the steps below to add another.'));
@@ -276,15 +345,30 @@ function renderSharing(accounts) {
   }
 }
 
-function refresh() {
+function refresh(silent) {
   return api('/api/state').then(function (data) {
     state = data;
+    failures = 0;
+    stateLoaded = true;
+    setConnection(null);
+    hideNotice('stateerror');
     if (!draft) resetDraft();
     renderStrip(data.schedule);
     renderCurrent(data.accounts);
     renderSessions(data.accounts);
     renderSharing(data.accounts);
-  }).catch(function (err) { flash(err.message, true); });
+  }).catch(function (err) {
+    failures += 1;
+    settled('strip');
+    settled('current');
+    settled('sessions');
+    if (!stateLoaded) {
+      showNotice('stateerror', err.message, 'Try again', function () { refresh(); });
+    } else if (failures >= 2) {
+      setConnection('Lost contact with the panel server, so these figures may be stale. ' + err.message);
+    }
+    if (!silent) flash(err.message, true);
+  });
 }
 
 function resetDraft() {
@@ -302,11 +386,17 @@ function resetDraft() {
 }
 
 function loadLog() {
+  var pre = document.getElementById('log');
   return api('/api/schedule/log').then(function (data) {
-    var pre = document.getElementById('log');
+    hideNotice('logerror');
+    pre.setAttribute('aria-busy', 'false');
     pre.textContent = data.lines.length ? data.lines.join('\n') : 'Nothing logged yet. The log fills in after the first run.';
     pre.scrollTop = pre.scrollHeight;
-  }).catch(function (err) { flash(err.message, true); });
+  }).catch(function (err) {
+    pre.setAttribute('aria-busy', 'false');
+    pre.textContent = 'The log was not read, so nothing is shown here.';
+    showNotice('logerror', err.message, 'Try again', function () { loadLog(); });
+  });
 }
 
 function wire(id, path, label, done) {
@@ -324,7 +414,11 @@ wire('b-start', '/api/schedule/start', 'Starting', 'Background task started.');
 wire('b-stop', '/api/schedule/stop', 'Stopping', 'Background task stopped.');
 wire('b-run', '/api/schedule/run', 'Running', 'Triggered one run. The log updates when it finishes.');
 
-document.getElementById('b-log').onclick = loadLog;
+document.getElementById('b-log').onclick = function () {
+  var button = document.getElementById('b-log');
+  busy(button, true, 'Refreshing');
+  loadLog().then(function () { busy(button, false); });
+};
 document.getElementById('prompt').oninput = markDirty;
 document.getElementById('share').onchange = function () {
   var box = document.getElementById('share');
@@ -360,7 +454,7 @@ document.getElementById('b-save').onclick = function () {
   }).catch(function (err) { busy(button, false); flash(err.message, true); });
 };
 setInterval(function () { api('/api/ping', {}).catch(function () {}); }, 3000);
-setInterval(function () { if (!draft || !document.getElementById('dirty').textContent) refresh(); }, 6000);
+setInterval(function () { if (!draft || !document.getElementById('dirty').textContent) refresh(true); }, 6000);
 addEventListener('pagehide', function () {
   navigator.sendBeacon('/api/close?token=' + encodeURIComponent(TOKEN));
 });
