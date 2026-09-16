@@ -1,5 +1,18 @@
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
+const LOGO_SVG = [
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="ClaudeDeck">',
+  '<rect width="32" height="32" rx="7" fill="#0f6f86"/>',
+  '<rect x="6" y="7" width="13" height="18" rx="3" fill="#ffffff" opacity=".45"/>',
+  '<rect x="11" y="10" width="13" height="18" rx="3" fill="#ffffff" opacity=".75"/>',
+  '<rect x="16" y="13" width="10" height="12" rx="3" fill="#ffffff"/>',
+  '</svg>',
+].join('');
+
+function faviconHref() {
+  return `data:image/svg+xml;base64,${Buffer.from(LOGO_SVG, 'utf8').toString('base64')}`;
+}
+
 function renderPage(token) {
   return `<!doctype html>
 <html lang="en">
@@ -7,6 +20,7 @@ function renderPage(token) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ClaudeDeck</title>
+<link rel="icon" type="image/svg+xml" href="${faviconHref()}">
 <style>
 :root{
   --bg:#f6f7f9;
@@ -55,8 +69,10 @@ body{
 }
 .wrap{max-width:1140px;margin:0 auto;padding:26px 22px 64px}
 
-header{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:18px}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:18px}
 header h1{font-size:20px;margin:0;letter-spacing:-.015em}
+header .logo{display:flex;width:28px;height:28px}
+header .logo svg{width:100%;height:100%;display:block}
 header .where{font:12px/1.4 var(--mono);color:var(--faint);word-break:break-all}
 header .spacer{margin-left:auto}
 
@@ -175,6 +191,7 @@ footer{margin-top:24px;font-size:13px;color:var(--faint)}
 <body>
 <div class="wrap">
 <header>
+  <span class="logo">${LOGO_SVG}</span>
   <h1>ClaudeDeck</h1>
   <span class="spacer"></span>
   <span class="where" id="configpath"></span>
