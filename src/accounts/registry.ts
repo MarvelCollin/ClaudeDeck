@@ -73,6 +73,7 @@ export function normalizeSession(entry: unknown): ISavedSession | null {
     email: value.email,
     name: trimmedOr(value.name, fallbackName(value.email)),
     accountUuid: nullableString(value.accountUuid),
+    orgUuid: nullableString(value.orgUuid),
     installs: normalizeInstalls(value.installs),
     savedAt: value.savedAt ?? null,
   };
