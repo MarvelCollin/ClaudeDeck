@@ -1,4 +1,4 @@
-import { ISessionListing, ISharingResult, ISwitchResult, ISyncResult } from '../../accounts/interfaces';
+import { IOpenResult, ISessionListing, ISharingResult, ISwitchResult, ISyncResult } from '../../accounts/interfaces';
 import { IAliasBody } from './IAliasBody';
 import { IInstallBody } from './IInstallBody';
 import { ILogView } from './ILogView';
@@ -9,7 +9,9 @@ import { ISharingBody } from './ISharingBody';
 
 export interface IPanelService {
   accountsState(): ISessionListing;
+  closeAccount(body: IAliasBody): { alias: string; stopped: number };
   forgetAccount(body: IAliasBody): { alias: string };
+  openAccount(body: IAliasBody): IOpenResult;
   install(): void;
   readLog(limit?: number): ILogView;
   reload(): void;

@@ -9,6 +9,8 @@ export const USAGE = [
   '  (no command)       open the control panel in your browser',
   '  list               show every saved account and which one is active',
   '  save               save the account you are signed into now',
+  '  open <alias>       open a second Claude Desktop window on that account',
+  '  close <alias>      close the window for that account',
   '  switch <alias>     restore a saved account and restart Claude Desktop',
   '  forget <alias>     delete a saved account session',
   '  share [on|off]     share local history and app state across every account',
@@ -38,8 +40,11 @@ function printList(): void {
   const width = Math.max(...sessions.map(entry => entry.name.length), 7);
   const emailWidth = Math.max(...sessions.map(entry => entry.email.length), 5);
   for (const entry of sessions) {
-    const marker = entry.active ? '* ' : '  ';
-    console.log(`${marker}${entry.name.padEnd(width)}  ${entry.email.padEnd(emailWidth)}  ${usageText(entry.usage)}`);
+    const marker = entry.instance.running ? '> ' : entry.active ? '* ' : '  ';
+    const where = entry.instance.running ? 'open' : entry.instance.seeded ? 'ready' : 'not opened yet';
+    console.log(
+      `${marker}${entry.name.padEnd(width)}  ${entry.email.padEnd(emailWidth)}  ${where.padEnd(14)}  ${usageText(entry.usage)}`
+    );
   }
 }
 
@@ -80,6 +85,17 @@ export async function runAccountsCommand(argv: string[] = []): Promise<void> {
   if (command === 'save' || command === 'sync') {
     const saved = createSwitcher().sync();
     console.log(`Saved ${saved.name} <${saved.email}>.`);
+    return;
+  }
+  if (command === 'open') {
+    const opened = createSwitcher().openAccount(requireArg(first, 'open', 'an account alias'));
+    if (opened.alreadyRunning) console.log(`${opened.alias} is already open.`);
+    else console.log(`Opening ${opened.alias}${opened.seededFrom ? ' from its saved session' : ''}. Profile: ${opened.dir}`);
+    return;
+  }
+  if (command === 'close') {
+    const closed = createSwitcher().closeAccount(requireArg(first, 'close', 'an account alias'));
+    console.log(closed.stopped ? `Closed ${closed.alias}.` : `${closed.alias} was not open.`);
     return;
   }
   if (command === 'switch') {

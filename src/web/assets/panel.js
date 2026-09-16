@@ -339,7 +339,22 @@ function switchRow(s, labels) {
   if (!s.desktopCaptured && !s.active) who.appendChild(el('div', 'sub muted', 'Desktop session not saved yet. Press Save while signed in as ' + s.name + '.'));
   who.appendChild(usageBar(s.usage, s.name));
 
-  var swap = el('button', 'primary', 'Switch');
+  if (s.instance && s.instance.running) name.appendChild(el('span', 'tagline live', 'window open'));
+
+  var openBtn = el('button', s.instance && s.instance.running ? 'quiet icon' : 'primary', s.instance && s.instance.running ? 'Close window' : 'Open window');
+  openBtn.title = s.instance && s.instance.running
+    ? 'Close the Claude Desktop window for ' + s.name
+    : 'Open a Claude Desktop window signed in as ' + s.name + ', alongside the others';
+  openBtn.onclick = function () {
+    var closing = s.instance && s.instance.running;
+    busy(openBtn, true, closing ? 'Closing' : 'Opening');
+    api(closing ? '/api/accounts/close' : '/api/accounts/open', { alias: s.alias }).then(function () {
+      flash(closing ? 'Closed ' + s.name + '.' : 'Opening ' + s.name + ' in its own window.');
+      return refresh();
+    }).catch(function (err) { busy(openBtn, false); flash(err.message, true); });
+  };
+
+  var swap = el('button', 'quiet icon', 'Switch');
   swap.disabled = s.active || !s.desktopCaptured;
   swap.title = s.active ? 'This account is already active' : (!s.desktopCaptured ? 'Save this account\'s desktop session first' : '');
   swap.onclick = function () {
@@ -361,7 +376,7 @@ function switchRow(s, labels) {
     }).catch(function (err) { busy(forget, false); flash(err.message, true); });
   };
 
-  row.append(swap, forget);
+  row.append(openBtn, swap, forget);
   return row;
 }
 
