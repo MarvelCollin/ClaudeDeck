@@ -1,2 +1,2 @@
 #!/usr/bin/env node
-require('../scripts/cli/task');
+require('../dist/bin/claudedeck.js');

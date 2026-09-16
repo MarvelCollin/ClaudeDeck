@@ -16,6 +16,7 @@ const ONE_BYTE_STRING = 0x22;
 const TWO_BYTE_STRING = 0x63;
 const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const MAX_FIELD_LENGTH = 256;
+const CONTROL_CHARS = /[\x00-\x1f]/;
 
 export function readVarint(buf: Buffer, start: number): IVarint | null {
   let result = 0;
@@ -48,7 +49,7 @@ export function extractField(buf: Buffer, name: string): string | null {
   let index = buf.indexOf(key);
   while (index !== -1) {
     const parsed = readV8String(buf, index + key.length);
-    if (parsed && parsed.text.length && parsed.text.length < MAX_FIELD_LENGTH && !/[ -]/.test(parsed.text)) {
+    if (parsed && parsed.text.length && parsed.text.length < MAX_FIELD_LENGTH && !CONTROL_CHARS.test(parsed.text)) {
       return parsed.text;
     }
     index = buf.indexOf(key, index + 1);

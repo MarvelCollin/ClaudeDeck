@@ -1,16 +1,18 @@
-const assert = require('assert');
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
-const { test } = require('node:test');
+import assert from 'node:assert';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { test } from 'node:test';
 
-const { launchArgs, windowsCandidates } = require('../scripts/lib/profiles/app');
-const paths = require('../scripts/lib/profiles/paths');
-const procs = require('../scripts/lib/profiles/procs');
-const registry = require('../scripts/lib/profiles/registry');
-const shared = require('../scripts/lib/profiles/shared');
-const { routeCommand } = require('../scripts/lib/task/router');
-const { allowedHost, buildRoutes, startServer } = require('../scripts/lib/web/server');
+import { launchArgs, windowsCandidates } from '../src/accounts/desktop-app';
+import * as paths from '../src/accounts/paths';
+import * as procs from '../src/accounts/processes';
+import * as registry from '../src/accounts/registry';
+import * as shared from '../src/accounts/shared-store';
+import { routeCommand } from '../src/cli/router';
+import { allowedHost, buildRoutes, startServer } from '../src/web/server';
+import * as appPaths from '../src/core/paths';
+import { IPanelService } from '../src/web/interfaces';
 
 const env = { APPDATA: 'C:\\Users\\tester\\AppData\\Roaming', LOCALAPPDATA: 'C:\\Users\\tester\\AppData\\Local' };
 
@@ -154,7 +156,7 @@ test('processes map back to the profile that owns them', () => {
   );
   assert.deepStrictEqual(groups.get('default'), [1]);
   assert.deepStrictEqual(groups.get('work'), [2, 3]);
-  assert.strictEqual(groups.has(null), false);
+  assert.strictEqual(groups.has('unknown'), false);
 });
 
 test('killPids is a no-op for an empty list', () => {
@@ -200,7 +202,6 @@ test('server shuts itself down when the page stops pinging', async () => {
 });
 
 test('legacy ClaudeCron data folder is moved to ClaudeDeck once', () => {
-  const appPaths = require('../scripts/lib/paths');
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'cd-migrate-'));
   const previous = process.env.APPDATA;
   process.env.APPDATA = base;
@@ -229,7 +230,7 @@ test('legacy ClaudeCron data folder is moved to ClaudeDeck once', () => {
   }
 });
 
-const identity = require('../scripts/lib/profiles/identity');
+import * as identity from '../src/accounts/identity';
 
 function v8String(text) {
   const body = Buffer.from(text, 'utf8');
@@ -250,10 +251,10 @@ test('readVarint decodes single and multi byte lengths', () => {
 });
 
 test('readV8String reads one byte and two byte strings', () => {
-  assert.strictEqual(identity.readV8String(v8String('kolin'), 0).text, 'kolin');
+  assert.strictEqual(identity.readV8String(v8String('kolin'), 0)!.text, 'kolin');
   const wide = Buffer.from('hi', 'utf16le');
   const twoByte = Buffer.concat([Buffer.from([0x63, wide.length]), wide]);
-  assert.strictEqual(identity.readV8String(twoByte, 0).text, 'hi');
+  assert.strictEqual(identity.readV8String(twoByte, 0)!.text, 'hi');
   assert.strictEqual(identity.readV8String(Buffer.from([0x99, 0x01, 0x41]), 0), null);
 });
 
@@ -316,11 +317,11 @@ test('registry caches an identity per alias and drops it on remove', () => {
   assert.strictEqual(registry.rememberIdentity(data, 'work', { name: 'no email' }), data);
 
   data = registry.rememberIdentity(data, 'default', { email: 'me@e.com', name: 'Me' });
-  assert.strictEqual(registry.identityFor(data, 'default').name, 'Me');
+  assert.strictEqual(registry.identityFor(data, 'default')!.name, 'Me');
 
   data = registry.remove(data, 'work');
   assert.strictEqual(registry.identityFor(data, 'work'), null);
-  assert.strictEqual(registry.identityFor(data, 'default').name, 'Me');
+  assert.strictEqual(registry.identityFor(data, 'default')!.name, 'Me');
 });
 
 test('registry identities survive normalize and a disk round trip', () => {
@@ -337,8 +338,8 @@ test('registry identities survive normalize and a disk round trip', () => {
   }
 });
 
-const session = require('../scripts/lib/profiles/session');
-const { createSwitcher } = require('../scripts/lib/profiles/switcher');
+import * as session from '../src/accounts/session-store';
+import { createSwitcher } from '../src/accounts/switcher';
 
 function seedDesktop(dir, cookie) {
   fs.mkdirSync(path.join(dir, 'Network'), { recursive: true });
@@ -395,8 +396,8 @@ test('registry stores and finds saved sessions by alias and email', () => {
   let data = registry.saveSession(registry.emptyRegistry(), { alias: 'work', email: 'w@e.com', name: 'W' }, new Date('2026-04-04T00:00:00Z'));
   assert.strictEqual(data.sessions.length, 1);
   assert.strictEqual(data.sessions[0].savedAt, '2026-04-04T00:00:00.000Z');
-  assert.strictEqual(registry.findSession(data, 'WORK').email, 'w@e.com');
-  assert.strictEqual(registry.sessionByEmail(data, 'W@E.COM').alias, 'work');
+  assert.strictEqual(registry.findSession(data, 'WORK')!.email, 'w@e.com');
+  assert.strictEqual(registry.sessionByEmail(data, 'W@E.COM')!.alias, 'work');
   data = registry.saveSession(data, { alias: 'work', email: 'w@e.com', name: 'W2' });
   assert.strictEqual(data.sessions.length, 1);
   assert.strictEqual(data.sessions[0].name, 'W2');
@@ -409,7 +410,7 @@ function switcherHarness() {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'cd-switch-'));
   const profileDir = path.join(base, 'Claude');
   const credPath = path.join(base, '.credentials.json');
-  const events = [];
+  const events: string[] = [];
   const deps = {
     profileDir,
     credPath,
@@ -444,7 +445,7 @@ test('sync saves the live account and switchTo restores another', () => {
 
     const listed = createSwitcher(h.deps).listSessions();
     assert.strictEqual(listed.sessions.length, 2);
-    assert.ok(listed.sessions.find(s => s.email === 'b@team.com').active);
+    assert.ok(listed.sessions.find(s => s.email === 'b@team.com')!.active);
 
     const result = createSwitcher(h.deps).switchTo('a-team.com');
     assert.strictEqual(result.email, 'a@team.com');
@@ -524,8 +525,8 @@ test('registry settings default to sharing and reject unknown keys', () => {
   const off = registry.setSetting(registry.emptyRegistry(), 'shareSession', false);
   assert.strictEqual(off.settings.shareSession, false);
   assert.strictEqual(registry.normalize(off).settings.shareSession, false);
-  assert.throws(() => registry.setSetting(off, 'nope', true), /Unknown setting/);
-  assert.throws(() => registry.setSetting(off, 'shareSession', 'on'), /expects a boolean/);
+  assert.throws(() => registry.setSetting(off, 'nope' as 'shareSession', true), /Unknown setting/);
+  assert.throws(() => registry.setSetting(off, 'shareSession', 'on' as unknown as boolean), /expects a boolean/);
 });
 
 test('shared items drop out of the swap list only while sharing is on', () => {
@@ -646,10 +647,11 @@ test('listSessions reports the sharing state and which items stay common', () =>
 });
 
 test("the web panel exposes a sharing route", () => {
-  const calls = [];
-  const routes = buildRoutes({ setSharing: body => { calls.push(body); return { ok: true }; } });
+  const calls: unknown[] = [];
+  const service = { setSharing: (body: unknown) => { calls.push(body); return { ok: true }; } } as unknown as IPanelService;
+  const routes = buildRoutes(service);
   assert.strictEqual(typeof routes["/api/accounts/sharing"], "function");
-  routes["/api/accounts/sharing"]({ enabled: false });
+  routes["/api/accounts/sharing"]!({ enabled: false });
   assert.deepStrictEqual(calls, [{ enabled: false }]);
 });
 
@@ -668,7 +670,7 @@ test('the bare command opens the panel and account commands skip the web prefix'
 
 test('every declared bin entry points at a real file', () => {
   const root = path.join(__dirname, '..');
-  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as { bin: Record<string, string> };
   assert.deepStrictEqual(Object.keys(pkg.bin).sort(), ['cdeck', 'claudedeck']);
   for (const target of Object.values(pkg.bin)) {
     const file = path.join(root, target);
