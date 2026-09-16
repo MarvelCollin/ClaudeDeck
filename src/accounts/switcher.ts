@@ -191,7 +191,11 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
   }
 
   function desktopCaptured(alias: string): boolean {
-    return fs.existsSync(path.join(deps.slotOf(alias), DESKTOP_SUBDIR));
+    try {
+      return fs.readdirSync(path.join(deps.slotOf(alias), DESKTOP_SUBDIR)).length > 0;
+    } catch {
+      return false;
+    }
   }
 
   function autoSyncCode(): IAutoSyncResult | null {
