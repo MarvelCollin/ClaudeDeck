@@ -5,6 +5,7 @@ import { readCodeAccount, readDesktopAccountUuid, readIdentity } from './identit
 import { CODE_INSTALL, claudeInstalls, installFileName, PRIMARY_INSTALL_LABEL } from './installs';
 import {
   IAccountIdentity,
+  IAccountUsage,
   IAutoSyncResult,
   IClaudeInstall,
   IInstallState,
@@ -32,6 +33,7 @@ import {
   sharedRoot,
 } from './paths';
 import { groupProcesses, killPids, listClaudeProcesses } from './processes';
+import * as usage from './usage';
 import * as registry from './registry';
 import * as session from './session-store';
 import * as shared from './shared-store';
@@ -172,6 +174,7 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
           email: identity.email,
           name: identity.name,
           accountUuid: identity.accountUuid,
+          orgUuid: activeOrgUuid() ?? registry.findSession(data, alias)?.orgUuid ?? null,
           installs: [install.id],
         },
         deps.now()
@@ -216,14 +219,31 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
     }
   }
 
+  function activeOrgUuid(): string | null {
+    return usage.activeOrgUuid(usage.readSamples(deps.profileDir));
+  }
+
+  function rememberActiveOrg(data: IRegistry, activeAlias: string | null, orgUuid: string | null): IRegistry {
+    if (!activeAlias || !orgUuid) return data;
+    const known = registry.findSession(data, activeAlias);
+    if (!known || known.orgUuid === orgUuid) return data;
+    return writeRegistry(registry.saveSession(data, { ...known, orgUuid }, deps.now()));
+  }
+
   function listSessions(): ISessionListing {
     autoSyncCode();
-    const data = readRegistry();
+    let data = readRegistry();
     const identity = currentIdentity();
     const activeUuid = currentAccountUuid();
     const activeEmail = identity ? identity.email.toLowerCase() : null;
     const isActive = (entry: { accountUuid: string | null; email: string }): boolean =>
       activeUuid && entry.accountUuid ? entry.accountUuid === activeUuid : activeEmail === entry.email.toLowerCase();
+
+    const samples = usage.readSamples(deps.profileDir);
+    const liveOrg = usage.activeOrgUuid(samples);
+    const activeAlias = (data.sessions ?? []).find(isActive)?.alias ?? null;
+    data = rememberActiveOrg(data, activeAlias, liveOrg);
+
     return {
       running: desktopRunning().length > 0,
       current: identity,
@@ -237,6 +257,7 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
         ...entry,
         active: isActive(entry),
         desktopCaptured: desktopCaptured(entry.alias),
+        usage: usage.usageFor(samples, entry.orgUuid),
       })),
     };
   }
