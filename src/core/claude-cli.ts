@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { Invocation } from './exec';
+import { IInvocation } from './interfaces';
 import { ClaudeModel } from './types';
 
 const POWERSHELL_FLAGS = ['-NoProfile', '-ExecutionPolicy', 'Bypass'];
@@ -19,7 +19,7 @@ export function claudeCommand(
   prompt: string,
   model: ClaudeModel,
   platform: NodeJS.Platform = process.platform
-): Invocation {
+): IInvocation {
   if (platform !== 'win32') return { command: 'claude', args: ['-p', prompt, '--model', model] };
   return {
     command: 'powershell.exe',

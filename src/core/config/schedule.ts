@@ -1,4 +1,5 @@
-import { AppConfig, Weekday, WEEKDAYS } from '../types';
+import { IAppConfig, ITimeOfDay } from '../interfaces';
+import { Weekday, WEEKDAYS } from '../types';
 
 export const WEEKDAY_NAMES: ReadonlySet<string> = new Set(WEEKDAYS);
 export const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -13,32 +14,27 @@ const WEEKDAY_INDEX: Record<Weekday, number> = {
   Saturday: 6,
 };
 
-export interface TimeOfDay {
-  hour: number;
-  minute: number;
-}
-
 export function weekdayIndex(day: Weekday): number {
   return WEEKDAY_INDEX[day];
 }
 
-export function splitTime(value: string): TimeOfDay {
+export function splitTime(value: string): ITimeOfDay {
   const match = String(value).match(TIME_PATTERN);
   if (!match) throw new Error(`Invalid time: ${value}`);
   return { hour: Number(match[1]), minute: Number(match[2]) };
 }
 
-export function calendarEntryCount(config: AppConfig): number {
+export function calendarEntryCount(config: IAppConfig): number {
   return config.schedules.reduce((count, schedule) => count + schedule.days.length * schedule.times.length, 0);
 }
 
-export function scheduleSummary(config: AppConfig): string {
+export function scheduleSummary(config: IAppConfig): string {
   return config.schedules
     .map(schedule => `${schedule.days.join(', ')} at ${schedule.times.join(', ')}`)
     .join(' | ');
 }
 
-export function nextRunDate(config: AppConfig, now = new Date()): Date | null {
+export function nextRunDate(config: IAppConfig, now = new Date()): Date | null {
   let next: Date | null = null;
   for (const schedule of config.schedules) {
     for (const day of schedule.days) {
@@ -59,7 +55,7 @@ export function nextRunDate(config: AppConfig, now = new Date()): Date | null {
   return next;
 }
 
-export function nextRunTime(config: AppConfig, now = new Date()): string {
+export function nextRunTime(config: IAppConfig, now = new Date()): string {
   const next = nextRunDate(config, now);
   return next ? next.toLocaleString() : '-';
 }

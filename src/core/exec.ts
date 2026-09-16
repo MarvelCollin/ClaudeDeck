@@ -1,11 +1,6 @@
 import { spawn, spawnSync, SpawnSyncOptionsWithStringEncoding } from 'node:child_process';
 import { packageRoot } from './paths';
 
-export interface Invocation {
-  command: string;
-  args: string[];
-}
-
 export function runCapture(
   command: string,
   args: string[],

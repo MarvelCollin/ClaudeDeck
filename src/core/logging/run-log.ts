@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { RunCounts } from '../types';
+import { IRunCounts } from '../interfaces';
 
-const EMPTY_COUNTS: RunCounts = { runs: 0, success: 0, failed: 0, incomplete: 0 };
+const EMPTY_COUNTS: IRunCounts = { runs: 0, success: 0, failed: 0, incomplete: 0 };
 
 function readText(file: string): string {
   return fs.readFileSync(file, 'utf8').replace(/\0/g, '');
@@ -13,7 +13,7 @@ export function appendLog(file: string, text: string): void {
   fs.appendFileSync(file, text, 'utf8');
 }
 
-export function logCounts(file: string): RunCounts {
+export function logCounts(file: string): IRunCounts {
   if (!fs.existsSync(file)) return { ...EMPTY_COUNTS };
   const text = readText(file);
   const runs = (text.match(/^\[.+\] start\r?$/gm) || []).length;

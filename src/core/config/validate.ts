@@ -1,4 +1,4 @@
-import { AppConfig, Schedule } from '../types';
+import { IAppConfig, ISchedule } from '../interfaces';
 import { TIME_PATTERN, WEEKDAY_NAMES } from './schedule';
 
 function requireString(value: unknown, name: string): string {
@@ -11,7 +11,7 @@ function requireBoolean(value: unknown, name: string): boolean {
   return value;
 }
 
-export function validateSchedule(schedule: Schedule): void {
+export function validateSchedule(schedule: ISchedule): void {
   if (!Array.isArray(schedule.days) || schedule.days.length === 0) throw new Error('Schedule days are required.');
   if (!Array.isArray(schedule.times) || schedule.times.length === 0) throw new Error('Schedule times are required.');
   for (const day of schedule.days) {
@@ -22,8 +22,8 @@ export function validateSchedule(schedule: Schedule): void {
   }
 }
 
-export function validateConfig(value: unknown): asserts value is AppConfig {
-  const config = value as AppConfig;
+export function validateConfig(value: unknown): asserts value is IAppConfig {
+  const config = value as IAppConfig;
   requireString(config?.taskName, 'taskName');
   requireString(config.macLabel, 'macLabel');
   requireString(config.prompt, 'prompt');
