@@ -181,6 +181,32 @@ Saved sessions live in:
 ~/Library/Application Support/ClaudeDeck/sessions        macOS
 ```
 
+## Usage left per account
+
+Every saved account shows how much of its plan is still available:
+
+```text
+* kolin    marvelcollin7@gmail.com     5h 97% left  week 76% left
+  kowlin   marvelgamerzgt@gmail.com    usage unknown
+```
+
+The control panel draws the same two numbers as bars under each account, green until 30 percent is left, amber below that and red below 10 percent.
+
+The figures come from Claude Desktop itself. It keeps a rolling record in `plan-usage-history.json` inside its profile:
+
+```json
+{"t":1787799753872,"org":"167e0b5e-...","u":{"fh":1,"sd":35}}
+```
+
+`fh` is the five hour limit and `sd` is the weekly one, both as a percentage already used, so ClaudeDeck shows `100 - value` as the amount left. Nothing is fetched over the network and no token is spent reading it.
+
+Samples are tagged by organisation rather than by account, so ClaudeDeck records which organisation an account was using when you saved it, and refreshes that link whenever the account is the signed-in one. Two consequences:
+
+- An account saved before this feature reads `usage unknown` until the next time it is signed in.
+- If one account belongs to several organisations, the figures follow whichever organisation it used most recently. The panel prints the measurement time so you can tell how fresh it is.
+
+Claude Desktop only writes a sample while it is running, so the numbers stop moving once it is closed.
+
 ## What is shared and what is swapped
 
 Switching swaps the login, not your work.
