@@ -42,7 +42,7 @@
     "node": ">=18.19"
   },
   "scripts": {
-    "build": "tsc --project tsconfig.json",
+    "build": "tsc --project tsconfig.json && node tools/copy-assets.mjs",
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "typecheck": "tsc --project tsconfig.test.json",
     "start": "node scripts/runner/run-claude.js",

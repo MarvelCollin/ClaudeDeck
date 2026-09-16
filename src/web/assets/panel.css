@@ -1,4 +1,3 @@
-export const PAGE_STYLES = `
 :root{
   --bg:#f6f7f9;
   --surface:#ffffff;
@@ -164,4 +163,3 @@ footer{margin-top:24px;font-size:13px;color:var(--faint)}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
-`;

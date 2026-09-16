@@ -1,10 +1,5 @@
-const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-
-export { DAYS };
-
-export function renderClientScript(token: string): string {
-  return `var TOKEN = ${JSON.stringify(token)};
-var DAYS = ${JSON.stringify(DAYS)};
+var TOKEN = '__CLAUDEDECK_TOKEN__';
+var DAYS = __CLAUDEDECK_DAYS__;
 var state = null;
 var draft = null;
 var flashTimer = null;
@@ -130,7 +125,7 @@ function renderBlocks() {
     block.times.forEach(function (time, ti) {
       var chip = el('span', 'chip time');
       chip.appendChild(document.createTextNode(time));
-      var x = el('button', null, '\\u00d7');
+      var x = el('button', null, '\u00d7');
       x.type = 'button';
       x.setAttribute('aria-label', 'Remove ' + time);
       x.onclick = function () { block.times.splice(ti, 1); renderBlocks(); markDirty(); };
@@ -149,7 +144,7 @@ function renderBlocks() {
     addBtn.type = 'button';
     addBtn.onclick = function () {
       var value = input.value.trim();
-      if (!/^([01]\\d|2[0-3]):([0-5]\\d)$/.test(value)) { flash('Times use 24-hour HH:mm, for example 09:30.', true); input.focus(); return; }
+      if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(value)) { flash('Times use 24-hour HH:mm, for example 09:30.', true); input.focus(); return; }
       if (block.times.indexOf(value) === -1) block.times.push(value);
       block.times.sort();
       renderBlocks();
@@ -167,7 +162,7 @@ function markDirty() {
 }
 
 function initialsOf(text) {
-  var parts = String(text).trim().split(/\\s+/).filter(Boolean);
+  var parts = String(text).trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return '?';
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
@@ -195,7 +190,7 @@ function renderCurrent(accounts) {
     var save = el('button', 'primary', captured ? 'Re-save desktop session' : 'Save this account');
     if (captured) save.className = 'button quiet';
     save.onclick = function () {
-      if (!confirm('Save ' + accounts.current.name + '?\\n\\nClaude Desktop will briefly close and reopen so its session can be copied.')) return;
+      if (!confirm('Save ' + accounts.current.name + '?\n\nClaude Desktop will briefly close and reopen so its session can be copied.')) return;
       busy(save, true, 'Saving');
       api('/api/accounts/sync', {}).then(function (r) {
         flash('Saved ' + r.name + '. You can switch back to it any time.');
@@ -234,9 +229,9 @@ function switchRow(s) {
 
   var swap = el('button', 'primary', 'Switch');
   swap.disabled = s.active || !s.desktopCaptured;
-  swap.title = s.active ? 'This account is already active' : (!s.desktopCaptured ? 'Save this account\\'s desktop session first' : '');
+  swap.title = s.active ? 'This account is already active' : (!s.desktopCaptured ? 'Save this account\'s desktop session first' : '');
   swap.onclick = function () {
-    if (!confirm('Switch to ' + s.name + '?\\n\\nClaude Desktop will close and reopen on this account. Claude Code switches too.')) return;
+    if (!confirm('Switch to ' + s.name + '?\n\nClaude Desktop will close and reopen on this account. Claude Code switches too.')) return;
     busy(swap, true, 'Switching');
     api('/api/accounts/switch', { alias: s.alias }).then(function () {
       flash('Switched to ' + s.name + '. Claude Desktop is reopening.');
@@ -305,7 +300,7 @@ function resetDraft() {
 function loadLog() {
   return api('/api/schedule/log').then(function (data) {
     var pre = document.getElementById('log');
-    pre.textContent = data.lines.length ? data.lines.join('\\n') : 'Nothing logged yet. The log fills in after the first run.';
+    pre.textContent = data.lines.length ? data.lines.join('\n') : 'Nothing logged yet. The log fills in after the first run.';
     pre.scrollTop = pre.scrollHeight;
   }).catch(function (err) { flash(err.message, true); });
 }
@@ -365,5 +360,4 @@ setInterval(function () { if (!draft || !document.getElementById('dirty').textCo
 addEventListener('pagehide', function () {
   navigator.sendBeacon('/api/close?token=' + encodeURIComponent(TOKEN));
 });
-refresh().then(loadLog);`;
-}
+refresh().then(loadLog);

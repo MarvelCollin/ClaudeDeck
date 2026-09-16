@@ -1,9 +1,18 @@
-import { LOGO_SVG } from './logo';
-
-export function renderMarkup(): string {
-  return `<div class="wrap">
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ClaudeDeck</title>
+<link rel="icon" type="image/svg+xml" href="__CLAUDEDECK_FAVICON__">
+<style>
+__CLAUDEDECK_STYLES__
+</style>
+</head>
+<body>
+<div class="wrap">
 <header>
-  <span class="logo">${LOGO_SVG}</span>
+  <span class="logo">__CLAUDEDECK_LOGO__</span>
   <h1>ClaudeDeck</h1>
   <span class="spacer"></span>
   <span class="where" id="configpath"></span>
@@ -84,5 +93,10 @@ export function renderMarkup(): string {
 <footer id="footnote"></footer>
 </div>
 
-<div id="flash" role="status" aria-live="polite"></div>`;
-}
+<div id="flash" role="status" aria-live="polite"></div>
+
+<script>
+__CLAUDEDECK_SCRIPT__
+</script>
+</body>
+</html>
