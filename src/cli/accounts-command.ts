@@ -33,12 +33,17 @@ function printList(): void {
 }
 
 export async function openUi(): Promise<void> {
-  const session = await startServer().listen();
+  const panel = startServer();
+  const session = await panel.listen();
   console.log(`ClaudeDeck control panel: ${session.url}`);
   console.log('Close the browser tab to stop the server.');
   openUrl(session.url);
   await new Promise<void>(resolve => session.server.once('close', () => resolve()));
-  console.log('Control panel closed.');
+  if (panel.connected()) {
+    console.log('Control panel closed.');
+    return;
+  }
+  console.log('Nothing opened the panel, so the server stopped. Copy the URL above into a browser and run the command again.');
 }
 
 function runShare(value: string | undefined): void {

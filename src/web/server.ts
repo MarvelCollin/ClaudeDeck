@@ -13,6 +13,7 @@ const TOKEN_HEADER = 'x-claudedeck-token';
 const BODY_LIMIT = 65536;
 
 export const IDLE_TIMEOUT = 10000;
+export const STARTUP_TIMEOUT = 120000;
 const HEARTBEAT_INTERVAL = 2000;
 
 export function allowedHost(header: string | undefined): boolean {
@@ -50,8 +51,10 @@ function sendJson(res: ServerResponse, status: number, payload: unknown): void {
 export function startServer(options: IServerOptions = {}): IPanelServer {
   const token = options.token || crypto.randomBytes(24).toString('hex');
   const idleTimeout = options.idleTimeout || IDLE_TIMEOUT;
+  const startupTimeout = options.startupTimeout || STARTUP_TIMEOUT;
   const routes = buildRoutes(options.service ?? createService());
   let lastSeen = Date.now();
+  let opened = false;
   let closing = false;
 
   const server = http.createServer(async (req, res) => {
@@ -69,6 +72,7 @@ export function startServer(options: IServerOptions = {}): IPanelServer {
         return;
       }
       lastSeen = Date.now();
+      opened = true;
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
       res.end(renderPage(token));
       return;
@@ -101,7 +105,7 @@ export function startServer(options: IServerOptions = {}): IPanelServer {
   });
 
   const heartbeat = setInterval(() => {
-    if (Date.now() - lastSeen > idleTimeout) close();
+    if (Date.now() - lastSeen > (opened ? idleTimeout : startupTimeout)) close();
   }, HEARTBEAT_INTERVAL);
   heartbeat.unref();
 
@@ -123,7 +127,7 @@ export function startServer(options: IServerOptions = {}): IPanelServer {
     });
   }
 
-  return { listen, close, server, token };
+  return { listen, close, connected: () => opened, server, token };
 }
 
 export { buildRoutes };
