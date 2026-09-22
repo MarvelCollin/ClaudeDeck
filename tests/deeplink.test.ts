@@ -92,8 +92,17 @@ test('the sign in link goes to the window that was opened last and is still sign
   assert.strictEqual(deeplink.pendingProfile(stateWith(HOME, 'home'), [WORK, HOME], signedOut), HOME);
   assert.strictEqual(deeplink.pendingProfile(stateWith(WORK), [WORK, HOME], signedOut), HOME, 'a signed in window is skipped');
   assert.strictEqual(deeplink.pendingProfile(stateWith(null, null), [WORK, HOME], signedOut), HOME);
-  assert.strictEqual(deeplink.pendingProfile(stateWith(HOME, 'home'), [WORK, HOME], () => false), null);
   assert.strictEqual(deeplink.pendingProfile(stateWith(HOME, 'home'), [], signedOut), null);
+});
+
+test('a window opened by ClaudeDeck still takes the link when its saved login went stale', () => {
+  assert.strictEqual(
+    deeplink.pendingProfile(stateWith(HOME, 'home'), [WORK, HOME], () => false),
+    HOME,
+    'saved tokens can be expired, so the window ClaudeDeck opened keeps the link'
+  );
+  assert.strictEqual(deeplink.pendingProfile(stateWith(HOME, 'home'), [WORK], () => false), null, 'that window is closed');
+  assert.strictEqual(deeplink.pendingProfile(stateWith(null, null), [WORK], () => false), null);
 });
 
 test('forwarding launches the waiting profile with the link', () => {

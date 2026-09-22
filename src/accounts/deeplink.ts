@@ -145,8 +145,8 @@ export function pendingProfile(
   signedOut: (dir: string) => boolean
 ): string | null {
   const waiting = dirs.filter(dir => signedOut(dir));
-  if (!waiting.length) return null;
-  return waiting.find(dir => samePath(dir, state.dir)) ?? (waiting[0] as string);
+  const remembered = dirs.find(dir => samePath(dir, state.dir)) ?? null;
+  return waiting.find(dir => samePath(dir, state.dir)) ?? waiting[0] ?? remembered;
 }
 
 export function rememberOpen(alias: string, dir: string, overrides: Partial<IDeeplinkDeps> = {}): IDeeplinkState {
