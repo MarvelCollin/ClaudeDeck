@@ -269,7 +269,11 @@ export async function guardHandler(
   if (deps.platform !== 'win32') return { seconds: 0, claims: 0 };
   const deadline = deps.now().getTime() + seconds * 1000;
   let claims = 0;
-  for (;;) {
+  for (let tick = 0; ; tick += 1) {
+    if (tick > 0 && deps.readState().handler.command === null) {
+      deps.log('stopped guarding the claude:// handler because it was given back');
+      return { seconds, claims };
+    }
     if (deps.readCommand() !== deps.wantedCommand()) {
       ensureHandler(deps);
       claims += 1;

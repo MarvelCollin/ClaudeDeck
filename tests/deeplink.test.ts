@@ -190,6 +190,27 @@ test('the guard takes the handler back every time Claude Desktop claims it', asy
   assert.ok(deeplink.isOurCommand(h.getCommand()), 'the handler is ours when the guard ends');
 });
 
+test('the guard stands down when the handler is given back', async () => {
+  const h = harness();
+  let clock = new Date('2026-09-22T00:00:00Z').getTime();
+
+  const held = await deeplink.guardHandler(
+    { ...h.deps, now: () => new Date(clock) },
+    {
+      seconds: 600,
+      intervalMs: 1000,
+      sleep: async () => {
+        clock += 1000;
+        deeplink.removeHandler(h.deps);
+      },
+    }
+  );
+
+  assert.strictEqual(held.claims, 1, 'it claims once, then the removal stops it');
+  assert.ok(h.logged.some(line => line.includes('stopped guarding')));
+  assert.strictEqual(deeplink.isOurCommand(h.getCommand()), false);
+});
+
 test('the guard does nothing off Windows', async () => {
   const h = harness({ platform: 'darwin' });
   assert.deepStrictEqual(await deeplink.guardHandler(h.deps, { seconds: 1 }), { seconds: 0, claims: 0 });
