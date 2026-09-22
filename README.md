@@ -200,7 +200,7 @@ Each account gets its own Claude Desktop profile directory:
 ~/Library/Application Support/ClaudeDeck/profiles/<alias> macOS
 ```
 
-Claude Desktop is an Electron app, and its single instance lock lives inside the profile directory, so one window per directory runs happily alongside the others. The first `open` seeds the new profile from that account's saved session, so it starts already signed in rather than asking you to log in again.
+Claude Desktop is an Electron app, and its single instance lock lives inside the profile directory, so one window per directory runs happily alongside the others. The first `open` seeds the new profile from that account's saved session, including the `oauth:` keys in `config.json`, so it starts already signed in rather than asking you to log in again. If a window is still signed out the next `open` repairs it from the saved session.
 
 Because nothing is swapped, nothing can go stale: every window stays signed in for as long as you leave it alone, and `switch` is only needed if you want a single window instead.
 
@@ -216,6 +216,22 @@ Two things to know:
 * kolin    marvelcollin7@gmail.com     ready           5h 76% left  week 73% left
   Bet      bertrand13022005@gmail.com  not opened yet  usage unknown
 ```
+
+## Signing in inside an account window
+
+An account with no saved desktop session has to sign in from its own window, and that login ends on a `claude://` link. Windows hands that link to whichever Claude Desktop the registry points at, which is the default profile, so the window that started the login keeps waiting and never finishes.
+
+ClaudeDeck can take that link over:
+
+```bash
+claudedeck deeplink install
+claudedeck deeplink status
+claudedeck deeplink remove
+```
+
+`install` points `HKCU\Software\Classes\claude\shell\open\command` at ClaudeDeck and remembers the previous command. Every `claude://` link then goes to the account window that is open and still signed out, launched as `Claude.exe --user-data-dir=<profile> <link>`. With no window waiting, the link goes to Claude Desktop exactly as before. `remove` puts the old command back.
+
+This is Windows only. On macOS the login already returns to the app that asked for it.
 
 ## Usage left per account
 

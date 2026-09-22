@@ -1,5 +1,6 @@
 import { IAccountUsage } from '../accounts/interfaces';
 import { createSwitcher } from '../accounts/switcher';
+import { forward, handlerStatus, installHandler, isProtocolUrl, PROTOCOL, removeHandler } from '../accounts/deeplink';
 import { openUrl } from '../accounts/desktop-app';
 import { startServer } from '../web/server';
 
@@ -14,6 +15,7 @@ export const USAGE = [
   '  switch <alias>     restore a saved account and restart Claude Desktop',
   '  forget <alias>     delete a saved account session',
   '  share [on|off]     share local history and app state across every account',
+  '  deeplink [status|install|remove]  send claude:// sign in links to the window waiting for them',
 ].join('\n');
 
 function requireArg(value: string | undefined, command: string, what: string): string {
@@ -62,6 +64,44 @@ export async function openUi(): Promise<void> {
   console.log('Nothing opened the panel, so the server stopped. Copy the URL above into a browser and run the command again.');
 }
 
+function runDeeplink(value: string | undefined): void {
+  if (value && isProtocolUrl(value)) {
+    const routed = forward(value);
+    if (routed.routed) console.log(`Sent the sign in link to ${routed.alias ?? routed.dir}.`);
+    else console.log('No account window was waiting to sign in, so the link went to Claude Desktop.');
+    return;
+  }
+  if (!value || value === 'status') {
+    const status = handlerStatus();
+    if (!status.supported) {
+      console.log(`Routing ${PROTOCOL}:// links is only needed on Windows.`);
+      return;
+    }
+    console.log(`Sign in links are ${status.installed ? 'routed by ClaudeDeck' : 'handled by Claude Desktop'}.`);
+    console.log(`Handler: ${status.command ?? 'not registered'}`);
+    return;
+  }
+  if (value === 'install') {
+    const installed = installHandler();
+    if (!installed.supported) {
+      console.log(`Routing ${PROTOCOL}:// links is only needed on Windows.`);
+      return;
+    }
+    console.log(installed.changed ? 'ClaudeDeck now routes sign in links.' : 'ClaudeDeck already routes sign in links.');
+    return;
+  }
+  if (value === 'remove') {
+    const removed = removeHandler();
+    if (!removed.supported) {
+      console.log(`Routing ${PROTOCOL}:// links is only needed on Windows.`);
+      return;
+    }
+    console.log(removed.changed ? 'Claude Desktop handles sign in links again.' : 'ClaudeDeck was not routing sign in links.');
+    return;
+  }
+  throw new Error('Command "deeplink" needs "status", "install", "remove", or a claude:// link.');
+}
+
 function runShare(value: string | undefined): void {
   const switcher = createSwitcher();
   if (!value) {
@@ -89,8 +129,18 @@ export async function runAccountsCommand(argv: string[] = []): Promise<void> {
   }
   if (command === 'open') {
     const opened = createSwitcher().openAccount(requireArg(first, 'open', 'an account alias'));
-    if (opened.alreadyRunning) console.log(`${opened.alias} is already open.`);
-    else console.log(`Opening ${opened.alias}${opened.seededFrom ? ' from its saved session' : ''}. Profile: ${opened.dir}`);
+    if (opened.alreadyRunning) {
+      console.log(`${opened.alias} is already open.`);
+      return;
+    }
+    console.log(`Opening ${opened.alias}${opened.seededFrom ? ' from its saved session' : ''}. Profile: ${opened.dir}`);
+    if (!opened.signedIn) {
+      console.log(
+        opened.loginRouted
+          ? 'That window has no saved sign in. Sign in there and ClaudeDeck will send the link back to it.'
+          : 'That window has no saved sign in, and sign in links are not routed. Run "claudedeck deeplink install".'
+      );
+    }
     return;
   }
   if (command === 'close') {
@@ -105,6 +155,10 @@ export async function runAccountsCommand(argv: string[] = []): Promise<void> {
   }
   if (command === 'share') {
     runShare(first);
+    return;
+  }
+  if (command === 'deeplink') {
+    runDeeplink(first);
     return;
   }
   if (command === 'forget') {

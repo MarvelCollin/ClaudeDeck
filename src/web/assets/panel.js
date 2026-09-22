@@ -322,7 +322,7 @@ function usageBar(usage, who) {
   return box;
 }
 
-function switchRow(s, labels) {
+function switchRow(s, labels, routing) {
   var row = el('div', 'row');
   row.appendChild(avatarFor(s.name, s.active));
   var who = el('div', 'who');
@@ -340,6 +340,11 @@ function switchRow(s, labels) {
   who.appendChild(usageBar(s.usage, s.name));
 
   if (s.instance && s.instance.running) name.appendChild(el('span', 'tagline live', 'window open'));
+  if (s.instance && s.instance.running && !s.instance.signedIn) {
+    who.appendChild(el('div', 'sub muted', routing
+      ? 'This window is signed out. Sign in there and ClaudeDeck sends the login link back to it.'
+      : 'This window is signed out. Run "claudedeck deeplink install" so the login link comes back to it.'));
+  }
 
   var openBtn = el('button', s.instance && s.instance.running ? 'quiet icon' : 'primary', s.instance && s.instance.running ? 'Close window' : 'Open window');
   openBtn.title = s.instance && s.instance.running
@@ -385,7 +390,7 @@ function renderSessions(accounts) {
   host.setAttribute('aria-busy', 'false');
   var labels = {};
   (accounts.installs || []).forEach(function (i) { labels[i.id] = i.label; });
-  host.replaceChildren.apply(host, accounts.sessions.map(function (s) { return switchRow(s, labels); }));
+  host.replaceChildren.apply(host, accounts.sessions.map(function (s) { return switchRow(s, labels, accounts.loginRouting); }));
   if (!accounts.sessions.length) {
     host.appendChild(el('div', 'empty', 'No saved accounts yet. Save the current one, then follow the steps below to add another.'));
   }

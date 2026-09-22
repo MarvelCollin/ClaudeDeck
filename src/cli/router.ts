@@ -1,6 +1,6 @@
 import { IRoute } from './interfaces';
 
-export const ACCOUNT_COMMANDS = ['list', 'save', 'sync', 'switch', 'forget', 'share', 'open', 'close'];
+export const ACCOUNT_COMMANDS = ['list', 'save', 'sync', 'switch', 'forget', 'share', 'open', 'close', 'deeplink'];
 export const WEB_COMMANDS = ['web', 'profiles'];
 export const HELP_COMMANDS = ['help', '--help', '-h'];
 
