@@ -12,6 +12,7 @@ export interface IDeeplinkDeps {
   listProcesses: () => IClaudeProcess[];
   signedOut: (dir: string) => boolean;
   launch: (exe: string, args: string[]) => number | undefined;
+  log: (line: string) => void;
   locate: () => string;
   now: () => Date;
 }

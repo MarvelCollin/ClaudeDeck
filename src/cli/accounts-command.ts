@@ -1,6 +1,15 @@
 import { IAccountUsage } from '../accounts/interfaces';
 import { createSwitcher } from '../accounts/switcher';
-import { forward, handlerStatus, installHandler, isProtocolUrl, PROTOCOL, removeHandler } from '../accounts/deeplink';
+import {
+  forward,
+  GUARD_SECONDS,
+  guardHandler,
+  handlerStatus,
+  installHandler,
+  isProtocolUrl,
+  PROTOCOL,
+  removeHandler,
+} from '../accounts/deeplink';
 import { openUrl } from '../accounts/desktop-app';
 import { startServer } from '../web/server';
 
@@ -16,7 +25,7 @@ export const USAGE = [
   '  switch <alias>     restore a saved account and restart Claude Desktop',
   '  forget <alias>     delete a saved account session',
   '  share [on|off]     share local history and app state across every account',
-  '  deeplink [status|install|remove]  send claude:// sign in links to the window waiting for them',
+  '  deeplink [status|install|remove|guard]  send claude:// sign in links to the window waiting for them',
 ].join('\n');
 
 function requireArg(value: string | undefined, command: string, what: string): string {
@@ -65,28 +74,26 @@ export async function openUi(): Promise<void> {
   console.log('Nothing opened the panel, so the server stopped. Copy the URL above into a browser and run the command again.');
 }
 
-export const CLAIM_WAIT_MS = 12000;
-
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => { setTimeout(resolve, ms); });
-}
-
-async function holdLoginRouting(wait = CLAIM_WAIT_MS): Promise<void> {
+function reportLoginRouting(guarding: boolean): void {
   if (!handlerStatus().supported) {
     console.log('That window has no saved sign in. Sign in there.');
     return;
   }
-  console.log('That window has no saved sign in. Waiting for Claude Desktop to register itself for sign in links...');
-  await sleep(wait);
-  const claimed = installHandler();
   console.log(
-    claimed.installed
-      ? 'Sign in links now come back to that window. Sign in there now, before another Claude Desktop starts.'
-      : 'Could not take over sign in links. Run "claudedeck deeplink install" and try again.'
+    guarding
+      ? `That window has no saved sign in. Sign in there now: ClaudeDeck holds the sign in link for the next ${GUARD_SECONDS / 60} minutes, even when Claude Desktop takes it back.`
+      : 'That window has no saved sign in, and the sign in link is not held. Run "claudedeck deeplink guard" in another terminal, then sign in.'
   );
 }
 
-function runDeeplink(value: string | undefined): void {
+async function runDeeplink(value: string | undefined, extra: string | undefined): Promise<void> {
+  if (value === 'guard') {
+    const seconds = Number(extra) > 0 ? Number(extra) : GUARD_SECONDS;
+    console.log(`Holding the claude:// handler for ${seconds}s. Sign in now.`);
+    const held = await guardHandler({}, { seconds });
+    console.log(held.claims ? `Took the handler back ${held.claims} time(s).` : 'Nothing tried to take the handler.');
+    return;
+  }
   if (value && isProtocolUrl(value)) {
     const routed = forward(value);
     if (routed.routed) console.log(`Sent the sign in link to ${routed.alias ?? routed.dir}.`);
@@ -121,7 +128,7 @@ function runDeeplink(value: string | undefined): void {
     console.log(removed.changed ? 'Claude Desktop handles sign in links again.' : 'ClaudeDeck was not routing sign in links.');
     return;
   }
-  throw new Error('Command "deeplink" needs "status", "install", "remove", or a claude:// link.');
+  throw new Error('Command "deeplink" needs "status", "install", "remove", "guard", or a claude:// link.');
 }
 
 function runShare(value: string | undefined): void {
@@ -159,7 +166,7 @@ export async function runAccountsCommand(argv: string[] = []): Promise<void> {
     }
     if (opened.wiped) console.log(`Wiped the old profile for ${opened.alias}.`);
     console.log(`Opening ${opened.alias}${opened.seededFrom ? ' from its saved session' : ''}. Profile: ${opened.dir}`);
-    if (!opened.signedIn) await holdLoginRouting();
+    if (!opened.signedIn) reportLoginRouting(opened.loginRouted);
     return;
   }
   if (command === 'close') {
@@ -177,7 +184,7 @@ export async function runAccountsCommand(argv: string[] = []): Promise<void> {
     return;
   }
   if (command === 'deeplink') {
-    runDeeplink(first);
+    await runDeeplink(first, argv[2]);
     return;
   }
   if (command === 'forget') {

@@ -9,6 +9,7 @@ export { ICodeAccountFile } from './ICodeAccountFile';
 export { IDeeplinkDeps } from './IDeeplinkDeps';
 export { IDeeplinkResult } from './IDeeplinkResult';
 export { IDeeplinkHandler, IDeeplinkState } from './IDeeplinkState';
+export { IGuardOptions, IGuardResult } from './IGuardOptions';
 export { IHandlerResult } from './IHandlerResult';
 export { IIdentityLookupOptions } from './IIdentityLookupOptions';
 export { IInstallState } from './IInstallState';

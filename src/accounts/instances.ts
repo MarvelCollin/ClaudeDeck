@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { handlerStatus, rememberOpen } from './deeplink';
+import { rememberOpen, startGuard } from './deeplink';
 import { launch, launchArgs, locateApp } from './desktop-app';
 import { IAccountInstance, IInstanceDeps, IOpenOptions, IOpenResult, IProfileLocation, ISavedSession } from './interfaces';
 import { assertValidAlias, desktopConfigPath, desktopProfileDir, profilePath, sessionSlot } from './paths';
@@ -20,7 +20,7 @@ function defaultDeps(): IInstanceDeps {
     locate: locateApp,
     defaultDir: desktopProfileDir(),
     remember: (alias, dir) => rememberOpen(alias, dir),
-    routeLogins: () => handlerStatus().installed,
+    routeLogins: () => startGuard(),
   };
 }
 

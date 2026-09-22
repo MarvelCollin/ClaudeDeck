@@ -1,10 +1,19 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { readJsonFile, writeJsonFile } from '../core/fs/json';
-import { packageRoot } from '../core/paths';
-import { tryCapture } from '../core/exec';
+import { packageRoot, userDataDir } from '../core/paths';
+import { spawnDetached, tryCapture } from '../core/exec';
 import { launch, launchArgs, locateApp } from './desktop-app';
-import { IClaudeProcess, IDeeplinkDeps, IDeeplinkResult, IDeeplinkState, IHandlerResult } from './interfaces';
+import {
+  IClaudeProcess,
+  IDeeplinkDeps,
+  IDeeplinkResult,
+  IDeeplinkState,
+  IGuardOptions,
+  IGuardResult,
+  IHandlerResult,
+} from './interfaces';
 import { deeplinkStatePath, desktopConfigPath } from './paths';
 import { listClaudeProcesses, samePath, userDataDirOf } from './processes';
 import { hasAccountConfig } from './session-store';
@@ -14,6 +23,9 @@ export const HANDLER_KEY = 'HKCU\\Software\\Classes\\claude\\shell\\open\\comman
 export const HANDLER_ROOT = 'HKCU\\Software\\Classes\\claude';
 export const SHIM_SCRIPT = 'deeplink.vbs';
 export const STATE_VERSION = 1;
+export const GUARD_SECONDS = 300;
+export const GUARD_INTERVAL_MS = 1000;
+export const LOG_FILE = 'deeplink.log';
 
 const PROTOCOL_URL = /^claude:\/\//i;
 
@@ -121,6 +133,7 @@ export function defaultDeeplinkDeps(): IDeeplinkDeps {
     listProcesses: listClaudeProcesses,
     signedOut: dir => !hasAccountConfig(desktopConfigPath(dir)),
     launch,
+    log: line => log(line),
     locate: locateApp,
     now: () => new Date(),
   };
@@ -162,6 +175,7 @@ export function forward(url: string, overrides: Partial<IDeeplinkDeps> = {}): ID
   const target = pendingProfile(state, runningProfileDirs(deps.listProcesses()), deps.signedOut);
   const args = target ? [...launchArgs(target, false), url] : [url];
   const pid = deps.launch(deps.locate(), args);
+  deps.log(`link ${url.split('?')[0]} -> ${target ?? 'Claude Desktop'}`);
   return {
     url,
     alias: target && samePath(target, state.dir) ? state.alias : null,
@@ -225,4 +239,50 @@ export function ensureHandler(overrides: Partial<IDeeplinkDeps> = {}): IHandlerR
   } catch {
     return { supported: true, installed: false, changed: false, command: null, fallbackCommand: null };
   }
+}
+
+export function logPath(): string {
+  return path.join(userDataDir(), LOG_FILE);
+}
+
+export function log(line: string, file: string = logPath()): void {
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.appendFileSync(file, `${new Date().toISOString()} ${line}\n`, 'utf8');
+  } catch {
+    return;
+  }
+}
+
+function pause(ms: number): Promise<void> {
+  return new Promise(resolve => { setTimeout(resolve, ms); });
+}
+
+export async function guardHandler(
+  overrides: Partial<IDeeplinkDeps> = {},
+  options: IGuardOptions = {}
+): Promise<IGuardResult> {
+  const deps = withDeps(overrides);
+  const seconds = options.seconds ?? GUARD_SECONDS;
+  const intervalMs = options.intervalMs ?? GUARD_INTERVAL_MS;
+  const sleep = options.sleep ?? pause;
+  if (deps.platform !== 'win32') return { seconds: 0, claims: 0 };
+  const deadline = deps.now().getTime() + seconds * 1000;
+  let claims = 0;
+  for (;;) {
+    if (deps.readCommand() !== deps.wantedCommand()) {
+      ensureHandler(deps);
+      claims += 1;
+      deps.log('claimed the claude:// handler back from Claude Desktop');
+    }
+    if (deps.now().getTime() >= deadline) return { seconds, claims };
+    await sleep(intervalMs);
+  }
+}
+
+export function startGuard(seconds: number = GUARD_SECONDS, platform: NodeJS.Platform = process.platform): boolean {
+  if (platform !== 'win32') return false;
+  const pid = spawnDetached(process.execPath, [cliPath(), 'deeplink', 'guard', String(seconds)]);
+  log(`guarding the claude:// handler for ${seconds}s (pid ${pid ?? 'unknown'})`);
+  return pid !== undefined;
 }

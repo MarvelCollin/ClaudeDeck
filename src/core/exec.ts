@@ -32,7 +32,7 @@ export function succeeds(command: string, args: string[]): boolean {
 }
 
 export function spawnDetached(command: string, args: string[]): number | undefined {
-  const child = spawn(command, args, { detached: true, stdio: 'ignore' });
+  const child = spawn(command, args, { detached: true, stdio: 'ignore', windowsHide: true });
   child.unref();
   return child.pid;
 }

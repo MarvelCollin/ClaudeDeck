@@ -18,6 +18,7 @@ function harness(overrides: Partial<IDeeplinkDeps> = {}) {
   const launched: string[][] = [];
   const written: string[] = [];
   const restored: [string | null, boolean][] = [];
+  const logged: string[] = [];
   let state = deeplink.emptyState();
   let command: string | null = '"C:\\Program Files\\Claude\\Claude.exe" "%1"';
   const deps: Partial<IDeeplinkDeps> = {
@@ -31,12 +32,14 @@ function harness(overrides: Partial<IDeeplinkDeps> = {}) {
     listProcesses: () => [],
     signedOut: () => false,
     launch: (exe, args) => { launched.push([exe, ...args]); return 99; },
+    log: line => { logged.push(line); },
     locate: () => 'C:\\Claude.exe',
     now: () => new Date('2026-09-22T00:00:00Z'),
     ...overrides,
   };
   return {
     deps,
+    logged,
     launched,
     written,
     restored,
@@ -161,6 +164,36 @@ test('a handler we created is deleted rather than restored', () => {
   assert.strictEqual(h.getState().handler.created, true);
   deeplink.removeHandler(h.deps);
   assert.deepStrictEqual(h.restored, [[null, true]]);
+});
+
+test('the guard takes the handler back every time Claude Desktop claims it', async () => {
+  const h = harness();
+  let clock = new Date('2026-09-22T00:00:00Z').getTime();
+  const steal = [2, 5];
+  let tick = 0;
+
+  const held = await deeplink.guardHandler(
+    { ...h.deps, now: () => new Date(clock) },
+    {
+      seconds: 6,
+      intervalMs: 1000,
+      sleep: async () => {
+        clock += 1000;
+        tick += 1;
+        if (steal.includes(tick)) h.setCommand('"C:\\Program Files\\Claude\\Claude.exe" "%1"');
+      },
+    }
+  );
+
+  assert.strictEqual(held.seconds, 6);
+  assert.strictEqual(held.claims, 3, 'once at the start, then after each theft');
+  assert.ok(deeplink.isOurCommand(h.getCommand()), 'the handler is ours when the guard ends');
+});
+
+test('the guard does nothing off Windows', async () => {
+  const h = harness({ platform: 'darwin' });
+  assert.deepStrictEqual(await deeplink.guardHandler(h.deps, { seconds: 1 }), { seconds: 0, claims: 0 });
+  assert.strictEqual(h.written.length, 0);
 });
 
 test('sign in link routing is a Windows only concern', () => {
