@@ -231,6 +231,16 @@ claudedeck deeplink remove
 
 `install` points `HKCU\Software\Classes\claude\shell\open\command` at ClaudeDeck and remembers the previous command. Every `claude://` link then goes to the account window that is open and still signed out, launched as `Claude.exe --user-data-dir=<profile> <link>`. With no window waiting, the link goes to Claude Desktop exactly as before. `remove` puts the old command back.
 
+Claude Desktop claims that handler back every time it starts, so `claudedeck open` takes it again a few seconds after the window comes up. Sign in while that window is the newest one: starting another Claude Desktop hands the handler back to it, and the link follows.
+
+A saved login that has expired leaves a window asking to sign in that ClaudeDeck still reads as signed in. Start it over from an empty profile:
+
+```bash
+claudedeck open marvelcollin7-gmail.com fresh
+```
+
+That closes the window, deletes `profiles\<alias>`, and opens a plain sign in screen. The saved session in `sessions\<alias>` is untouched.
+
 This is Windows only. On macOS the login already returns to the app that asked for it.
 
 ## Usage left per account

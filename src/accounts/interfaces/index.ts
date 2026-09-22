@@ -13,6 +13,7 @@ export { IHandlerResult } from './IHandlerResult';
 export { IIdentityLookupOptions } from './IIdentityLookupOptions';
 export { IInstallState } from './IInstallState';
 export { IInstanceDeps } from './IInstanceDeps';
+export { IOpenOptions } from './IOpenOptions';
 export { IOpenResult } from './IOpenResult';
 export { IParsedAccount } from './IParsedAccount';
 export { IProfileEntry } from './IProfileEntry';

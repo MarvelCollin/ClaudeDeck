@@ -114,7 +114,7 @@ export function createService(): IPanelService {
     accountsState: () => switcher.listSessions(),
     closeAccount: body => switcher.closeAccount(requireAlias(body, 'Which account should I close?')),
     forgetAccount: body => switcher.forget(requireAlias(body, 'Which account should I forget?')),
-    openAccount: body => switcher.openAccount(requireAlias(body, 'Which account should I open?')),
+    openAccount: body => switcher.openAccount(requireAlias(body, 'Which account should I open?'), { fresh: Boolean(body?.fresh) }),
     install,
     readLog,
     reload,

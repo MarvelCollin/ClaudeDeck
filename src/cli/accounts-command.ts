@@ -11,6 +11,7 @@ export const USAGE = [
   '  list               show every saved account and which one is active',
   '  save               save the account you are signed into now',
   '  open <alias>       open a second Claude Desktop window on that account',
+  '  open <alias> fresh wipe that profile first and open a plain sign in screen',
   '  close <alias>      close the window for that account',
   '  switch <alias>     restore a saved account and restart Claude Desktop',
   '  forget <alias>     delete a saved account session',
@@ -62,6 +63,27 @@ export async function openUi(): Promise<void> {
     return;
   }
   console.log('Nothing opened the panel, so the server stopped. Copy the URL above into a browser and run the command again.');
+}
+
+export const CLAIM_WAIT_MS = 12000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => { setTimeout(resolve, ms); });
+}
+
+async function holdLoginRouting(wait = CLAIM_WAIT_MS): Promise<void> {
+  if (!handlerStatus().supported) {
+    console.log('That window has no saved sign in. Sign in there.');
+    return;
+  }
+  console.log('That window has no saved sign in. Waiting for Claude Desktop to register itself for sign in links...');
+  await sleep(wait);
+  const claimed = installHandler();
+  console.log(
+    claimed.installed
+      ? 'Sign in links now come back to that window. Sign in there now, before another Claude Desktop starts.'
+      : 'Could not take over sign in links. Run "claudedeck deeplink install" and try again.'
+  );
 }
 
 function runDeeplink(value: string | undefined): void {
@@ -128,19 +150,16 @@ export async function runAccountsCommand(argv: string[] = []): Promise<void> {
     return;
   }
   if (command === 'open') {
-    const opened = createSwitcher().openAccount(requireArg(first, 'open', 'an account alias'));
+    const [, , second] = argv;
+    const fresh = second === 'fresh' || second === '--fresh';
+    const opened = createSwitcher().openAccount(requireArg(first, 'open', 'an account alias'), { fresh });
     if (opened.alreadyRunning) {
       console.log(`${opened.alias} is already open.`);
       return;
     }
+    if (opened.wiped) console.log(`Wiped the old profile for ${opened.alias}.`);
     console.log(`Opening ${opened.alias}${opened.seededFrom ? ' from its saved session' : ''}. Profile: ${opened.dir}`);
-    if (!opened.signedIn) {
-      console.log(
-        opened.loginRouted
-          ? 'That window has no saved sign in. Sign in there and ClaudeDeck will send the link back to it.'
-          : 'That window has no saved sign in, and sign in links are not routed. Run "claudedeck deeplink install".'
-      );
-    }
+    if (!opened.signedIn) await holdLoginRouting();
     return;
   }
   if (command === 'close') {

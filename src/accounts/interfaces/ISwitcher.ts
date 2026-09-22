@@ -1,4 +1,5 @@
 import { IAccountIdentity } from './IAccountIdentity';
+import { IOpenOptions } from './IOpenOptions';
 import { IOpenResult } from './IOpenResult';
 import { IAutoSyncResult } from './IAutoSyncResult';
 import { ISessionListing } from './ISessionListing';
@@ -14,7 +15,7 @@ export interface ISwitcher {
   currentIdentity(): IAccountIdentity | null;
   closeAccount(alias: string): { alias: string; stopped: number };
   forget(alias: string): { alias: string };
-  openAccount(alias: string): IOpenResult;
+  openAccount(alias: string, options?: IOpenOptions): IOpenResult;
   listSessions(): ISessionListing;
   setSharing(enabled: boolean): ISharingResult;
   sharingEnabled(): boolean;

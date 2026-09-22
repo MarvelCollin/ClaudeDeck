@@ -12,6 +12,7 @@ import {
   IAutoSyncResult,
   IClaudeInstall,
   IInstallState,
+  IOpenOptions,
   IOpenResult,
   IRegistry,
   IRestoreResult,
@@ -338,10 +339,10 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
     return { alias };
   }
 
-  function openAccount(alias: string): IOpenResult {
+  function openAccount(alias: string, options: IOpenOptions = {}): IOpenResult {
     const data = readRegistry();
     if (!registry.findSession(data, alias)) throw new Error(`No saved session for "${alias}".`);
-    const result = instances.open(alias, data.sessions ?? []);
+    const result = instances.open(alias, data.sessions ?? [], options);
     writeRegistry(registry.touch(data, alias));
     return result;
   }

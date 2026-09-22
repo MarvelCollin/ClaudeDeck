@@ -797,6 +797,31 @@ test('a window with no saved login asks for sign in link routing', () => {
   }
 });
 
+test('a fresh open wipes the profile and skips the saved session', () => {
+  const h = instanceHarness();
+  try {
+    const instances = createInstances(h.deps);
+    const sessions = [savedFor('work')];
+    slotWithLogin(h.base, 'work', 'token-work');
+
+    const dir = path.join(h.base, 'profiles', 'work');
+    instances.open('work', sessions);
+    assert.ok(fs.existsSync(path.join(dir, 'config.json')));
+    h.setProcs([{ pid: 55, commandLine: 'Claude.exe --user-data-dir="' + dir + '"' }]);
+
+    const opened = instances.open('work', sessions, { fresh: true });
+    assert.strictEqual(opened.wiped, true);
+    assert.strictEqual(opened.alreadyRunning, false, 'the open window is closed first');
+    assert.deepStrictEqual(h.killed, [55]);
+    assert.strictEqual(opened.seededFrom, null, 'an expired saved login is not put back');
+    assert.strictEqual(opened.signedIn, false);
+    assert.strictEqual(opened.loginRouted, true);
+    assert.deepStrictEqual(fs.readdirSync(dir), [], 'the profile starts empty');
+  } finally {
+    fs.rmSync(h.base, { recursive: true, force: true });
+  }
+});
+
 test('an account already open is not launched twice', () => {
   const h = instanceHarness();
   try {

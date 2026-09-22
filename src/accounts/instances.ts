@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { handlerStatus, rememberOpen } from './deeplink';
 import { launch, launchArgs, locateApp } from './desktop-app';
-import { IAccountInstance, IInstanceDeps, IOpenResult, IProfileLocation, ISavedSession } from './interfaces';
+import { IAccountInstance, IInstanceDeps, IOpenOptions, IOpenResult, IProfileLocation, ISavedSession } from './interfaces';
 import { assertValidAlias, desktopConfigPath, desktopProfileDir, profilePath, sessionSlot } from './paths';
 import { groupProcesses, killPids, listClaudeProcesses } from './processes';
 import { CONFIG_FILE, hasAccountConfig, restoreConfig, restoreDesktop } from './session-store';
@@ -77,19 +77,32 @@ export function createInstances(overrides: Partial<IInstanceDeps> = {}) {
     return items.length || config ? slot : null;
   }
 
-  function open(alias: string, sessions: readonly ISavedSession[]): IOpenResult {
+  function open(alias: string, sessions: readonly ISavedSession[], options: IOpenOptions = {}): IOpenResult {
     assertValidAlias(alias);
     const dir = deps.dirOf(alias);
     const pids = running(sessions).get(alias) ?? [];
-    if (pids.length) {
-      return { alias, dir, pid: pids[0], seededFrom: null, signedIn: signedIn(dir), loginRouted: false, alreadyRunning: true };
+    if (pids.length && !options.fresh) {
+      return {
+        alias,
+        dir,
+        pid: pids[0],
+        seededFrom: null,
+        wiped: false,
+        signedIn: signedIn(dir),
+        loginRouted: false,
+        alreadyRunning: true,
+      };
     }
-    const seededFrom = seed(alias, dir);
+    if (options.fresh) {
+      deps.kill(pids);
+      fs.rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+    }
+    const seededFrom = options.fresh ? null : seed(alias, dir);
     fs.mkdirSync(dir, { recursive: true });
     deps.remember(alias, dir);
     const loginRouted = signedIn(dir) ? false : deps.routeLogins();
     const pid = deps.launch(deps.locate(), launchArgs(dir, false));
-    return { alias, dir, pid, seededFrom, signedIn: signedIn(dir), loginRouted, alreadyRunning: false };
+    return { alias, dir, pid, seededFrom, wiped: Boolean(options.fresh), signedIn: signedIn(dir), loginRouted, alreadyRunning: false };
   }
 
   function stop(alias: string, sessions: readonly ISavedSession[]): { alias: string; stopped: number } {
