@@ -8,4 +8,6 @@ export interface IInstanceDeps {
   launch: (exe: string, args: string[]) => number | undefined;
   locate: () => string;
   defaultDir: string;
+  remember: (alias: string, dir: string) => void;
+  routeLogins: () => boolean;
 }

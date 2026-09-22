@@ -494,6 +494,8 @@ function switcherHarness() {
     kill: pids => { if (pids.length) events.push('killed'); return pids.length; },
     launch: () => { events.push('launched'); return 999; },
     locate: () => 'C:/Claude.exe',
+    loginRouting: () => true,
+    instances: { remember: () => undefined, routeLogins: () => true },
     now: () => new Date('2026-05-05T00:00:00Z'),
   };
   return { base, profileDir, credPath, deps, events };
@@ -658,6 +660,8 @@ function instanceHarness() {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'cd-inst-'));
   const launched: string[][] = [];
   const killed: number[] = [];
+  const remembered: string[][] = [];
+  const routed: number[] = [];
   let procs: { pid: number; commandLine: string }[] = [];
   const deps = {
     slotOf: (alias: string) => path.join(base, 'sessions', alias),
@@ -667,14 +671,30 @@ function instanceHarness() {
     launch: (exe: string, args: string[]) => { launched.push([exe, ...args]); return 4242; },
     locate: () => 'C:/Claude.exe',
     defaultDir: path.join(base, 'default'),
+    remember: (alias: string, dir: string) => { remembered.push([alias, dir]); },
+    routeLogins: () => { routed.push(1); return true; },
   };
   return {
     base,
     deps,
     launched,
     killed,
+    remembered,
+    routed,
     setProcs: (value: typeof procs) => { procs = value; },
   };
+}
+
+function slotWithLogin(base: string, alias: string, token: string) {
+  const slot = path.join(base, 'sessions', alias);
+  const desktop = path.join(slot, 'desktop');
+  fs.mkdirSync(path.join(desktop, 'Network'), { recursive: true });
+  fs.writeFileSync(path.join(desktop, 'Network', 'Cookies'), 'SESSION-' + alias);
+  fs.writeFileSync(
+    path.join(slot, 'config.json'),
+    JSON.stringify({ lastKnownAccountUuid: 'uuid-' + alias, 'oauth:tokenCache': token })
+  );
+  return slot;
 }
 
 const savedFor = (alias: string) => ({
@@ -709,6 +729,69 @@ test('opening an account seeds its own profile from the saved session', () => {
     assert.strictEqual(fs.readFileSync(path.join(dir, 'Network', 'Cookies'), 'utf8'), 'SESSION-WORK');
     assert.deepStrictEqual(h.launched, [['C:/Claude.exe', '--user-data-dir=' + dir]]);
     assert.strictEqual(instances.describe(sessions)[0].seeded, true);
+  } finally {
+    fs.rmSync(h.base, { recursive: true, force: true });
+  }
+});
+
+test('opening an account carries its saved login into the new profile', () => {
+  const h = instanceHarness();
+  try {
+    const instances = createInstances(h.deps);
+    const sessions = [savedFor('work')];
+    slotWithLogin(h.base, 'work', 'token-work');
+
+    const opened = instances.open('work', sessions);
+    const dir = path.join(h.base, 'profiles', 'work');
+    const config = JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8'));
+
+    assert.strictEqual(config['oauth:tokenCache'], 'token-work');
+    assert.strictEqual(config.lastKnownAccountUuid, 'uuid-work');
+    assert.strictEqual(opened.signedIn, true, 'the window opens already signed in');
+    assert.strictEqual(opened.loginRouted, false, 'no sign in link routing is needed');
+    assert.deepStrictEqual(h.remembered, [['work', dir]]);
+    assert.strictEqual(instances.describe(sessions)[0].signedIn, true);
+  } finally {
+    fs.rmSync(h.base, { recursive: true, force: true });
+  }
+});
+
+test('a profile left signed out by a failed login is repaired on the next open', () => {
+  const h = instanceHarness();
+  try {
+    const instances = createInstances(h.deps);
+    const sessions = [savedFor('work')];
+    slotWithLogin(h.base, 'work', 'token-work');
+
+    const dir = path.join(h.base, 'profiles', 'work');
+    fs.mkdirSync(path.join(dir, 'Network'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'Network', 'Cookies'), 'HALF-LOGGED-IN');
+    fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ locale: 'en-US', windowSizeWasSignedIn: false }));
+
+    assert.strictEqual(instances.describe(sessions)[0].signedIn, false);
+
+    const opened = instances.open('work', sessions);
+    const config = JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8'));
+
+    assert.strictEqual(config['oauth:tokenCache'], 'token-work');
+    assert.strictEqual(config.locale, 'en-US', 'the profile keeps its own settings');
+    assert.strictEqual(fs.readFileSync(path.join(dir, 'Network', 'Cookies'), 'utf8'), 'HALF-LOGGED-IN');
+    assert.strictEqual(opened.signedIn, true);
+  } finally {
+    fs.rmSync(h.base, { recursive: true, force: true });
+  }
+});
+
+test('a window with no saved login asks for sign in link routing', () => {
+  const h = instanceHarness();
+  try {
+    const instances = createInstances(h.deps);
+    const sessions = [savedFor('work')];
+
+    const opened = instances.open('work', sessions);
+    assert.strictEqual(opened.signedIn, false);
+    assert.strictEqual(opened.loginRouted, true);
+    assert.strictEqual(h.routed.length, 1);
   } finally {
     fs.rmSync(h.base, { recursive: true, force: true });
   }
@@ -886,6 +969,7 @@ test('listSessions reports the sharing state and which items stay common', () =>
 
     const on = createSwitcher(h.deps).listSessions();
     assert.strictEqual(on.shareSession, true);
+    assert.strictEqual(on.loginRouting, true, 'the panel learns whether sign in links are routed');
     assert.deepStrictEqual(on.sharedItems, shared.SHARED_DESKTOP_ITEMS);
     assert.deepStrictEqual(on.sharedCodeItems, shared.SHARED_CODE_ITEMS);
 

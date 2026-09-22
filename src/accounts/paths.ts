@@ -61,6 +61,10 @@ export function sharedRoot(platform: NodeJS.Platform = process.platform, env = p
   return deckDir(platform, env, 'shared');
 }
 
+export function deeplinkStatePath(platform: NodeJS.Platform = process.platform, env = process.env): string {
+  return deckDir(platform, env, 'deeplink.json');
+}
+
 export function sessionSlot(alias: string, platform: NodeJS.Platform = process.platform, env = process.env): string {
   assertValidAlias(alias);
   return path.join(sessionsRoot(platform, env), alias);

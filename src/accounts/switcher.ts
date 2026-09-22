@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { handlerStatus } from './deeplink';
 import { launch, launchArgs, locateApp } from './desktop-app';
 import { readCodeAccount, readDesktopAccountUuid, readIdentity } from './identity';
 import { createInstances } from './instances';
@@ -43,7 +44,7 @@ import * as shared from './shared-store';
 
 export const DESKTOP_SUBDIR = 'desktop';
 export const CODE_FILE = 'code.json';
-export const CONFIG_FILE = 'config.json';
+export const CONFIG_FILE = session.CONFIG_FILE;
 
 function defaultDeps(): ISwitcherDeps {
   return {
@@ -59,6 +60,7 @@ function defaultDeps(): ISwitcherDeps {
     kill: killPids,
     launch,
     locate: locateApp,
+    loginRouting: () => handlerStatus().installed,
     now: () => new Date(),
   };
 }
@@ -259,6 +261,7 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
       accountUuid: activeUuid,
       unknownAccount: Boolean(activeUuid && !identity),
       shareSession: sharingEnabledIn(data),
+      loginRouting: deps.loginRouting(),
       sharedItems: shared.SHARED_DESKTOP_ITEMS,
       sharedCodeItems: shared.SHARED_CODE_ITEMS,
       installs: installStates(data),

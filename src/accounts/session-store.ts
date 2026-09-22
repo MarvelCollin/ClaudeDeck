@@ -12,6 +12,7 @@ export const DESKTOP_ITEMS = [
   'IndexedDB',
 ] as const;
 export const CODE_KEY = 'claudeAiOauth';
+export const CONFIG_FILE = 'config.json';
 export const CONFIG_KEYS = ['lastKnownAccountUuid'] as const;
 export const CONFIG_PREFIXES = ['oauth:'] as const;
 
@@ -94,6 +95,10 @@ export function isAccountConfigKey(key: string): boolean {
 
 export function accountConfigKeys(config: Record<string, unknown> | null | undefined): string[] {
   return Object.keys(config ?? {}).filter(isAccountConfigKey);
+}
+
+export function hasAccountConfig(configPath: string): boolean {
+  return accountConfigKeys(readJsonFile<Record<string, unknown>>(configPath)).length > 0;
 }
 
 export function snapshotConfig(configPath: string, slotFile: string): boolean {

@@ -18,5 +18,6 @@ export interface ISwitcherDeps {
   launch: (exe: string, args: string[]) => number | undefined;
   locate: () => string;
   instances?: Partial<IInstanceDeps>;
+  loginRouting: () => boolean;
   now: () => Date;
 }

@@ -8,6 +8,7 @@ export interface ISessionListing {
   accountUuid: string | null;
   unknownAccount: boolean;
   shareSession: boolean;
+  loginRouting: boolean;
   sharedItems: readonly string[];
   sharedCodeItems: readonly string[];
   installs: IInstallState[];
