@@ -71,6 +71,7 @@ export type Schedule = {
   prompt: string
   wakeToRun: boolean
   runWhenLocked: boolean
+  warmAllAccounts: boolean
   schedules: ScheduleBlock[]
   counts: { runs: number; success: number; failed: number; incomplete: number }
 }

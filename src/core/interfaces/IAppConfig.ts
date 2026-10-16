@@ -9,5 +9,6 @@ export interface IAppConfig {
   logFile: string;
   wakeToRun: boolean;
   runWhenLocked: boolean;
+  warmAllAccounts?: boolean;
   schedules: ISchedule[];
 }

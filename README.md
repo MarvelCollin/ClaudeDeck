@@ -97,6 +97,7 @@ You can also edit the config file manually.
   "logFile": "claude-run.log",
   "wakeToRun": true,
   "runWhenLocked": true,
+  "warmAllAccounts": false,
   "schedules": [
     {
       "days": ["Wednesday", "Thursday"],
@@ -114,12 +115,35 @@ Use English day names: `Monday`, `Tuesday`, `Wednesday`, `Thursday`, `Friday`, `
 
 After changing the config manually, run `claudedeck` and choose `Run Background` so Windows Task Scheduler or macOS launchd is updated.
 
+### Warm every account
+
+A scheduled run normally sends the prompt once, from the account Claude Code is signed in to. Set `"warmAllAccounts": true` to also start the 5 hour window of every other saved account at the same slot, so each one is ready when auto switch moves to it. The **Warm every account** button in the **Background runs** tab of the mod flips the same flag.
+
+After the main run, ClaudeDeck checks live usage for every saved account and skips the ones that:
+
+- are the account Claude Code is on, since the main run already covers it
+- already have a running 5 hour window
+- are held out of auto switch
+- need a new sign in, have no saved Claude Code login, or used up their week
+
+For each account left it makes a temporary folder with that account's saved login (`code.json` as `.credentials.json` and `account.json` as `oauthAccount` in `.claude.json`) and runs `claude -p <prompt> --model haiku` with `CLAUDE_CONFIG_DIR` pointing at it, without `ANTHROPIC_API_KEY` or other token variables. An expired token is refreshed first. If Claude rotates the token during the run, the new one is saved back to the account's slot, and the folder is deleted afterwards. Your own `~/.claude/.credentials.json` and the Claude Code login are never touched.
+
+Each account gets one line in the run log, followed by a total:
+
+```text
+[2026-10-16T15:00:04.120Z] warm work: warmed, started the 5h window
+[2026-10-16T15:00:04.121Z] warm side: skipped, 5h window already running until 2026-10-16T17:12:00Z
+[2026-10-16T15:00:04.121Z] warm done: 1 warmed, 0 failed, 3 skipped
+```
+
+The run's exit code stays the main run's, so a failed warm shows in the log without marking the scheduled task as failed. Claude Code on macOS keeps its login in the Keychain instead of `.credentials.json`, so warming other accounts is built and tested for Windows.
+
 ## ClaudeDeck inside Claude Desktop
 
 The `mod` folder is a Claude Code mod that puts ClaudeDeck in a pane beside the chat in Claude Desktop. It opens with every session and has three tabs:
 
 - **Accounts**: one card per account with its live session and weekly usage, when each resets, and which account Claude Code and Desktop are on. **Use now** moves Claude Code without restarting Desktop, **Use next** picks the account auto switch moves to next, **Hold** keeps it out, **Sign in again** walks a dead login through a fresh sign in, and **More** opens it in its own Desktop window, switches Desktop too, or forgets it.
-- **Background runs**: turn the scheduled runs on or off, run once now, and edit the prompt and the times.
+- **Background runs**: turn the scheduled runs on or off, run once now, warm every idle account at each run, and edit the prompt and the times.
 - **Run log**: the last runs.
 
 `/deck` reopens the pane. `/deck use <name>`, `/deck next <name>`, `/deck hold <name>`, `/deck auto on` and `/deck refresh` do the same from the prompt.

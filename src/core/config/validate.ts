@@ -30,6 +30,7 @@ export function validateConfig(value: unknown): asserts value is IAppConfig {
   requireString(config.logFile, 'logFile');
   requireBoolean(config.wakeToRun, 'wakeToRun');
   requireBoolean(config.runWhenLocked, 'runWhenLocked');
+  if (config.warmAllAccounts !== undefined) requireBoolean(config.warmAllAccounts, 'warmAllAccounts');
   if (config.model !== 'haiku') throw new Error('model must be haiku.');
   if (!Array.isArray(config.schedules) || config.schedules.length === 0) throw new Error('schedules is required.');
   for (const schedule of config.schedules) validateSchedule(schedule);

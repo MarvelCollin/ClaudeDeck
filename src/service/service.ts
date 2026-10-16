@@ -45,6 +45,7 @@ export function createService(): IPanelService {
       model: context.config.model,
       wakeToRun: context.config.wakeToRun,
       runWhenLocked: context.config.runWhenLocked,
+      warmAllAccounts: context.config.warmAllAccounts === true,
       schedules: context.config.schedules,
       summaryText: scheduleSummary(context.config),
       entryCount: calendarEntryCount(context.config),
@@ -63,6 +64,7 @@ export function createService(): IPanelService {
       prompt: typeof body.prompt === 'string' ? body.prompt : context.config.prompt,
       wakeToRun: typeof body.wakeToRun === 'boolean' ? body.wakeToRun : context.config.wakeToRun,
       runWhenLocked: typeof body.runWhenLocked === 'boolean' ? body.runWhenLocked : context.config.runWhenLocked,
+      warmAllAccounts: typeof body.warmAllAccounts === 'boolean' ? body.warmAllAccounts : context.config.warmAllAccounts === true,
       schedules: Array.isArray(body.schedules) ? body.schedules : context.config.schedules,
     };
     context = saveConfig(context, next);

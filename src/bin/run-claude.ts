@@ -2,9 +2,12 @@
 import { errorMessage } from '../core/fs/json';
 import { runClaudeOnce } from '../runner/run-claude';
 
-try {
-  process.exitCode = runClaudeOnce();
-} catch (error) {
-  console.error(errorMessage(error));
-  process.exitCode = 1;
-}
+runClaudeOnce().then(
+  code => {
+    process.exitCode = code;
+  },
+  error => {
+    console.error(errorMessage(error));
+    process.exitCode = 1;
+  }
+);

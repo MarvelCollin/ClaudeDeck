@@ -10,6 +10,7 @@ export interface IScheduleState {
   model: ClaudeModel;
   wakeToRun: boolean;
   runWhenLocked: boolean;
+  warmAllAccounts: boolean;
   schedules: ISchedule[];
   summaryText: string;
   entryCount: number;

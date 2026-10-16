@@ -6,6 +6,7 @@
   "logFile": "claude-run.log",
   "wakeToRun": true,
   "runWhenLocked": true,
+  "warmAllAccounts": false,
   "schedules": [
     {
       "days": ["Wednesday", "Thursday"],

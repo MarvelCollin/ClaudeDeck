@@ -303,7 +303,22 @@ export const register: Register = on => {
               label={`Run when locked: ${schedule.runWhenLocked ? 'on' : 'off'}`}
               onPress={() => void save({ runWhenLocked: !schedule.runWhenLocked }, 'Saved')}
             />
+            <Button
+              key="warm-all"
+              label={`Warm every account: ${schedule.warmAllAccounts ? 'on' : 'off'}`}
+              onPress={() =>
+                void save(
+                  { warmAllAccounts: !schedule.warmAllAccounts },
+                  schedule.warmAllAccounts ? 'Only the Claude Code account runs now' : 'Each run also starts the 5h window of every idle account'
+                )
+              }
+            />
           </Box>
+          {schedule.warmAllAccounts && (
+            <Text key="warm-note" dimColor size="footnote">
+              Each run also sends the prompt from every saved account without a running 5h window, in a temporary login folder, so Claude Code stays on its account.
+            </Text>
+          )}
           <Text weight="semibold">When it runs</Text>
           {schedule.schedules.map((block, index) => (
             <Box key={`block-${index}`} flexDirection="column">

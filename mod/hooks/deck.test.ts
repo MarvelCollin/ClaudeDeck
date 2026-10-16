@@ -64,6 +64,20 @@ const PANE = {
   scroll: { offset: 0, bodyRows: 80 },
   view: {},
 }
+const SCHEDULE = {
+  summaryText: 'Monday at 00:00',
+  installed: true,
+  enabled: true,
+  running: false,
+  lastRun: '-',
+  nextRun: '-',
+  prompt: 'hi',
+  wakeToRun: true,
+  runWhenLocked: true,
+  warmAllAccounts: false,
+  schedules: [{ days: ['Monday'], times: ['00:00'] }],
+  counts: { runs: 0, success: 0, failed: 0, incomplete: 0 },
+}
 const CMD = { origin: { kind: 'composer' as const }, presentation: { isFullscreen: false, columns: 100 } }
 
 function fakeDeck(on: On, calls: { route: string; body: unknown }[]) {
@@ -71,7 +85,7 @@ function fakeDeck(on: On, calls: { route: string; body: unknown }[]) {
     const route = e.argv[3] ?? ''
     const body = e.init?.stdin ? JSON.parse(e.init.stdin) : {}
     calls.push({ route, body })
-    const data = route === 'state' ? DECK : { ok: true }
+    const data = route === 'state' ? DECK : route.startsWith('schedule') ? SCHEDULE : { ok: true }
     return { value: { exitCode: 0, stdout: JSON.stringify({ ok: true, data }), stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
   on('clock.now', () => ({ value: NOW_MS }))
@@ -142,4 +156,15 @@ test('the deck command finds accounts by name and refuses unknown ones', async (
   expect(calls.find(call => call.route === 'auto/next')?.body).toEqual({ alias: 'one' })
   const missing = await $.command.run({ command: 'deck', args: 'use nobody', ...CMD })
   expect(missing.text ?? '').toMatch(/No saved account/)
+})
+
+test('the Background runs tab turns warming every account on', async ($, on) => {
+  const calls: { route: string; body: unknown }[] = []
+  fakeDeck(on, calls)
+  await $.command.run({ command: 'deck', args: 'refresh', ...CMD })
+  const ui = await $.ui.mount({ plugin: 'claudedeck', surface: 'desktop', component: 'Pane', requestId: 'claudedeck', props: PANE })
+  await ui.press({ key: 'tab-schedule' })
+  await ui.press({ key: 'warm-all' })
+  await ui.unmount()
+  expect(calls.find(call => call.route === 'schedule/save')?.body).toEqual({ warmAllAccounts: true })
 })
