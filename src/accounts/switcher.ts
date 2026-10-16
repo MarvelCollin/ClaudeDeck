@@ -215,8 +215,33 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
     return { shareSession: true, captured, pruned: shared.clearFromSlots(slots) };
   }
 
+  function syncCode(install: IClaudeInstall): ISyncResult {
+    const identity = readCodeAccount(install.accountPath);
+    if (!identity) throw new Error(`${install.label} is not signed in. Run "claude auth login" first, then save.`);
+    const data = readRegistry();
+    const known = registry.sessionByEmail(data, identity.email);
+    const alias = known?.alias ?? deriveAlias(identity.email);
+    saveCodeInto(alias, data, install, identity.email);
+    writeRegistry(
+      registry.saveSession(
+        data,
+        {
+          alias,
+          email: identity.email,
+          name: known?.name ?? identity.name,
+          accountUuid: identity.accountUuid ?? known?.accountUuid ?? null,
+          orgUuid: known?.orgUuid ?? null,
+          installs: [install.id],
+        },
+        deps.now()
+      )
+    );
+    return { alias, email: identity.email, name: known?.name ?? identity.name, accountUuid: identity.accountUuid, install: install.id, stopped: 0, relaunched: false };
+  }
+
   function sync(options: ISyncOptions = {}): ISyncResult {
     const install = installFor(options.install);
+    if (options.codeOnly) return syncCode(install);
     const identity = accountOf(install);
     if (!identity) {
       throw new Error(

@@ -13,6 +13,7 @@ import {
 } from '../accounts/deeplink';
 import { openUrl } from '../accounts/desktop-app';
 import { startServer } from '../web/server';
+import { runApiCommand } from './api-command';
 import { AUTO_USAGE, runAutoCommand } from './auto-command';
 import { listJson, runUsageCommand } from './usage-command';
 
@@ -24,6 +25,7 @@ export const USAGE = [
   '  list --json        the same as JSON, add --refresh to fetch live usage first',
   '  usage [refresh]    live 5h and weekly usage with reset times for every account',
   '  save               save the account you are signed into now',
+  '  save code          save only the Claude Code login, Claude Desktop stays open',
   '  import cswap       bring in every account saved by claude-swap (cswap)',
   '  open <alias>       open a second Claude Desktop window on that account',
   '  open <alias> fresh wipe that profile first and open a plain sign in screen',
@@ -163,6 +165,10 @@ export async function runAccountsCommand(argv: string[] = []): Promise<void> {
     printList();
     return;
   }
+  if (command === 'api') {
+    await runApiCommand(argv);
+    return;
+  }
   if (['auto', 'next', 'hold', 'release'].includes(command)) {
     await runAutoCommand(argv);
     return;
@@ -185,7 +191,7 @@ export async function runAccountsCommand(argv: string[] = []): Promise<void> {
     return;
   }
   if (command === 'save' || command === 'sync') {
-    const saved = createSwitcher().sync();
+    const saved = createSwitcher().sync({ codeOnly: first === 'code' });
     console.log(`Saved ${saved.name} <${saved.email}>.`);
     return;
   }
