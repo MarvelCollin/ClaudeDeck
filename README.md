@@ -78,7 +78,7 @@ macOS:
 ~/Library/Application Support/ClaudeDeck/claudedeck.config.json
 ```
 
-Set `CLAUDEDECK_HOME` to keep every ClaudeDeck file somewhere else. On Windows with the Store build of Claude Desktop this matters: anything started from inside Claude Desktop, such as the ClaudeDeck mod or a Claude Code shell, has its writes to `%APPDATA%` redirected into the app's package folder, so it would see a different ClaudeDeck than your terminal. A folder outside `AppData` avoids that:
+Set `CLAUDEDECK_HOME` to keep every ClaudeDeck file somewhere else. On Windows with the Store build of Claude Desktop this matters: anything started from inside Claude Desktop, such as the ClaudeDeck mod or a Claude Code shell, has its writes to `%APPDATA%` redirected into the app's package folder, so it would see a different ClaudeDeck than your terminal. A folder outside `AppData` avoids that. ClaudeDeck also uses `%USERPROFILE%\.claudedeck` by itself whenever that folder exists, so apps started before the variable was set still agree, and an empty `CLAUDEDECK_HOME` turns that off:
 
 ```bash
 setx CLAUDEDECK_HOME %USERPROFILE%\.claudedeck

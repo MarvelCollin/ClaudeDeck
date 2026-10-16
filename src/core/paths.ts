@@ -11,9 +11,19 @@ function roamingBase(env: NodeJS.ProcessEnv): string {
 }
 
 export const HOME_ENV = 'CLAUDEDECK_HOME';
+export const HOME_FOLDER = '.claudedeck';
+
+export function deckHome(env: NodeJS.ProcessEnv = process.env): string | null {
+  const value = env[HOME_ENV];
+  if (value) return path.resolve(value);
+  if (value === '') return null;
+  const folder = path.join(env.USERPROFILE || env.HOME || os.homedir(), HOME_FOLDER);
+  return fs.existsSync(folder) ? folder : null;
+}
 
 export function userDataDir(platform: NodeJS.Platform = process.platform, env = process.env): string {
-  if (env[HOME_ENV]) return path.resolve(env[HOME_ENV] as string);
+  const home = deckHome(env);
+  if (home) return home;
   if (platform === 'win32') return path.join(roamingBase(env), 'ClaudeDeck');
   if (platform === 'darwin') return path.join(os.homedir(), 'Library', 'Application Support', 'ClaudeDeck');
   return path.join(os.homedir(), '.config', 'claudedeck');

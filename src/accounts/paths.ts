@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { deckHome } from '../core/paths';
 
 export const DEFAULT_ALIAS = 'default';
 
@@ -42,7 +43,8 @@ export function desktopProfileDir(platform: NodeJS.Platform = process.platform, 
 }
 
 function deckDir(platform: NodeJS.Platform, env: NodeJS.ProcessEnv, ...parts: string[]): string {
-  if (env.CLAUDEDECK_HOME) return path.join(path.resolve(env.CLAUDEDECK_HOME), ...parts);
+  const home = deckHome(env);
+  if (home) return path.join(home, ...parts);
   return path.join(roamingDir(platform, env), 'ClaudeDeck', ...parts);
 }
 

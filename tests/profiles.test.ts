@@ -14,9 +14,9 @@ import { createInstances } from '../src/accounts/instances';
 import { routeCommand } from '../src/cli/router';
 import * as appPaths from '../src/core/paths';
 
-delete process.env.CLAUDEDECK_HOME;
+process.env.CLAUDEDECK_HOME = '';
 
-const env = { APPDATA: 'C:\\Users\\tester\\AppData\\Roaming', LOCALAPPDATA: 'C:\\Users\\tester\\AppData\\Local' };
+const env = { APPDATA: 'C:\\Users\\tester\\AppData\\Roaming', LOCALAPPDATA: 'C:\\Users\\tester\\AppData\\Local', CLAUDEDECK_HOME: '' };
 
 test('alias validation accepts safe names and rejects traversal', () => {
   assert.ok(paths.isValidAlias('work'));
@@ -950,4 +950,18 @@ test('CLAUDEDECK_HOME moves every ClaudeDeck file out of the roaming folder', ()
   assert.strictEqual(paths.liveUsagePath('win32', moved), path.join(home, 'usage-live.json'));
   assert.strictEqual(appPaths.userDataDir('win32', moved), path.resolve(home));
   assert.strictEqual(paths.registryPath('win32', env), path.join(env.APPDATA, 'ClaudeDeck', 'profiles.json'));
+});
+
+test('the .claudedeck folder in the user profile is used when no home is set', () => {
+  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'cd-profile-'));
+  try {
+    const plain = { ...env, CLAUDEDECK_HOME: undefined, USERPROFILE: profile };
+    assert.strictEqual(paths.registryPath('win32', plain), path.join(env.APPDATA, 'ClaudeDeck', 'profiles.json'));
+    fs.mkdirSync(path.join(profile, '.claudedeck'));
+    assert.strictEqual(paths.registryPath('win32', plain), path.join(profile, '.claudedeck', 'profiles.json'));
+    assert.strictEqual(appPaths.userDataDir('win32', plain), path.join(profile, '.claudedeck'));
+    assert.strictEqual(paths.registryPath('win32', { ...plain, CLAUDEDECK_HOME: '' }), path.join(env.APPDATA, 'ClaudeDeck', 'profiles.json'));
+  } finally {
+    fs.rmSync(profile, { recursive: true, force: true });
+  }
 });
