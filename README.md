@@ -114,6 +114,29 @@ Use English day names: `Monday`, `Tuesday`, `Wednesday`, `Thursday`, `Friday`, `
 
 After changing the config manually, run `claudedeck` and choose `Run Background` so Windows Task Scheduler or macOS launchd is updated.
 
+## ClaudeDeck inside Claude Desktop
+
+The `mod` folder is a Claude Code mod that puts ClaudeDeck in a pane beside the chat in Claude Desktop. It opens with every session and has three tabs:
+
+- **Accounts**: one card per account with its live session and weekly usage, when each resets, and which account Claude Code and Desktop are on. **Use now** moves Claude Code without restarting Desktop, **Use next** picks the account auto switch moves to next, **Hold** keeps it out, **Sign in again** walks a dead login through a fresh sign in, and **More** opens it in its own Desktop window, switches Desktop too, or forgets it.
+- **Background runs**: turn the scheduled runs on or off, run once now, and edit the prompt and the times.
+- **Run log**: the last runs.
+
+`/deck` reopens the pane. `/deck use <name>`, `/deck next <name>`, `/deck hold <name>`, `/deck auto on` and `/deck refresh` do the same from the prompt.
+
+To load it in every session, point Claude Code at the folder in `~/.claude/settings.json`:
+
+```json
+{
+  "env": {
+    "CLAUDE_CODE_PLUGIN_DIRS": "C:/path/to/ClaudeDeck/mod",
+    "CLAUDEDECK_HOME": "C:/Users/you/.claudedeck"
+  }
+}
+```
+
+The mod runs `node bin/claudedeck.js api` from this checkout, so run `npm run build` after pulling.
+
 ## Control Panel
 
 Everything ClaudeDeck does is also available as a page in your browser. Run:

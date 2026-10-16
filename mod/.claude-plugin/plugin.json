@@ -1,0 +1,7 @@
+{
+  "name": "claudedeck",
+  "version": "1.0.0",
+  "description": "ClaudeDeck inside Claude Desktop: accounts, live usage, auto switch, chosen next account and background runs",
+  "author": { "name": "Marvel Collin" },
+  "types": "./types/index.d.ts"
+}
