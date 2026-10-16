@@ -197,6 +197,25 @@ Saved sessions live in:
 ~/Library/Application Support/ClaudeDeck/sessions        macOS
 ```
 
+### Auto switch before a limit
+
+```bash
+claudedeck auto install
+claudedeck auto status
+claudedeck next work-example.com
+claudedeck hold work-example.com
+```
+
+`auto` keeps Claude Code on the best account and moves it with `switch <alias> code`, so Claude Desktop never restarts. `auto install` registers a Windows task that starts it hidden at every sign in, and starts it now.
+
+How it picks:
+
+1. An account whose 5 hour session is already running is used until that session is done. A move only happens when the active account reaches 95 percent, or when another running session resets at least 15 minutes sooner.
+2. Among idle accounts, the one with the most weekly quota about to expire goes first: hours until the weekly reset divided by the weekly percent still unused. Accounts burning their week ahead of pace go last.
+3. An account only takes over while it is below 85 percent. When every account is near its limit, auto switch stays put, and only escapes an account that has actually hit 100 percent.
+
+`next <alias>` puts an account first in line for the next move, `next clear` returns to the ranking. `hold <alias>` keeps an account out entirely, `release <alias>` brings it back. `auto set threshold 95`, `auto set landing 85`, `auto set cooldown 60` and `auto set interval 20` tune the rules, and `auto dry` shows what it would do right now. Every move is written to `auto.log`.
+
 ### Bring accounts over from claude-swap
 
 ```bash

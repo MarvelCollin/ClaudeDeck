@@ -13,6 +13,7 @@ import {
 } from '../accounts/deeplink';
 import { openUrl } from '../accounts/desktop-app';
 import { startServer } from '../web/server';
+import { AUTO_USAGE, runAutoCommand } from './auto-command';
 import { listJson, runUsageCommand } from './usage-command';
 
 export const USAGE = [
@@ -32,6 +33,7 @@ export const USAGE = [
   '  forget <alias>     delete a saved account session',
   '  share [on|off]     share local history and app state across every account',
   '  deeplink [status|install|remove|guard]  send claude:// sign in links to the window waiting for them',
+  ...AUTO_USAGE,
 ].join('\n');
 
 function requireArg(value: string | undefined, command: string, what: string): string {
@@ -159,6 +161,10 @@ export async function runAccountsCommand(argv: string[] = []): Promise<void> {
       return;
     }
     printList();
+    return;
+  }
+  if (['auto', 'next', 'hold', 'release'].includes(command)) {
+    await runAutoCommand(argv);
     return;
   }
   if (command === 'usage') {
