@@ -12,6 +12,7 @@ const node_path_1 = __importDefault(require("node:path"));
 const auto_rank_1 = require("../accounts/auto-rank");
 const auto_switch_1 = require("../accounts/auto-switch");
 const cswap_import_1 = require("../accounts/cswap-import");
+const desktop_job_1 = require("../accounts/desktop-job");
 const live_usage_1 = require("../accounts/live-usage");
 const switcher_1 = require("../accounts/switcher");
 const json_1 = require("../core/fs/json");
@@ -44,6 +45,7 @@ async function deckState(refresh) {
         code: code ? { email: code.email, name: code.name, alias: ranked.find(entry => entry.active)?.alias ?? null } : null,
         desktop: listing.current ? { email: listing.current.email, name: listing.current.name } : null,
         desktopRunning: listing.running,
+        desktopJob: (0, desktop_job_1.readDesktopJob)(),
         sessions: listing.sessions.map(entry => ({
             alias: entry.alias,
             email: entry.email,
@@ -92,14 +94,17 @@ async function runApi(route, body = {}) {
         case 'schedule/log':
             return (0, schedule_service_1.createScheduleService)().readLog(typeof body.limit === 'number' ? body.limit : 200);
         case 'accounts/save':
-            return (0, switcher_1.createSwitcher)().sync({
-                install: typeof body.install === 'string' ? body.install : undefined,
-                codeOnly: body.codeOnly === true,
-            });
-        case 'accounts/switch':
-            return body.code === true
-                ? (0, switcher_1.createSwitcher)().switchCode(aliasOf(body, 'Which account should Claude Code use?'))
-                : (0, switcher_1.createSwitcher)().switchTo(aliasOf(body, 'Which account should I switch to?'));
+            if (body.codeOnly === true) {
+                return (0, switcher_1.createSwitcher)().sync({ install: typeof body.install === 'string' ? body.install : undefined, codeOnly: true });
+            }
+            (0, switcher_1.createSwitcher)().checkDesktopSave();
+            return (0, desktop_job_1.startDesktopJob)('save', null);
+        case 'accounts/switch': {
+            if (body.code === true)
+                return (0, switcher_1.createSwitcher)().switchCode(aliasOf(body, 'Which account should Claude Code use?'));
+            const target = (0, switcher_1.createSwitcher)().checkDesktopSwitch(aliasOf(body, 'Which account should I switch to?'));
+            return (0, desktop_job_1.startDesktopJob)('switch', target.alias);
+        }
         case 'accounts/forget':
             return (0, switcher_1.createSwitcher)().forget(aliasOf(body, 'Which account should I forget?'));
         case 'accounts/import':

@@ -29,6 +29,7 @@ const DECK: DeckState = {
   code: { email: 'four@x.com', name: 'Four', alias: 'four' },
   desktop: { email: 'two@x.com', name: 'Two' },
   desktopRunning: true,
+  desktopJob: null,
   sessions: ['one', 'two', 'three', 'four'].map(alias => ({
     alias,
     email: `${alias}@x.com`,
@@ -78,12 +79,12 @@ const SCHEDULE = {
 }
 const CMD = { origin: { kind: 'composer' as const }, presentation: { isFullscreen: false, columns: 100 } }
 
-function fakeDeck(on: On, calls: { route: string; body: unknown }[]) {
+function fakeDeck(on: On, calls: { route: string; body: unknown }[], deck: DeckState = DECK) {
   on('process.run', (_, e) => {
     const route = e.argv[3] ?? ''
     const body = e.init?.stdin ? JSON.parse(e.init.stdin) : {}
     calls.push({ route, body })
-    const data = route === 'state' ? DECK : route.startsWith('schedule') ? SCHEDULE : { ok: true }
+    const data = route === 'state' ? deck : route.startsWith('schedule') ? SCHEDULE : { ok: true }
     return { value: { exitCode: 0, stdout: JSON.stringify({ ok: true, data }), stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
   on('clock.now', () => ({ value: NOW_MS }))
@@ -208,9 +209,31 @@ test('Use in Desktop asks first, then switches this Desktop to the account', asy
   expect(await ui.find({ key: 'desktop-two' })).toBeUndefined()
   await ui.press({ key: 'desktop-one' })
   expect(calls.find(call => call.route === 'accounts/switch')).toBeUndefined()
-  expect(await ui.find({ type: 'Text', text: /Restart Claude Desktop on One now/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Switch Claude Desktop to One\? It closes and opens again on that account in the same place/ })).toBeDefined()
   await ui.press({ key: 'desktop-yes-one' })
   expect(calls.find(call => call.route === 'accounts/switch')?.body).toEqual({ alias: 'one' })
+  await ui.unmount()
+})
+
+test('Save Desktop login asks first and saves the account Claude Desktop is on', async ($, on) => {
+  const calls: { route: string; body: unknown }[] = []
+  const unsaved = { ...DECK, sessions: DECK.sessions.map(entry => ({ ...entry, desktopCaptured: entry.alias !== 'two' })) }
+  fakeDeck(on, calls, unsaved)
+  await $.command.run({ command: 'deck', args: 'refresh', ...CMD })
+  const ui = await $.ui.mount({ plugin: 'claudedeck', surface: 'desktop', component: 'Pane', requestId: 'claudedeck', props: PANE })
+  await ui.press({ key: 'desktop-save' })
+  expect(calls.find(call => call.route === 'accounts/save')).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /Save the Claude Desktop login of Two?/ })).toBeDefined()
+  await ui.press({ key: 'desktop-save-yes' })
+  expect(calls.find(call => call.route === 'accounts/save')?.body).toEqual({})
+  await ui.unmount()
+})
+
+test('Save Desktop login stays away once the Desktop login is kept', async ($, on) => {
+  fakeDeck(on, [])
+  await $.command.run({ command: 'deck', args: 'refresh', ...CMD })
+  const ui = await $.ui.mount({ plugin: 'claudedeck', surface: 'desktop', component: 'Pane', requestId: 'claudedeck', props: PANE })
+  expect(await ui.find({ key: 'desktop-save' })).toBeUndefined()
   await ui.unmount()
 })
 

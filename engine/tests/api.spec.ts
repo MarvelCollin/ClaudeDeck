@@ -35,6 +35,8 @@ test('state on an empty deck lists no accounts and auto switch is off', async ()
 test('routes that need an account ask for one, and unknown routes are refused', async () => {
   await assert.rejects(runApi('accounts/switch', {}), /Which account should I switch to/);
   await assert.rejects(runApi('accounts/switch', { code: true }), /Which account should Claude Code use/);
+  await assert.rejects(runApi('accounts/switch', { alias: 'ghost' }), /No saved session for "ghost"/);
+  await assert.rejects(runApi('accounts/save', {}), /Claude Desktop is not signed in/);
   await assert.rejects(runApi('auto/next', { alias: 'ghost' }), /No saved account/);
   await assert.rejects(runApi('nope'), /Unknown api route/);
 });

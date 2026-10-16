@@ -2,6 +2,7 @@ import { IAccountIdentity } from './IAccountIdentity';
 import { ICodeSwitchOptions } from './ICodeSwitchOptions';
 import { ICodeSwitchResult } from './ICodeSwitchResult';
 import { IAutoSyncResult } from './IAutoSyncResult';
+import { ISavedSession } from './ISavedSession';
 import { ISessionListing } from './ISessionListing';
 import { ISwitchOptions } from './ISwitchOptions';
 import { ISwitchResult } from './ISwitchResult';
@@ -10,6 +11,8 @@ import { ISyncResult } from './ISyncResult';
 
 export interface ISwitcher {
   autoSyncCode(): IAutoSyncResult | null;
+  checkDesktopSave(): IAccountIdentity;
+  checkDesktopSwitch(alias: string): ISavedSession;
   currentAccountUuid(): string | null;
   currentIdentity(): IAccountIdentity | null;
   forget(alias: string): { alias: string };

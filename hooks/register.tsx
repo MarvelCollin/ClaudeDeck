@@ -21,6 +21,7 @@ import {
 
 const PANE = 'claudedeck'
 const POLL_MS = 20_000
+const JOB_TOAST_MS = 120_000
 
 const deckA = atom({ plugin: 'claudedeck', key: 'deck' } as const, null)
 const scheduleA = atom({ plugin: 'claudedeck', key: 'schedule' } as const, null)
@@ -72,6 +73,16 @@ async function refresh($: $, force = false): Promise<DeckState | null> {
       if (entry.status === 'relogin') {
         await alertOnce($, `relogin:${entry.alias}`, `${displayName(deck, entry.alias)} needs a new sign in`, alerted, fresh)
       }
+    }
+    const job = deck.desktopJob
+    if (job?.finishedAt && nowMs - Date.parse(job.finishedAt) < JOB_TOAST_MS) {
+      const name = displayName(deck, job.alias)
+      const text = !job.ok
+        ? `Claude Desktop did not ${job.action === 'save' ? 'save its login' : 'switch'}: ${job.error ?? 'unknown error'}`
+        : job.action === 'save'
+          ? `Saved the Claude Desktop login of ${name}`
+          : `Claude Desktop is on ${name} now`
+      await alertOnce($, `desktop:${job.finishedAt}`, text, alerted, fresh)
     }
     const active = deck.ranked.find(entry => entry.active)
     if (active && active.usedPercent >= 90 && !deck.next) {
@@ -433,6 +444,7 @@ export const register: Register = on => {
     const nameOf = (alias: string | null) => displayName(deck, alias)
     const preferred = deck.auto.preferredNext?.toLowerCase() ?? null
     const width = paneWidth(e.props.bodyColumns)
+    const canSaveDesktop = Boolean(deck.desktop) && !deck.sessions.some(entry => entry.desktopActive && entry.desktopCaptured)
 
     return (
       <Box flexDirection="column" gap={1}>
@@ -486,19 +498,21 @@ export const register: Register = on => {
               </Text>
               {!session?.desktopActive && !session?.desktopCaptured && !needsLogin && (
                 <Text dimColor size="footnote">
-                  Desktop login not saved yet. Sign in to Claude Desktop with it once so ClaudeDeck can keep it.
+                  Desktop login not saved yet. Sign in to Claude Desktop with it, then press Save Desktop login.
                 </Text>
               )}
               {pendingDesktop ? (
                 <Box flexDirection="row" gap={1} flexWrap="wrap" alignItems="center">
-                  <Text color="claude">Restart Claude Desktop on {nameOf(entry.alias)} now? Running chats stop for a moment.</Text>
+                  <Text color="claude">
+                    Switch Claude Desktop to {nameOf(entry.alias)}? It closes and opens again on that account in the same place, so replies that are running stop.
+                  </Text>
                   <Button
                     key={`desktop-yes-${entry.alias}`}
-                    label="Restart Desktop"
+                    label="Switch Desktop"
                     variant="primary"
                     onPress={async () => {
                       await update($, confirmA, () => null)
-                      await act($, `Switching Desktop to ${nameOf(entry.alias)}`, 'accounts/switch', { alias: entry.alias }, 'Desktop is reopening')
+                      await act($, `Switching Claude Desktop to ${nameOf(entry.alias)}`, 'accounts/switch', { alias: entry.alias }, 'Claude Desktop closes and opens again in a moment')
                     }}
                   />
                   <Button key={`desktop-no-${entry.alias}`} label="Cancel" onPress={() => update($, confirmA, () => null)} />
@@ -565,12 +579,32 @@ export const register: Register = on => {
               : ''}
           </Text>
         </Box>
+        {canSaveDesktop && confirm === 'desktop-save' && (
+          <Box key="desktop-save-confirm" flexDirection="row" gap={1} flexWrap="wrap" alignItems="center">
+            <Text color="claude">
+              Save the Claude Desktop login of {deck.desktop?.name}? Claude Desktop closes and opens again to copy it.
+            </Text>
+            <Button
+              key="desktop-save-yes"
+              label="Save and reopen"
+              variant="primary"
+              onPress={async () => {
+                await update($, confirmA, () => null)
+                await act($, 'Saving the Claude Desktop login', 'accounts/save', {}, 'Claude Desktop closes and opens again in a moment')
+              }}
+            />
+            <Button key="desktop-save-no" label="Cancel" onPress={() => update($, confirmA, () => null)} />
+          </Box>
+        )}
         <Box flexDirection="row" gap={1} flexWrap="wrap">
           {!deck.auto.running && (
             <Button key="auto-on" label="Turn on auto switch" variant="primary" onPress={() => void act($, 'Turning on auto switch', 'auto/install', {}, 'Auto switch is on')} />
           )}
           <Button key="refresh" label="Refresh usage" onPress={() => void refresh($, true)} />
           <Button key="save" label="Save signed-in account" onPress={() => void act($, 'Saving the Claude Code login', 'accounts/save', { codeOnly: true }, 'Saved')} />
+          {canSaveDesktop && confirm !== 'desktop-save' && (
+            <Button key="desktop-save" label="Save Desktop login" onPress={() => update($, confirmA, () => 'desktop-save')} />
+          )}
         </Box>
       </Box>
     )

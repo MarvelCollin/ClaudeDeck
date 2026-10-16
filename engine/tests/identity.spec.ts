@@ -41,6 +41,7 @@ function switcherHarness() {
     kill: pids => { if (pids.length) events.push('killed'); return pids.length; },
     launch: () => { events.push('launched'); return 999; },
     locate: () => 'C:/Claude.exe',
+    pause: () => undefined,
     now: () => new Date('2026-05-05T00:00:00Z'),
   };
   return { base, profileDir, deps, events };

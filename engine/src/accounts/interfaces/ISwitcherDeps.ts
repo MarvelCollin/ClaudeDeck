@@ -15,5 +15,6 @@ export interface ISwitcherDeps {
   kill: (pids: number[]) => number;
   launch: (exe: string, args: string[]) => number | undefined;
   locate: () => string;
+  pause: (ms: number) => void;
   now: () => Date;
 }

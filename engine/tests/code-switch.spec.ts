@@ -31,6 +31,7 @@ function harness() {
       return 1;
     },
     locate: () => 'C:/Claude.exe',
+    pause: () => undefined,
     now: () => new Date('2026-10-16T00:00:00Z'),
   };
   const write = (file: string, value: unknown) => {

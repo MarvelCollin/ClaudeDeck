@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CONFIG_FILE = exports.CODE_FILE = exports.DESKTOP_SUBDIR = void 0;
+exports.SETTLE_MS = exports.EXIT_POLL_MS = exports.EXIT_TIMEOUT_MS = exports.CONFIG_FILE = exports.CODE_FILE = exports.DESKTOP_SUBDIR = void 0;
 exports.createSwitcher = createSwitcher;
 const node_fs_1 = __importDefault(require("node:fs"));
 const node_path_1 = __importDefault(require("node:path"));
@@ -51,6 +51,9 @@ const session = __importStar(require("./session-store"));
 exports.DESKTOP_SUBDIR = 'desktop';
 exports.CODE_FILE = 'code.json';
 exports.CONFIG_FILE = session.CONFIG_FILE;
+exports.EXIT_TIMEOUT_MS = 20_000;
+exports.EXIT_POLL_MS = 250;
+exports.SETTLE_MS = 750;
 function sameEmail(left, right) {
     return left.toLowerCase() === right.toLowerCase();
 }
@@ -67,6 +70,7 @@ function defaultDeps() {
         kill: processes_1.killPids,
         launch: desktop_app_1.launch,
         locate: desktop_app_1.locateApp,
+        pause: processes_1.pauseSync,
         now: () => new Date(),
     };
 }
@@ -157,11 +161,22 @@ function createSwitcher(overrides = {}) {
     }
     function stopDesktop() {
         const pids = desktopRunning();
+        if (!pids.length)
+            return 0;
         deps.kill(pids);
+        let waited = 0;
+        while (desktopRunning().length) {
+            if (waited >= exports.EXIT_TIMEOUT_MS)
+                throw new Error('Claude Desktop did not close. Quit it from the tray and try again.');
+            deps.pause(exports.EXIT_POLL_MS);
+            waited += exports.EXIT_POLL_MS;
+        }
+        deps.pause(exports.SETTLE_MS);
         return pids.length;
     }
     function relaunchDesktop() {
-        deps.launch(deps.locate(), (0, desktop_app_1.launchArgs)(deps.profileDir, true));
+        const target = (0, desktop_app_1.launchTarget)(deps.locate());
+        deps.launch(target.command, target.args);
     }
     function syncCode(install) {
         const identity = (0, identity_1.readCodeAccount)(install.accountPath);
@@ -191,21 +206,29 @@ function createSwitcher(overrides = {}) {
                 ? 'No Claude account detected. Sign in to Claude Desktop or Claude Code first, then save.'
                 : `No account signed in to ${install.label}. Sign in there first, then save.`);
         }
-        const alias = (0, paths_1.deriveAlias)(identity.email);
         const data = readRegistry();
+        const alias = registry.sessionByEmail(data, identity.email)?.alias ?? (0, paths_1.deriveAlias)(identity.email);
+        const codeAccount = (0, identity_1.readCodeAccount)(install.accountPath);
+        const codeMatches = !codeAccount || sameEmail(codeAccount.email, identity.email);
         const stopped = options.stop === false ? 0 : stopDesktop();
-        saveInto(alias, data, install, identity.email);
-        writeRegistry(registry.saveSession(data, {
-            alias,
-            email: identity.email,
-            name: identity.name,
-            accountUuid: identity.accountUuid,
-            orgUuid: activeOrgUuid() ?? registry.findSession(data, alias)?.orgUuid ?? null,
-            installs: [install.id],
-        }, deps.now()));
         const relaunched = Boolean(stopped) && options.relaunch !== false;
-        if (relaunched)
-            relaunchDesktop();
+        try {
+            saveDesktopInto(alias);
+            if (codeMatches)
+                saveCodeInto(alias, data, install, identity.email);
+            writeRegistry(registry.saveSession(data, {
+                alias,
+                email: identity.email,
+                name: identity.name,
+                accountUuid: identity.accountUuid,
+                orgUuid: activeOrgUuid() ?? registry.findSession(data, alias)?.orgUuid ?? null,
+                installs: codeMatches ? [install.id] : registry.findSession(data, alias)?.installs ?? [],
+            }, deps.now()));
+        }
+        finally {
+            if (relaunched)
+                relaunchDesktop();
+        }
         return {
             alias,
             email: identity.email,
@@ -223,6 +246,23 @@ function createSwitcher(overrides = {}) {
         catch {
             return false;
         }
+    }
+    function checkDesktopSwitch(alias) {
+        const target = registry.findSession(readRegistry(), alias);
+        if (!target)
+            throw new Error(`No saved session for "${alias}".`);
+        if (!desktopCaptured(target.alias)) {
+            throw new Error(`${target.name} has no saved Claude Desktop login yet. Sign in to Claude Desktop with it once and save it.`);
+        }
+        deps.locate();
+        return target;
+    }
+    function checkDesktopSave() {
+        const identity = currentIdentity();
+        if (!identity)
+            throw new Error('Claude Desktop is not signed in. Sign in first, then save its login.');
+        deps.locate();
+        return identity;
     }
     function autoSyncCode() {
         const identity = currentCodeIdentity() ?? currentIdentity();
@@ -306,12 +346,23 @@ function createSwitcher(overrides = {}) {
         });
     }
     function switchTo(alias, options = {}) {
-        let data = readRegistry();
+        const data = readRegistry();
         const target = registry.findSession(data, alias);
         if (!target)
             throw new Error(`No saved session for "${alias}".`);
         const identity = currentIdentity();
+        const relaunched = options.relaunch !== false;
         const stopped = stopDesktop();
+        try {
+            return { ...swapLogins(target, identity, data, options), stopped, relaunched };
+        }
+        finally {
+            if (relaunched)
+                relaunchDesktop();
+        }
+    }
+    function swapLogins(target, identity, saved, options) {
+        let data = saved;
         const codeIdentity = currentCodeIdentity();
         const splitLogins = Boolean(codeIdentity && identity && !sameEmail(codeIdentity.email, identity.email));
         if (options.snapshotCurrent !== false && splitLogins) {
@@ -332,11 +383,8 @@ function createSwitcher(overrides = {}) {
                 data = writeRegistry(registry.saveSession(data, { ...known, installs: capture.map(install => install.id) }, deps.now()));
             }
         }
-        const restored = restoreFrom(alias, data, target);
-        const relaunched = options.relaunch !== false;
-        if (relaunched)
-            relaunchDesktop();
-        return { alias: target.alias, email: target.email, name: target.name, stopped, relaunched, ...restored };
+        const restored = restoreFrom(target.alias, data, target);
+        return { alias: target.alias, email: target.email, name: target.name, ...restored };
     }
     function switchCode(alias, options = {}) {
         const data = readRegistry();
@@ -371,6 +419,8 @@ function createSwitcher(overrides = {}) {
     }
     return {
         autoSyncCode,
+        checkDesktopSave,
+        checkDesktopSwitch,
         currentAccountUuid,
         currentIdentity,
         forget,

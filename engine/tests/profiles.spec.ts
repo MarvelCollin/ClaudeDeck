@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { launchArgs, windowsCandidates } from '../src/accounts/desktop-app';
+import { windowsCandidates } from '../src/accounts/desktop-app';
 import * as paths from '../src/accounts/paths';
 import * as procs from '../src/accounts/processes';
 import * as registry from '../src/accounts/registry';
@@ -79,11 +79,6 @@ test('deriveAlias turns a free text name into a safe folder name', () => {
   assert.ok(paths.isValidAlias(paths.deriveAlias('a'.repeat(80))));
   assert.throws(() => paths.deriveAlias('***'), /Cannot build a folder name/);
   assert.throws(() => paths.deriveAlias(''), /Cannot build a folder name/);
-});
-
-test('launchArgs omits the flag for the default profile', () => {
-  assert.deepStrictEqual(launchArgs('C:\\dir', true), []);
-  assert.deepStrictEqual(launchArgs('C:\\dir', false), ['--user-data-dir=C:\\dir']);
 });
 
 test('windows install candidates cover both installer layouts', () => {
@@ -291,6 +286,7 @@ function switcherHarness() {
     kill: pids => { if (pids.length) events.push('killed'); return pids.length; },
     launch: () => { events.push('launched'); return 999; },
     locate: () => 'C:/Claude.exe',
+    pause: () => undefined,
     now: () => new Date('2026-05-05T00:00:00Z'),
   };
   return { base, profileDir, credPath, deps, events };
@@ -465,6 +461,7 @@ function instanceHarness() {
     kill: (pids: number[]) => { killed.push(...pids); return pids.length; },
     launch: (exe: string, args: string[]) => { launched.push([exe, ...args]); return 4242; },
     locate: () => 'C:/Claude.exe',
+    pause: () => undefined,
     defaultDir: path.join(base, 'default'),
     remember: (alias: string, dir: string) => { remembered.push([alias, dir]); },
     routeLogins: () => { routed.push(1); return true; },
@@ -515,9 +512,10 @@ function seedTwoAccounts(h) {
 }
 
 test('the engine only answers the mod and the auto switch task', async () => {
-  await assert.rejects(runCli([]), /only takes "api <route>" and "auto"/);
-  await assert.rejects(runCli(['list']), /only takes "api <route>" and "auto"/);
-  await assert.rejects(runCli(['web', 'list']), /only takes "api <route>" and "auto"/);
+  await assert.rejects(runCli([]), /runs from its Claude mod/);
+  await assert.rejects(runCli(['list']), /runs from its Claude mod/);
+  await assert.rejects(runCli(['web', 'list']), /runs from its Claude mod/);
+  await assert.rejects(runCli(['desktop', 'open']), /runs from its Claude mod/);
 });
 
 test('the engine entry the mod runs is a node script', () => {

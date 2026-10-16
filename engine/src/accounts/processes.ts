@@ -1,4 +1,6 @@
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 import { errorCode } from '../core/fs/json';
 import { tryCapture } from '../core/exec';
 import { IClaudeProcess } from './interfaces';
@@ -6,6 +8,8 @@ import { IClaudeProcess } from './interfaces';
 export const SEPARATOR = '|::|';
 
 const MACOS_BINARY = /Claude\.app\/Contents\/MacOS\/Claude/;
+const QUOTED_EXECUTABLE = /^"([^"]+)"/;
+const BARE_EXECUTABLE = /^(\S+?\.exe)(?:\s|$)/i;
 
 function nonEmptyLines(text: string): string[] {
   return String(text)
@@ -17,11 +21,19 @@ function nonEmptyLines(text: string): string[] {
 export function parseProcessLines(text: string): IClaudeProcess[] {
   const processes: IClaudeProcess[] = [];
   for (const line of nonEmptyLines(text)) {
-    const index = line.indexOf(SEPARATOR);
-    if (index === -1) continue;
-    const pid = Number(line.slice(0, index).trim());
+    const fields = line.split(SEPARATOR);
+    if (fields.length < 2) continue;
+    const pid = Number((fields[0] as string).trim());
     if (!Number.isInteger(pid) || pid <= 0) continue;
-    processes.push({ pid, commandLine: line.slice(index + SEPARATOR.length).trim() });
+    if (fields.length === 2) {
+      processes.push({ pid, commandLine: (fields[1] as string).trim() });
+      continue;
+    }
+    processes.push({
+      pid,
+      executablePath: (fields[1] as string).trim(),
+      commandLine: fields.slice(2).join(SEPARATOR).trim(),
+    });
   }
   return processes;
 }
@@ -36,11 +48,37 @@ export function parsePosixProcessLines(text: string): IClaudeProcess[] {
   return processes;
 }
 
+export function executableOf(entry: IClaudeProcess): string | null {
+  if (entry.executablePath) return entry.executablePath;
+  const quoted = entry.commandLine.match(QUOTED_EXECUTABLE);
+  if (quoted) return quoted[1] as string;
+  const bare = entry.commandLine.match(BARE_EXECUTABLE);
+  return bare ? (bare[1] as string) : null;
+}
+
+export function isDesktopExecutable(executable: string | null, exists: (file: string) => boolean = fs.existsSync): boolean {
+  if (!executable) return false;
+  return exists(path.win32.join(path.win32.dirname(executable), 'resources', 'app.asar'));
+}
+
+export function desktopOnly(
+  processes: readonly IClaudeProcess[],
+  exists: (file: string) => boolean = fs.existsSync
+): IClaudeProcess[] {
+  const known = new Map<string, boolean>();
+  return processes.filter(entry => {
+    const executable = executableOf(entry);
+    const key = (executable ?? '').toLowerCase();
+    if (!known.has(key)) known.set(key, isDesktopExecutable(executable, exists));
+    return known.get(key) === true;
+  });
+}
+
 export function listClaudeProcesses(platform: NodeJS.Platform = process.platform): IClaudeProcess[] {
   if (platform === 'win32') {
-    const command = `Get-CimInstance Win32_Process -Filter "Name='claude.exe'" | ForEach-Object { "$($_.ProcessId)${SEPARATOR}$($_.CommandLine)" }`;
+    const command = `Get-CimInstance Win32_Process -Filter "Name='claude.exe'" | ForEach-Object { "$($_.ProcessId)${SEPARATOR}$($_.ExecutablePath)${SEPARATOR}$($_.CommandLine)" }`;
     const output = tryCapture('powershell.exe', ['-NoProfile', '-Command', command]);
-    return output === null ? [] : parseProcessLines(output);
+    return output === null ? [] : desktopOnly(parseProcessLines(output));
   }
   if (platform === 'darwin') {
     const output = tryCapture('ps', ['-ax', '-o', 'pid=,command=']);
@@ -53,7 +91,7 @@ export function killPids(pids: readonly number[], platform: NodeJS.Platform = pr
   if (!pids.length) return 0;
   if (platform === 'win32') {
     const command = `Get-Process -Id ${pids.join(',')} -ErrorAction SilentlyContinue | Stop-Process -Force`;
-    spawnSync('powershell.exe', ['-NoProfile', '-Command', command], { encoding: 'utf8' });
+    spawnSync('powershell.exe', ['-NoProfile', '-Command', command], { encoding: 'utf8', windowsHide: true });
     return pids.length;
   }
   for (const pid of pids) {
@@ -64,4 +102,8 @@ export function killPids(pids: readonly number[], platform: NodeJS.Platform = pr
     }
   }
   return pids.length;
+}
+
+export function pauseSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Math.max(0, ms));
 }
