@@ -20,6 +20,8 @@ import {
   warmLogLines,
 } from '../src/runner/warm-accounts';
 
+delete process.env[CONFIG_DIR_ENV];
+
 const NOW = new Date('2026-10-16T10:00:00Z');
 const LATER = new Date(NOW.getTime() + 3_600_000).toISOString();
 const EARLIER = new Date(NOW.getTime() - 60_000).toISOString();
