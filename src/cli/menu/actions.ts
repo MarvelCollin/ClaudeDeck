@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import { loadConfig } from '../../core/config/loader';
 import { IConfigContext, IScheduler } from '../../core/interfaces';
 import { readState, writeState } from '../../core/state/task-state';
-import { openUi } from '../accounts-command';
 import { ITaskActions } from '../interfaces';
 import { configureSchedule } from './schedule-editor';
 
@@ -11,7 +10,6 @@ const START_CHOICES = new Set(['background', 'start', '1']);
 const STOP_CHOICES = new Set(['stop-background', 'disable', '2']);
 const RUN_CHOICES = new Set(['run', '3']);
 const LOG_CHOICES = new Set(['log', '4']);
-const PANEL_CHOICES = new Set(['web', 'profiles', '5']);
 
 export function createActions(context: IConfigContext, scheduler: IScheduler): ITaskActions {
   function reloadContext(): void {
@@ -62,7 +60,6 @@ export function createActions(context: IConfigContext, scheduler: IScheduler): I
     if (STOP_CHOICES.has(choice)) return stopBackground();
     if (RUN_CHOICES.has(choice)) return scheduler.runNow(context);
     if (LOG_CHOICES.has(choice)) return openLog();
-    if (PANEL_CHOICES.has(choice)) return openUi();
     if (choice === 'stop') return scheduler.stop(context);
     if (choice === 'enable') return scheduler.enable(context);
     if (choice === 'status') return scheduler.status(context);

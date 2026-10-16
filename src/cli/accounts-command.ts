@@ -11,8 +11,6 @@ import {
   PROTOCOL,
   removeHandler,
 } from '../accounts/deeplink';
-import { openUrl } from '../accounts/desktop-app';
-import { startServer } from '../web/server';
 import { runApiCommand } from './api-command';
 import { AUTO_USAGE, runAutoCommand } from './auto-command';
 import { listJson, runUsageCommand } from './usage-command';
@@ -20,7 +18,7 @@ import { listJson, runUsageCommand } from './usage-command';
 export const USAGE = [
   'Usage: claudedeck web [command]',
   '',
-  '  (no command)       open the control panel in your browser',
+  '  (no command)       show this help',
   '  list               show every saved account and which one is active',
   '  list --json        the same as JSON, add --refresh to fetch live usage first',
   '  usage [refresh]    live 5h and weekly usage with reset times for every account',
@@ -70,19 +68,6 @@ function printList(): void {
   }
 }
 
-export async function openUi(): Promise<void> {
-  const panel = startServer();
-  const session = await panel.listen();
-  console.log(`ClaudeDeck control panel: ${session.url}`);
-  console.log('Close the browser tab to stop the server.');
-  openUrl(session.url);
-  await new Promise<void>(resolve => session.server.once('close', () => resolve()));
-  if (panel.connected()) {
-    console.log('Control panel closed.');
-    return;
-  }
-  console.log('Nothing opened the panel, so the server stopped. Copy the URL above into a browser and run the command again.');
-}
 
 function reportLoginRouting(guarding: boolean): void {
   if (!handlerStatus().supported) {
@@ -155,7 +140,10 @@ function runShare(value: string | undefined): void {
 export async function runAccountsCommand(argv: string[] = []): Promise<void> {
   const [command, first] = argv;
 
-  if (!command) return openUi();
+  if (!command) {
+    console.log(USAGE.replace('claudedeck web [command]', 'claudedeck [command]'));
+    return;
+  }
 
   if (command === 'list') {
     if (argv.includes('--json')) {

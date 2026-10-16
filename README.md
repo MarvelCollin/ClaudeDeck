@@ -1,6 +1,6 @@
 # ClaudeDeck
 
-Switch the active Claude account across Claude Desktop and Claude Code, and schedule background Claude runs, from one local control panel.
+Switch the active Claude account across Claude Desktop and Claude Code, and schedule background Claude runs, from a pane beside the chat in Claude Desktop.
 
 ## Install
 
@@ -15,7 +15,7 @@ To run it from a clone instead, link it once:
 npm link
 ```
 
-`claudedeck` on its own opens the control panel in your browser. Everything else is a subcommand, and `claudedeck help` lists them all.
+The day to day place is the ClaudeDeck pane inside Claude Desktop, see [ClaudeDeck inside Claude Desktop](#claudedeck-inside-claude-desktop). The CLI drives the same things, and `claudedeck help` lists every command.
 
 Run Claude CLI login first if Claude is not authenticated yet.
 
@@ -25,14 +25,14 @@ claude auth
 
 ## Two commands
 
-`cdeck` is the short alias for `claudedeck`. Either one on its own opens the control panel in your browser.
+`cdeck` is the short alias for `claudedeck`. Either one on its own prints the help.
 
 ```bash
 cdeck
 claudedeck
 ```
 
-`claudedeck menu` opens the terminal menu, which does the same things without a browser.
+`claudedeck menu` opens the terminal menu for the background runs.
 
 Both names accept the same subcommands, so `cdeck list`, `claudedeck list`, and `claudedeck web list` are equivalent.
 
@@ -137,18 +137,6 @@ To load it in every session, point Claude Code at the folder in `~/.claude/setti
 
 The mod runs `node bin/claudedeck.js api` from this checkout, so run `npm run build` after pulling.
 
-## Control Panel
-
-Everything ClaudeDeck does is also available as a page in your browser. Run:
-
-```bash
-cdeck
-```
-
-That serves a page on `127.0.0.1`, opens it, and prints the address. The server waits up to two minutes for the browser to load the page, so a cold browser start or a pasted URL still gets through. Once the tab is open the server only lives while it stays open, and stops about ten seconds after you close it. There is no tray icon, no background service and no port left listening. Every request needs a session token that is generated per run, and requests from other hostnames are refused.
-
-From the page you can edit the schedule, start or stop the background task, trigger a single run, read the log, and manage Claude Desktop accounts. The terminal menu still works and its `Open Control Panel` entry opens the same page.
-
 ## Switch Claude accounts
 
 ClaudeDeck keeps one Claude Desktop and swaps the active account in place, so Claude Desktop and Claude Code always sit on the same login. It saves the session files each account produces after you sign in, then restores them on demand. Nothing is decrypted, no password is typed, and nothing leaves your machine.
@@ -179,7 +167,7 @@ Claude Desktop does not store your email in plain text. ClaudeDeck reads `lastKn
 2. The ClaudeDeck registry, for any account you have already saved.
 3. A scan of the claude.ai IndexedDB files, which older Claude Desktop builds used.
 
-If Claude Desktop is signed in but the id is new to both Claude Code and ClaudeDeck, the panel says so and names the id. Open Claude Code once on that account and reload.
+If Claude Desktop is signed in but the id is new to both Claude Code and ClaudeDeck, `claudedeck list` says so and names the id. Open Claude Code once on that account and reload.
 
 Claude Desktop is not required. When no Desktop profile is found, ClaudeDeck reads the account straight from `~/.claude.json`, so a machine with only Claude Code still shows its account and can save and switch it. Desktop session files are simply skipped.
 
@@ -194,7 +182,7 @@ The stable and insiders builds of Claude Code keep separate logins, so they can 
 | Claude Desktop and Claude Code | `~/.claude.json` | `~/.claude/.credentials.json` |
 | Claude Code Insiders | `~/.claude-insiders/.claude.json` | `~/.claude-insiders/.credentials.json` |
 
-The panel lists both under **Signed in on this machine** and each one saves and switches on its own. A saved account records which installs it covers, so switching restores only those. If the same account is signed in to both, one saved entry holds a credential file per install and switching restores both at once.
+Both are listed and each one saves and switches on its own. A saved account records which installs it covers, so switching restores only those. If the same account is signed in to both, one saved entry holds a credential file per install and switching restores both at once.
 
 ```bash
 claudedeck list
@@ -257,7 +245,7 @@ claudedeck open work-example.com
 claudedeck close work-example.com
 ```
 
-The control panel has an **Open window** button on each account that does the same thing.
+In the Desktop pane, **More** on each account card does the same thing.
 
 Each account gets its own Claude Desktop profile directory:
 
@@ -318,7 +306,7 @@ Every saved account shows how much of its plan is still available:
   kowlin   marvelgamerzgt@gmail.com    usage unknown
 ```
 
-The control panel draws the same two numbers as bars under each account, green until 30 percent is left, amber below that and red below 10 percent.
+The Desktop pane draws live usage as bars on each account card instead, see [Live usage with reset times](#live-usage-with-reset-times).
 
 The figures come from Claude Desktop itself. It keeps a rolling record in `plan-usage-history.json` inside its profile:
 
@@ -333,7 +321,7 @@ An account opened in its own window reads its own profile's file directly, so it
 For accounts that share the single swapped profile, samples are tagged by organisation rather than by account, so ClaudeDeck records which organisation an account was using when you saved it, and refreshes that link whenever the account is the signed-in one. Two consequences:
 
 - An account saved before this feature reads `usage unknown` until the next time it is signed in.
-- If one account belongs to several organisations, the figures follow whichever organisation it used most recently. The panel prints the measurement time so you can tell how fresh it is.
+- If one account belongs to several organisations, the figures follow whichever organisation it used most recently. `claudedeck list` prints the measurement time so you can tell how fresh it is.
 
 Claude Desktop only writes a sample while it is running, so the numbers stop moving once it is closed.
 
@@ -373,7 +361,7 @@ ClaudeDeck is written in TypeScript. `src` compiles to `dist`, which is what the
 
 ```bash
 npm install
-npm run build        # tsc, then copy the control panel assets into dist
+npm run build        # tsc into dist
 npm run dev          # run the CLI straight from src through tsx
 npm test             # node:test over tests/*.test.ts
 npm run check        # typecheck plus the config and PowerShell parse checks
@@ -385,11 +373,12 @@ Layout:
 src/core        config, logging, paths, process helpers
 src/accounts    identity, registry, session snapshots, switcher
 src/scheduler   Windows Task Scheduler and macOS launchd adapters
-src/web         control panel server, service, and HTML/CSS/JS assets
+src/service     schedule and account actions shared by the CLI and the api command
+mod             the Claude Desktop mod, it calls bin/claudedeck.js api
 src/cli         command router, terminal menu, entry points
 ```
 
-Every folder keeps its types in an `interfaces` directory, one `I{Name}.ts` file per interface, re-exported from `interfaces/index.ts`. The control panel markup lives in real `src/web/assets/panel.html`, `panel.css`, and `panel.js` files rather than inline strings.
+Every folder keeps its types in an `interfaces` directory, one `I{Name}.ts` file per interface, re-exported from `interfaces/index.ts`.
 
 ## Publish
 

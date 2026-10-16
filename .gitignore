@@ -1,4 +1,5 @@
 node_modules/
+mod/.claude-plugin/types/
 dist/
 .claude/skills/
 *.log

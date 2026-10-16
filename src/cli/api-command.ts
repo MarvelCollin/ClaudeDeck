@@ -16,8 +16,8 @@ import { cachedUsage } from '../accounts/live-usage';
 import { createSwitcher } from '../accounts/switcher';
 import { errorMessage } from '../core/fs/json';
 import { userDataDir } from '../core/paths';
-import { IScheduleDraft } from '../web/interfaces';
-import { createService } from '../web/service';
+import { IScheduleDraft } from '../service/interfaces';
+import { createService } from '../service/service';
 import { refreshLiveUsage } from './usage-command';
 
 type Body = Record<string, unknown>;

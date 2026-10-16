@@ -12,9 +12,7 @@ import * as shared from '../src/accounts/shared-store';
 import * as usage from '../src/accounts/usage';
 import { createInstances } from '../src/accounts/instances';
 import { routeCommand } from '../src/cli/router';
-import { allowedHost, buildRoutes, startServer } from '../src/web/server';
 import * as appPaths from '../src/core/paths';
-import { IPanelService } from '../src/web/interfaces';
 
 delete process.env.CLAUDEDECK_HOME;
 
@@ -185,93 +183,6 @@ test('processes map back to the profile that owns them', () => {
 
 test('killPids is a no-op for an empty list', () => {
   assert.strictEqual(procs.killPids([], 'win32'), 0);
-});
-
-test('allowedHost only trusts loopback', () => {
-  assert.ok(allowedHost('127.0.0.1:5000'));
-  assert.ok(allowedHost('localhost:5000'));
-  assert.ok(!allowedHost('evil.example.com:5000'));
-  assert.ok(!allowedHost(undefined));
-});
-
-test('server rejects requests without the session token', async () => {
-  const session = await startServer({ token: 'secret', idleTimeout: 60000 }).listen();
-  try {
-    const base = `http://127.0.0.1:${session.port}`;
-    const denied = await fetch(`${base}/api/ping`, { method: 'POST' });
-    assert.strictEqual(denied.status, 403);
-
-    const page = await fetch(`${base}/`);
-    assert.strictEqual(page.status, 403);
-
-    const allowed = await fetch(`${base}/api/ping`, { method: 'POST', headers: { 'x-claudedeck-token': 'secret' } });
-    assert.strictEqual(allowed.status, 200);
-    assert.deepStrictEqual(await allowed.json(), { ok: true });
-
-    const missing = await fetch(`${base}/api/nope`, { headers: { 'x-claudedeck-token': 'secret' } });
-    assert.strictEqual(missing.status, 404);
-
-    const html = await fetch(`${base}/?token=secret`);
-    assert.strictEqual(html.status, 200);
-    assert.ok((await html.text()).includes('Claude accounts'));
-  } finally {
-    session.close();
-  }
-});
-
-test('server shuts itself down when the page stops pinging', async () => {
-  const session = await startServer({ token: 'secret', idleTimeout: 1, startupTimeout: 60000 }).listen();
-  const page = await fetch(session.url);
-  assert.strictEqual(page.status, 200);
-  await new Promise(resolve => session.server.once('close', resolve));
-  assert.ok(true);
-});
-
-test('server waits for a slow browser instead of closing on the idle timeout', async () => {
-  const panel = startServer({ token: 'secret', idleTimeout: 1, startupTimeout: 60000 });
-  const session = await panel.listen();
-  try {
-    assert.strictEqual(panel.connected(), false);
-    await new Promise(resolve => setTimeout(resolve, 2600));
-    assert.strictEqual(session.server.listening, true);
-    assert.strictEqual(panel.connected(), false);
-
-    const page = await fetch(session.url);
-    assert.strictEqual(page.status, 200);
-    assert.strictEqual(panel.connected(), true);
-  } finally {
-    session.close();
-  }
-});
-
-test('an open event stream keeps the server alive past the idle timeout', async () => {
-  const panel = startServer({ token: 'secret', idleTimeout: 1, startupTimeout: 60000 });
-  const session = await panel.listen();
-  const stopped = new Promise(resolve => session.server.once('close', resolve));
-  try {
-    assert.strictEqual((await fetch(session.url)).status, 200);
-
-    const abort = new AbortController();
-    const stream = await fetch(`http://127.0.0.1:${session.port}/api/events?token=secret`, { signal: abort.signal });
-    assert.strictEqual(stream.status, 200);
-    assert.strictEqual(stream.headers.get('content-type'), 'text/event-stream');
-
-    await new Promise(resolve => setTimeout(resolve, 2600));
-    assert.strictEqual(session.server.listening, true, 'server must stay up while the tab holds the stream');
-
-    abort.abort();
-    await stopped;
-    assert.strictEqual(session.server.listening, false);
-  } finally {
-    session.close();
-  }
-});
-
-test('server gives up when no browser ever opens the panel', async () => {
-  const panel = startServer({ token: 'secret', startupTimeout: 1 });
-  const session = await panel.listen();
-  await new Promise(resolve => session.server.once('close', resolve));
-  assert.strictEqual(panel.connected(), false);
 });
 
 test('legacy ClaudeCron data folder is moved to ClaudeDeck once', () => {
@@ -1007,17 +918,8 @@ test('listSessions reports the sharing state and which items stay common', () =>
   }
 });
 
-test("the web panel exposes a sharing route", () => {
-  const calls: unknown[] = [];
-  const service = { setSharing: (body: unknown) => { calls.push(body); return { ok: true }; } } as unknown as IPanelService;
-  const routes = buildRoutes(service);
-  assert.strictEqual(typeof routes["/api/accounts/sharing"], "function");
-  routes["/api/accounts/sharing"]!({ enabled: false });
-  assert.deepStrictEqual(calls, [{ enabled: false }]);
-});
-
-test('the bare command opens the panel and account commands skip the web prefix', () => {
-  assert.deepStrictEqual(routeCommand([]), { kind: 'panel', args: [] });
+test('the bare command shows help and account commands skip the web prefix', () => {
+  assert.deepStrictEqual(routeCommand([]), { kind: 'help', args: [] });
   assert.deepStrictEqual(routeCommand(['help']), { kind: 'help', args: [] });
   assert.deepStrictEqual(routeCommand(['-h']), { kind: 'help', args: [] });
   assert.deepStrictEqual(routeCommand(['menu']), { kind: 'menu', args: [] });

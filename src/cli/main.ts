@@ -9,7 +9,6 @@ import { routeCommand } from './router';
 export async function runCli(argv: string[] = process.argv.slice(2)): Promise<void> {
   const route = routeCommand(argv);
 
-  if (route.kind === 'panel') return runAccountsCommand([]);
   if (route.kind === 'help') {
     console.log(HELP);
     return;

@@ -1,7 +1,7 @@
 {
   "name": "claudedeck",
   "version": "1.0.1",
-  "description": "Switch the active Claude account across Claude Desktop and Claude Code, and schedule background Claude runs, from one local control panel.",
+  "description": "Switch the active Claude account across Claude Desktop and Claude Code, and schedule background Claude runs, from a pane inside Claude Desktop.",
   "homepage": "https://github.com/MarvelCollin/ClaudeDeck#readme",
   "bugs": {
     "url": "https://github.com/MarvelCollin/ClaudeDeck/issues"
@@ -23,6 +23,7 @@
     "bin",
     "dist",
     "scripts/windows",
+    "mod",
     "claudedeck.config.json",
     "LICENSE",
     "README.md"
@@ -43,7 +44,7 @@
     "node": ">=18.19"
   },
   "scripts": {
-    "build": "tsc --project tsconfig.json && node tools/copy-assets.mjs",
+    "build": "tsc --project tsconfig.json",
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "typecheck": "tsc --project tsconfig.test.json",
     "dev": "tsx src/bin/claudedeck.ts",

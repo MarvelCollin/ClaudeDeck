@@ -6,7 +6,7 @@ export const HELP_COMMANDS = ['help', '--help', '-h'];
 
 export function routeCommand(argv: string[] = []): IRoute {
   const [command, ...rest] = argv;
-  if (!command) return { kind: 'panel', args: [] };
+  if (!command) return { kind: 'help', args: [] };
   if (HELP_COMMANDS.includes(command)) return { kind: 'help', args: [] };
   if (WEB_COMMANDS.includes(command)) return { kind: 'web', args: rest };
   if (ACCOUNT_COMMANDS.includes(command)) return { kind: 'web', args: [command, ...rest] };

@@ -8,7 +8,6 @@ export const MENU_ITEMS: readonly IMenuItem[] = [
   { label: 'Stop Background', choice: 'stop-background', code: '31' },
   { label: 'Run once now', choice: 'run', code: '36' },
   { label: 'Open log', choice: 'log', code: '35' },
-  { label: 'Open Control Panel', choice: 'web', code: '34' },
   { label: 'Exit', choice: '0', code: '90' },
 ];
 

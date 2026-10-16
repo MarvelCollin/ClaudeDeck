@@ -3,8 +3,9 @@ import { USAGE } from './accounts-command';
 export const HELP = [
   'Usage: claudedeck [command]',
   '',
-  '  (no command)       open the control panel in your browser',
-  '  menu               use the terminal menu instead',
+  'ClaudeDeck lives in a pane beside the chat in Claude Desktop. Run /deck there to open it.',
+  '',
+  '  menu               the terminal menu for background runs',
   '',
   USAGE.split('\n').slice(3).join('\n'),
   '',
