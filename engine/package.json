@@ -1,33 +1,35 @@
 {
-  "name": "claudedeck",
+  "name": "claudedeck-engine",
   "version": "1.0.1",
-  "description": "Switch the active Claude account across Claude Desktop and Claude Code, and schedule background Claude runs, from a pane inside Claude Desktop.",
-  "homepage": "https://github.com/MarvelCollin/ClaudeDeck#readme",
-  "bugs": {
-    "url": "https://github.com/MarvelCollin/ClaudeDeck/issues"
-  },
+  "private": true,
+  "description": "The engine the ClaudeDeck Claude Code mod runs: account switching, live usage, auto switch and background runs.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/MarvelCollin/ClaudeDeck.git"
   },
   "license": "MIT",
   "author": "Marvel Collin",
-  "publishConfig": {
-    "access": "public"
-  },
   "bin": {
-    "claudedeck": "bin/claudedeck.js",
-    "cdeck": "bin/cdeck.js"
+    "claudedeck": "bin/claudedeck.js"
   },
-  "files": [
-    "bin",
-    "dist",
-    "scripts/windows",
-    "mod",
-    "claudedeck.config.json",
-    "LICENSE",
-    "README.md"
-  ],
+  "engines": {
+    "node": ">=18.19"
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "typecheck": "tsc --project tsconfig.test.json",
+    "dev": "tsx src/bin/claudedeck.ts",
+    "web": "tsx src/bin/claudedeck.ts web",
+    "start": "tsx src/bin/run-claude.ts",
+    "check": "npm run typecheck && tsx src/dev/check.ts",
+    "test": "node --import tsx --test tests/*.spec.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.3",
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.3"
+  },
   "keywords": [
     "claude",
     "claude-code",
@@ -39,26 +41,5 @@
     "scheduler",
     "launchd",
     "automation"
-  ],
-  "engines": {
-    "node": ">=18.19"
-  },
-  "scripts": {
-    "build": "tsc --project tsconfig.json",
-    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
-    "typecheck": "tsc --project tsconfig.test.json",
-    "dev": "tsx src/bin/claudedeck.ts",
-    "web": "tsx src/bin/claudedeck.ts web",
-    "start": "tsx src/bin/run-claude.ts",
-    "login": "claude auth",
-    "check": "npm run typecheck && tsx src/dev/check.ts",
-    "test": "node --import tsx --test tests/*.spec.ts",
-    "prepare": "npm run build",
-    "prepublishOnly": "npm run clean && npm run build && npm run check"
-  },
-  "devDependencies": {
-    "@types/node": "^22.20.3",
-    "tsx": "^4.23.13",
-    "typescript": "^5.9.3"
-  }
+  ]
 }

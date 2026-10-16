@@ -1,11 +1,9 @@
 import fs from 'node:fs';
-import { loadConfig } from '../../core/config/loader';
-import { IConfigContext, IScheduler } from '../../core/interfaces';
-import { readState, writeState } from '../../core/state/task-state';
-import { ITaskActions } from '../interfaces';
-import { configureSchedule } from './schedule-editor';
+import { loadConfig } from '../core/config/loader';
+import { IConfigContext, IScheduler } from '../core/interfaces';
+import { readState, writeState } from '../core/state/task-state';
+import { ITaskActions } from './interfaces';
 
-const CONFIG_CHOICES = new Set(['config', 'configure']);
 const START_CHOICES = new Set(['background', 'start', '1']);
 const STOP_CHOICES = new Set(['stop-background', 'disable', '2']);
 const RUN_CHOICES = new Set(['run', '3']);
@@ -54,7 +52,6 @@ export function createActions(context: IConfigContext, scheduler: IScheduler): I
 
   async function execute(choice: string | undefined): Promise<void> {
     if (choice === undefined) return;
-    if (CONFIG_CHOICES.has(choice)) return configureSchedule(context, scheduler, install, reloadContext);
     if (choice === 'install') return install();
     if (START_CHOICES.has(choice)) return runBackground();
     if (STOP_CHOICES.has(choice)) return stopBackground();

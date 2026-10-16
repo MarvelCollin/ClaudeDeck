@@ -5,7 +5,6 @@ export const HELP = [
   '',
   'ClaudeDeck lives in a pane beside the chat in Claude Desktop. Run /deck there to open it.',
   '',
-  '  menu               the terminal menu for background runs',
   '',
   USAGE.split('\n').slice(3).join('\n'),
   '',

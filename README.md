@@ -55,9 +55,7 @@ Set `CLAUDEDECK_HOME` to keep every ClaudeDeck file somewhere else. On Windows w
 setx CLAUDEDECK_HOME %USERPROFILE%\.claudedeck
 ```
 
-Use `Configure Schedule` in the menu for the easiest setup. It opens the real JSON config file; save and close the editor, then choose whether to apply the updated background schedule.
-
-You can also edit the config file manually.
+The **Background runs** tab in the pane is the easiest way to change the prompt and the times. You can also edit the config file manually.
 
 ```json
 {
@@ -84,7 +82,7 @@ You can also edit the config file manually.
 
 Use English day names: `Monday`, `Tuesday`, `Wednesday`, `Thursday`, `Friday`, `Saturday`, `Sunday`. Use 24-hour `HH:mm` times. Add another schedule block when different days need different times. Keep `"model": "haiku"` because the runner enforces Haiku only.
 
-After changing the config manually, run `claudedeck` and choose `Run Background` so Windows Task Scheduler or macOS launchd is updated.
+After changing the config manually, run `claudedeck install` or press **Turn on** in the Background runs tab so Windows Task Scheduler or macOS launchd is updated.
 
 ### Warm every account
 

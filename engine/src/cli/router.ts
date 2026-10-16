@@ -10,6 +10,5 @@ export function routeCommand(argv: string[] = []): IRoute {
   if (HELP_COMMANDS.includes(command)) return { kind: 'help', args: [] };
   if (WEB_COMMANDS.includes(command)) return { kind: 'web', args: rest };
   if (ACCOUNT_COMMANDS.includes(command)) return { kind: 'web', args: [command, ...rest] };
-  if (command === 'menu') return { kind: 'menu', args: [] };
   return { kind: 'task', args: [command, ...rest] };
 }

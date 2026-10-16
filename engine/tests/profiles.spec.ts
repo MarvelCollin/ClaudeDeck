@@ -922,7 +922,7 @@ test('the bare command shows help and account commands skip the web prefix', () 
   assert.deepStrictEqual(routeCommand([]), { kind: 'help', args: [] });
   assert.deepStrictEqual(routeCommand(['help']), { kind: 'help', args: [] });
   assert.deepStrictEqual(routeCommand(['-h']), { kind: 'help', args: [] });
-  assert.deepStrictEqual(routeCommand(['menu']), { kind: 'menu', args: [] });
+  assert.deepStrictEqual(routeCommand(['menu']), { kind: 'task', args: ['menu'] });
   assert.deepStrictEqual(routeCommand(['switch', 'work']), { kind: 'web', args: ['switch', 'work'] });
   assert.deepStrictEqual(routeCommand(['share', 'off']), { kind: 'web', args: ['share', 'off'] });
   assert.deepStrictEqual(routeCommand(['web', 'list']), { kind: 'web', args: ['list'] });
@@ -934,7 +934,7 @@ test('the bare command shows help and account commands skip the web prefix', () 
 test('every declared bin entry points at a real file', () => {
   const root = path.join(__dirname, '..');
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as { bin: Record<string, string> };
-  assert.deepStrictEqual(Object.keys(pkg.bin).sort(), ['cdeck', 'claudedeck']);
+  assert.deepStrictEqual(Object.keys(pkg.bin).sort(), ['claudedeck']);
   for (const target of Object.values(pkg.bin)) {
     const file = path.join(root, target);
     assert.ok(fs.existsSync(file), target + ' is missing');

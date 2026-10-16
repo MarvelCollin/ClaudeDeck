@@ -2,8 +2,7 @@ import { loadConfig } from '../core/config/loader';
 import { selectScheduler } from '../scheduler';
 import { runAccountsCommand } from './accounts-command';
 import { HELP } from './help';
-import { createActions } from './menu/actions';
-import { runInteractive } from './menu/interactive';
+import { createActions } from './task-actions';
 import { routeCommand } from './router';
 
 export async function runCli(argv: string[] = process.argv.slice(2)): Promise<void> {
@@ -19,9 +18,6 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
   const scheduler = selectScheduler();
   const actions = createActions(context, scheduler);
 
-  if (route.kind === 'menu') {
-    actions.syncInstalledTask();
-    return runInteractive(context, scheduler, actions);
-  }
+  actions.syncInstalledTask();
   return actions.execute(route.args[0]);
 }
