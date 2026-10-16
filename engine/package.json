@@ -52,7 +52,7 @@
     "start": "tsx src/bin/run-claude.ts",
     "login": "claude auth",
     "check": "npm run typecheck && tsx src/dev/check.ts",
-    "test": "node --import tsx --test tests/*.test.ts",
+    "test": "node --import tsx --test tests/*.spec.ts",
     "prepare": "npm run build",
     "prepublishOnly": "npm run clean && npm run build && npm run check"
   },

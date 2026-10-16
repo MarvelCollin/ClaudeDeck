@@ -4,63 +4,34 @@ Switch the active Claude account across Claude Desktop and Claude Code, and sche
 
 ## Install
 
-```bash
-npm i -g claudedeck
-claudedeck
+ClaudeDeck is a Claude Code mod. At the prompt of a Claude Code terminal session:
+
+```
+/plugin install claudedeck --marketplace MarvelCollin/ClaudeDeck
 ```
 
-To run it from a clone instead, link it once:
+From a shell:
 
 ```bash
+claude plugin install claudedeck --marketplace MarvelCollin/ClaudeDeck
+```
+
+In Claude Desktop, where `/plugin` does not run: click + next to the prompt box, then Plugins, Add marketplace with `MarvelCollin/ClaudeDeck`, then Add plugin. Answer `y` to add the marketplace and pick the user scope, so the pane opens in every session.
+
+It needs Node.js 18 or later on the PATH, and Claude Code signed in at least once (`claude auth login`).
+
+## The engine
+
+The mod draws the pane. The work happens in `engine/`, a small Node program the mod runs as `node engine/bin/claudedeck.js api ...`. The same program has a command line, and the auto switch task and the background runs use it too. To call it as `claudedeck` from a terminal, link it once:
+
+```bash
+cd engine
 npm link
 ```
 
-The day to day place is the ClaudeDeck pane inside Claude Desktop, see [ClaudeDeck inside Claude Desktop](#claudedeck-inside-claude-desktop). The CLI drives the same things, and `claudedeck help` lists every command.
+`claudedeck help` lists every command. The commands in the rest of this README use that name.
 
-Run Claude CLI login first if Claude is not authenticated yet.
-
-```bash
-claude auth
-```
-
-## Two commands
-
-`cdeck` is the short alias for `claudedeck`. Either one on its own prints the help.
-
-```bash
-cdeck
-claudedeck
-```
-
-`claudedeck menu` opens the terminal menu for the background runs.
-
-Both names accept the same subcommands, so `cdeck list`, `claudedeck list`, and `claudedeck web list` are equivalent.
-
-## macOS
-
-ClaudeDeck supports macOS through `launchd`.
-
-```bash
-npm i -g claudedeck
-claude auth
-claudedeck menu
-```
-
-Choose `Configure Schedule` to edit the JSON config, then choose `Run Background` to install or update the LaunchAgent at:
-
-```text
-~/Library/LaunchAgents/com.claudedeck.plist
-```
-
-The Mac must be powered on and signed in for local scheduled runs. It cannot run after a full shutdown.
-
-## Manage Schedule
-
-```bash
-claudedeck menu
-```
-
-Use the arrow keys to choose `Configure Schedule`, `Run Background`, `Stop Background`, `Run once now`, or `Open log`. The menu shows whether the background schedule is on, whether a run is active, the last run time, the next run time, and run counts.
+On macOS the background runs use `launchd` and install a LaunchAgent at `~/Library/LaunchAgents/com.claudedeck.plist`. The Mac must be powered on and signed in for local scheduled runs.
 
 ## Config Tutorial
 
@@ -138,28 +109,25 @@ Each account gets one line in the run log, followed by a total:
 
 The run's exit code stays the main run's, so a failed warm shows in the log without marking the scheduled task as failed. Claude Code on macOS keeps its login in the Keychain instead of `.credentials.json`, so warming other accounts is built and tested for Windows.
 
-## ClaudeDeck inside Claude Desktop
+## The pane
 
-The `mod` folder is a Claude Code mod that puts ClaudeDeck in a pane beside the chat in Claude Desktop. It opens with every session and has three tabs:
+The pane opens beside the chat with every Claude Desktop session and has three tabs:
 
 - **Accounts**: one card per account with its live session and weekly usage, when each resets, and which account Claude Code and Desktop are on. **Use now** moves Claude Code without restarting Desktop, **Use next** picks the account auto switch moves to next, **Hold** keeps it out, **Sign in again** walks a dead login through a fresh sign in, and **More** opens it in its own Desktop window, switches Desktop too, or forgets it.
-- **Background runs**: turn the scheduled runs on or off, run once now, warm every idle account at each run, and edit the prompt and the times.
+- **Background runs**: turn the scheduled runs on or off, run once now, and edit the prompt and the times.
 - **Run log**: the last runs.
 
 `/deck` reopens the pane. `/deck use <name>`, `/deck next <name>`, `/deck hold <name>`, `/deck auto on` and `/deck refresh` do the same from the prompt.
 
-To load it in every session, point Claude Code at the folder in `~/.claude/settings.json`:
+To work on the mod from a clone, point Claude Code at the folder in `~/.claude/settings.json` instead of installing it:
 
 ```json
 {
   "env": {
-    "CLAUDE_CODE_PLUGIN_DIRS": "C:/path/to/ClaudeDeck/mod",
-    "CLAUDEDECK_HOME": "C:/Users/you/.claudedeck"
+    "CLAUDE_CODE_PLUGIN_DIRS": "C:/path/to/ClaudeDeck"
   }
 }
 ```
-
-The mod runs `node bin/claudedeck.js api` from this checkout, so run `npm run build` after pulling.
 
 ## Switch Claude accounts
 
@@ -381,36 +349,28 @@ Earlier versions shared `Local Storage` and `Session Storage` across accounts to
 
 ## Develop
 
-ClaudeDeck is written in TypeScript. `src` compiles to `dist`, which is what the `bin` entry points and the published package load.
-
-```bash
-npm install
-npm run build        # tsc into dist
-npm run dev          # run the CLI straight from src through tsx
-npm test             # node:test over tests/*.test.ts
-npm run check        # typecheck plus the config and PowerShell parse checks
-```
-
-Layout:
+The repository root is the mod and `engine/` is the Node program it runs.
 
 ```text
-src/core        config, logging, paths, process helpers
-src/accounts    identity, registry, session snapshots, switcher
-src/scheduler   Windows Task Scheduler and macOS launchd adapters
-src/service     schedule and account actions shared by the CLI and the api command
-mod             the Claude Desktop mod, it calls bin/claudedeck.js api
-src/cli         command router, terminal menu, entry points
+.claude-plugin           plugin.json and the marketplace file
+hooks                    the mod: register.tsx draws the pane, view.ts holds the SVG and text helpers
+types                    the mod's state contract
+scripts/relogin.ps1      the sign in again window
+engine/src/accounts      identity, registry, sessions, switcher, live usage, auto switch
+engine/src/scheduler     Windows Task Scheduler and macOS launchd adapters
+engine/src/service       schedule and account actions shared by the CLI and the api command
+engine/src/cli           command router and the api command the mod calls
 ```
-
-Every folder keeps its types in an `interfaces` directory, one `I{Name}.ts` file per interface, re-exported from `interfaces/index.ts`.
-
-## Publish
-
-Add an npm automation token to GitHub Actions as `NPM_TOKEN`. To publish a new version:
 
 ```bash
-npm version patch
-git push --follow-tags
+cd engine
+npm install
+npm run build        # tsc into engine/dist
+npm test             # node:test over engine/tests/*.spec.ts
+npm run check        # typecheck plus the config and PowerShell parse checks
+cd ..
+claude plugin validate .
+claude plugin test .  # the mod's hooks/*.test.ts
 ```
 
-The workflow publishes to npm when a `v*` tag is pushed. Do not publish every normal push because npm rejects the same package version twice.
+Engine tests are named `*.spec.ts` because `claude plugin test` runs every `*.test.ts` in the repository. Every engine folder keeps its types in an `interfaces` directory, one `I{Name}.ts` file per interface, re-exported from `interfaces/index.ts`.

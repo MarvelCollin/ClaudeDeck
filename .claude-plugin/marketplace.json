@@ -1,0 +1,13 @@
+{
+  "name": "claudedeck",
+  "description": "ClaudeDeck, Claude account switching and usage inside Claude Desktop",
+  "owner": {
+    "name": "Marvel Collin"
+  },
+  "plugins": [
+    {
+      "name": "claudedeck",
+      "source": "./"
+    }
+  ]
+}

@@ -32,7 +32,7 @@ const lastCodeA = atom({ plugin: 'claudedeck', key: 'lastCode' } as const, null)
 type $ = EngineInterface
 
 function deckBin($: $): string {
-  return `${$.plugin.root.replace(/\\/g, '/')}/../bin/claudedeck.js`
+  return `${$.plugin.root.replace(/\\/g, '/')}/engine/bin/claudedeck.js`
 }
 
 async function api<T>($: $, route: string, body: Record<string, unknown> = {}): Promise<T> {
