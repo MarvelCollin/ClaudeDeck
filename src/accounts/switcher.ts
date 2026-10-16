@@ -4,13 +4,15 @@ import { handlerStatus } from './deeplink';
 import { launch, launchArgs, locateApp } from './desktop-app';
 import { readCodeAccount, readDesktopAccountUuid, readIdentity } from './identity';
 import { createInstances } from './instances';
-import { CODE_INSTALL, claudeInstalls, installFileName, PRIMARY_INSTALL_LABEL } from './installs';
+import { accountFileName, CODE_INSTALL, claudeInstalls, installFileName, PRIMARY_INSTALL_LABEL } from './installs';
 import {
   IAccountIdentity,
   IAccountInstance,
   IAccountUsage,
   IAutoSyncResult,
   IClaudeInstall,
+  ICodeSwitchOptions,
+  ICodeSwitchResult,
   IInstallState,
   IOpenOptions,
   IOpenResult,
@@ -46,6 +48,10 @@ import * as shared from './shared-store';
 export const DESKTOP_SUBDIR = 'desktop';
 export const CODE_FILE = 'code.json';
 export const CONFIG_FILE = session.CONFIG_FILE;
+
+function sameEmail(left: string, right: string): boolean {
+  return left.toLowerCase() === right.toLowerCase();
+}
 
 function defaultDeps(): ISwitcherDeps {
   return {
@@ -131,13 +137,64 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
   const captureShared = (): string[] => shared.capture(deps.profileDir, deps.sharedDir);
   const applyShared = (): string[] => shared.apply(deps.sharedDir, deps.profileDir);
 
-  function saveInto(alias: string, data: IRegistry, install: IClaudeInstall = installFor(CODE_INSTALL)): ISaveResult {
+  function emailOfAlias(alias: string, data: IRegistry): string | null {
+    return registry.findSession(data, alias)?.email ?? null;
+  }
+
+  function saveCodeInto(
+    alias: string,
+    data: IRegistry,
+    install: IClaudeInstall,
+    email: string | null
+  ): { codeSaved: boolean; accountSaved: boolean } {
+    const slot = deps.slotOf(alias);
+    return {
+      codeSaved: session.snapshotCode(install.credPath, path.join(slot, installFileName(install.id))),
+      accountSaved: session.snapshotAccount(
+        install.accountPath,
+        path.join(slot, accountFileName(install.id)),
+        email ?? emailOfAlias(alias, data)
+      ),
+    };
+  }
+
+  function saveDesktopInto(alias: string, data: IRegistry): { desktopItems: string[]; configSaved: boolean } {
     const slot = deps.slotOf(alias);
     return {
       desktopItems: session.snapshotDesktop(deps.profileDir, path.join(slot, DESKTOP_SUBDIR), swappedDesktopItemsIn(data)),
-      codeSaved: session.snapshotCode(install.credPath, path.join(slot, installFileName(install.id))),
       configSaved: session.snapshotConfig(desktopConfigPath(deps.profileDir), path.join(slot, CONFIG_FILE)),
     };
+  }
+
+  function saveInto(
+    alias: string,
+    data: IRegistry,
+    install: IClaudeInstall = installFor(CODE_INSTALL),
+    email: string | null = null
+  ): ISaveResult {
+    const desktop = saveDesktopInto(alias, data);
+    const code = saveCodeInto(alias, data, install, email);
+    return {
+      desktopItems: desktop.desktopItems,
+      codeSaved: code.codeSaved,
+      accountSaved: code.accountSaved,
+      configSaved: desktop.configSaved,
+    };
+  }
+
+  function currentCodeIdentity(install: string = CODE_INSTALL): IAccountIdentity | null {
+    return readCodeAccount(installFor(install).accountPath);
+  }
+
+  function fallbackAccount(target: ISavedSession): Record<string, unknown> {
+    const account: Record<string, unknown> = { emailAddress: target.email, displayName: target.name };
+    if (target.accountUuid) account.accountUuid = target.accountUuid;
+    if (target.orgUuid) account.organizationUuid = target.orgUuid;
+    return account;
+  }
+
+  function restoreAccountFor(slot: string, install: IClaudeInstall, target: ISavedSession): boolean {
+    return session.restoreAccount(path.join(slot, accountFileName(install.id)), install.accountPath, fallbackAccount(target));
   }
 
   function stopDesktop(): number {
@@ -171,7 +228,7 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
     const alias = deriveAlias(identity.email);
     const data = readRegistry();
     const stopped = options.stop === false ? 0 : stopDesktop();
-    saveInto(alias, data, install);
+    saveInto(alias, data, install, identity.email);
     if (sharingEnabledIn(data)) captureShared();
     writeRegistry(
       registry.saveSession(
@@ -209,7 +266,7 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
   }
 
   function autoSyncCode(): IAutoSyncResult | null {
-    const identity = currentIdentity();
+    const identity = currentCodeIdentity() ?? currentIdentity();
     if (!identity) return null;
     const known = registry.sessionByEmail(readRegistry(), identity.email);
     if (!known) return null;
@@ -220,6 +277,7 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
       const previous: unknown = fs.existsSync(slotCode) ? JSON.parse(fs.readFileSync(slotCode, 'utf8')) : null;
       if (JSON.stringify(previous) === JSON.stringify(current)) return { alias: known.alias, updated: false };
       session.snapshotCode(deps.credPath, slotCode);
+      session.snapshotAccount(deps.accountPath, path.join(deps.slotOf(known.alias), accountFileName(CODE_INSTALL)), known.email);
       return { alias: known.alias, updated: true };
     } catch {
       return null;
@@ -285,6 +343,7 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
     const restoredInstalls = target.installs
       .filter(id => installs.some(entry => entry.id === id))
       .filter(id => session.restoreCode(path.join(slot, installFileName(id)), installFor(id).credPath));
+    for (const id of restoredInstalls) restoreAccountFor(slot, installFor(id), target);
     return {
       desktopItems: session.restoreDesktop(path.join(slot, DESKTOP_SUBDIR), deps.profileDir, swappedDesktopItemsIn(data)),
       codeRestored: restoredInstalls.length > 0,
@@ -309,12 +368,21 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
     const stopped = stopDesktop();
     const sharing = sharingEnabledIn(data);
 
-    if (options.snapshotCurrent !== false && identity && identity.email.toLowerCase() !== target.email.toLowerCase()) {
+    const codeIdentity = currentCodeIdentity();
+    const splitLogins = Boolean(codeIdentity && identity && !sameEmail(codeIdentity.email, identity.email));
+    if (options.snapshotCurrent !== false && splitLogins) {
+      const desktopKnown =
+        identity && !sameEmail(identity.email, target.email) ? registry.sessionByEmail(data, identity.email) : null;
+      if (desktopKnown) saveDesktopInto(desktopKnown.alias, data);
+      const codeKnown =
+        codeIdentity && !sameEmail(codeIdentity.email, target.email) ? registry.sessionByEmail(data, codeIdentity.email) : null;
+      if (codeKnown) saveCodeInto(codeKnown.alias, data, installFor(CODE_INSTALL), codeKnown.email);
+    } else if (options.snapshotCurrent !== false && identity && !sameEmail(identity.email, target.email)) {
       const known = registry.sessionByEmail(data, identity.email);
       if (known) {
         const matching = installsSignedInAs(identity.email);
         const capture = matching.length ? matching : [installFor(CODE_INSTALL)];
-        for (const install of capture) saveInto(known.alias, data, install);
+        for (const install of capture) saveInto(known.alias, data, install, known.email);
         data = writeRegistry(
           registry.saveSession(data, { ...known, installs: capture.map(install => install.id) }, deps.now())
         );
@@ -329,6 +397,30 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
     if (relaunched) relaunchDesktop();
 
     return { alias: target.alias, email: target.email, name: target.name, stopped, relaunched, sharedItems, ...restored };
+  }
+
+  function switchCode(alias: string, options: ICodeSwitchOptions = {}): ICodeSwitchResult {
+    const data = readRegistry();
+    const target = registry.findSession(data, alias);
+    if (!target) throw new Error(`No saved session for "${alias}".`);
+    const install = installFor(options.install);
+    const slot = deps.slotOf(target.alias);
+    const slotFile = path.join(slot, installFileName(install.id));
+    if (!fs.existsSync(slotFile)) throw new Error(`No saved Claude Code login for "${target.alias}".`);
+
+    let previous: string | null = null;
+    const current = readCodeAccount(install.accountPath);
+    if (current && !sameEmail(current.email, target.email)) {
+      const known = registry.sessionByEmail(data, current.email);
+      if (known) {
+        saveCodeInto(known.alias, data, install, known.email);
+        previous = known.alias;
+      }
+    }
+
+    session.restoreCode(slotFile, install.credPath);
+    const accountRestored = restoreAccountFor(slot, install, target);
+    return { alias: target.alias, email: target.email, name: target.name, install: install.id, previous, accountRestored };
   }
 
   function forget(alias: string): { alias: string } {
@@ -363,6 +455,8 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
     sharingEnabled: () => sharingEnabledIn(readRegistry()),
     swappedDesktopItems: () => swappedDesktopItemsIn(readRegistry()),
     switchTo,
+    switchCode,
+    currentCodeIdentity,
     sync,
   };
 }

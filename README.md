@@ -132,6 +132,16 @@ Three stores make up an account session:
 
 Because of that lock, switching restarts Claude Desktop. Claude Code picks up the new login on its next message without a restart.
 
+### Switch Claude Code only
+
+```bash
+claudedeck switch work-example.com code
+```
+
+This moves only Claude Code to another account. Claude Desktop stays open on its own login, so nothing restarts and a running Code session picks up the new login on its next message. The token in `~/.claude/.credentials.json` and the `oauthAccount` block in `~/.claude.json` are swapped together, and the login you leave is saved to its own account first.
+
+Because Desktop and Code can now sit on different accounts, ClaudeDeck tracks the Code account by `~/.claude.json` and saves each login into its own slot. Every save keeps the `oauthAccount` block in the slot as `account.json`.
+
 ### How the signed-in account is detected
 
 Claude Desktop does not store your email in plain text. ClaudeDeck reads `lastKnownAccountUuid` from `%APPDATA%\Claude\config.json` to learn which account is active, then puts a name to that id in this order:

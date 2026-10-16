@@ -26,6 +26,7 @@ export const USAGE = [
   '  open <alias> fresh wipe that profile first and open a plain sign in screen',
   '  close <alias>      close the window for that account',
   '  switch <alias>     restore a saved account and restart Claude Desktop',
+  '  switch <alias> code  move only Claude Code to that account, Claude Desktop stays open',
   '  forget <alias>     delete a saved account session',
   '  share [on|off]     share local history and app state across every account',
   '  deeplink [status|install|remove|guard]  send claude:// sign in links to the window waiting for them',
@@ -183,6 +184,11 @@ export async function runAccountsCommand(argv: string[] = []): Promise<void> {
   if (command === 'close') {
     const closed = createSwitcher().closeAccount(requireArg(first, 'close', 'an account alias'));
     console.log(closed.stopped ? `Closed ${closed.alias}.` : `${closed.alias} was not open.`);
+    return;
+  }
+  if (command === 'switch' && argv[2] === 'code') {
+    const moved = createSwitcher().switchCode(requireArg(first, 'switch', 'an account alias'));
+    console.log(`Claude Code is now on ${moved.name} <${moved.email}>. It picks up the login on its next message.`);
     return;
   }
   if (command === 'switch') {

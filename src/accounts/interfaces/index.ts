@@ -6,6 +6,8 @@ export { ICachedIdentity } from './ICachedIdentity';
 export { IClaudeInstall } from './IClaudeInstall';
 export { IClaudeProcess } from './IClaudeProcess';
 export { ICodeAccountFile } from './ICodeAccountFile';
+export { ICodeSwitchOptions } from './ICodeSwitchOptions';
+export { ICodeSwitchResult } from './ICodeSwitchResult';
 export { IDeeplinkDeps } from './IDeeplinkDeps';
 export { IDeeplinkResult } from './IDeeplinkResult';
 export { IDeeplinkHandler, IDeeplinkState } from './IDeeplinkState';

@@ -1,4 +1,6 @@
 import { IAccountIdentity } from './IAccountIdentity';
+import { ICodeSwitchOptions } from './ICodeSwitchOptions';
+import { ICodeSwitchResult } from './ICodeSwitchResult';
 import { IOpenOptions } from './IOpenOptions';
 import { IOpenResult } from './IOpenResult';
 import { IAutoSyncResult } from './IAutoSyncResult';
@@ -21,5 +23,7 @@ export interface ISwitcher {
   sharingEnabled(): boolean;
   swappedDesktopItems(): string[];
   switchTo(alias: string, options?: ISwitchOptions): ISwitchResult;
+  switchCode(alias: string, options?: ICodeSwitchOptions): ICodeSwitchResult;
+  currentCodeIdentity(install?: string): IAccountIdentity | null;
   sync(options?: ISyncOptions): ISyncResult;
 }

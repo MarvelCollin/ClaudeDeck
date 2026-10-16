@@ -30,3 +30,7 @@ export function claudeInstalls(env = process.env): IClaudeInstall[] {
 export function installFileName(id: string): string {
   return id === CODE_INSTALL ? 'code.json' : `${id}.json`;
 }
+
+export function accountFileName(id: string): string {
+  return id === CODE_INSTALL ? 'account.json' : `${id}-account.json`;
+}

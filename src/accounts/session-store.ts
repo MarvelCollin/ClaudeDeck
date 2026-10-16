@@ -89,6 +89,34 @@ export function restoreCode(slotFile: string, credPath: string): boolean {
   return true;
 }
 
+export const ACCOUNT_KEY = 'oauthAccount';
+
+function emailOf(account: unknown): string | null {
+  const value = (account as { emailAddress?: unknown } | null)?.emailAddress;
+  return typeof value === 'string' && value ? value.toLowerCase() : null;
+}
+
+export function snapshotAccount(accountPath: string, slotFile: string, email: string | null = null): boolean {
+  const account = readJsonFile<Record<string, unknown>>(accountPath)?.[ACCOUNT_KEY];
+  if (!account || typeof account !== 'object') return false;
+  if (email && emailOf(account) !== email.toLowerCase()) return false;
+  fs.mkdirSync(path.dirname(slotFile), { recursive: true });
+  fs.writeFileSync(slotFile, `${JSON.stringify(account, null, 2)}\n`, 'utf8');
+  return true;
+}
+
+export function restoreAccount(slotFile: string, accountPath: string, fallback: Record<string, unknown> | null): boolean {
+  if (!fs.existsSync(accountPath)) return false;
+  const account = readJsonFile<Record<string, unknown>>(slotFile) ?? fallback;
+  if (!account) return false;
+  const data = readJsonFile<Record<string, unknown>>(accountPath);
+  if (!data) return false;
+  fs.copyFileSync(accountPath, `${accountPath}.claudedeck.bak`);
+  data[ACCOUNT_KEY] = account;
+  fs.writeFileSync(accountPath, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+  return true;
+}
+
 export function isAccountConfigKey(key: string): boolean {
   return (CONFIG_KEYS as readonly string[]).includes(key) || CONFIG_PREFIXES.some(prefix => key.startsWith(prefix));
 }
