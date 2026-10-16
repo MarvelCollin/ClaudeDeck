@@ -572,7 +572,7 @@ export const register: Register = on => {
         <Box flexDirection="column">
           <Text dimColor size="footnote">
             {deck.auto.running
-              ? `Auto switch checks every ${deck.auto.settings.intervalSeconds}s and moves Claude Code at ${deck.auto.settings.threshold}%.`
+              ? `Auto switch checks every ${deck.auto.settings.intervalSeconds}s, spends the account whose week resets soonest first and moves Claude Code at ${deck.auto.settings.threshold}%.`
               : 'Auto switch is off, so Claude Code stays on its account until you move it.'}
             {deck.auto.lastDecision
               ? ` Last check ${Math.max(0, Math.round((nowMs - Date.parse(deck.auto.lastDecision.at)) / 1000))}s ago: ${deck.auto.lastDecision.reason}.`

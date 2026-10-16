@@ -1,15 +1,19 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CONSUME_MARGIN_HOURS = exports.AT_LIMIT = exports.WEEKLY_TIER_OFFSET_HOURS = void 0;
+exports.NOT_STARTED_RANK = exports.EXPIRY_GAP_HOURS = exports.EXPIRING_HOURS = exports.AT_LIMIT = void 0;
+exports.weekHoursLeft = weekHoursLeft;
 exports.rankOf = rankOf;
 exports.usedOf = usedOf;
 exports.toRanked = toRanked;
 exports.order = order;
 exports.nextPick = nextPick;
+exports.hoursText = hoursText;
+exports.expiringPick = expiringPick;
 exports.decide = decide;
-exports.WEEKLY_TIER_OFFSET_HOURS = 10 * 365 * 24;
 exports.AT_LIMIT = 99.5;
-exports.CONSUME_MARGIN_HOURS = 0.25;
+exports.EXPIRING_HOURS = 48;
+exports.EXPIRY_GAP_HOURS = 12;
+exports.NOT_STARTED_RANK = Number.MAX_SAFE_INTEGER;
 const HOUR_MS = 3_600_000;
 function resetMs(window) {
     if (!window?.resetsAt)
@@ -17,15 +21,22 @@ function resetMs(window) {
     const ms = Date.parse(window.resetsAt);
     return Number.isFinite(ms) ? ms : null;
 }
+function compare(left, right) {
+    if (left === right)
+        return 0;
+    return left < right ? -1 : 1;
+}
+function weekHoursLeft(sevenDay, nowMs) {
+    const weekly = resetMs(sevenDay);
+    return weekly !== null && weekly > nowMs ? (weekly - nowMs) / HOUR_MS : null;
+}
 function rankOf(fiveHour, sevenDay, nowMs) {
     const session = resetMs(fiveHour);
+    const hours = weekHoursLeft(sevenDay, nowMs);
     if (session !== null && session > nowMs)
-        return { tier: 'live', rank: (session - nowMs) / HOUR_MS };
-    const weekly = resetMs(sevenDay);
-    if (weekly !== null && weekly > nowMs) {
-        const unused = Math.max(100 - (sevenDay?.usedPercent ?? 0), 0.5);
-        return { tier: 'idle', rank: exports.WEEKLY_TIER_OFFSET_HOURS + (weekly - nowMs) / HOUR_MS / unused };
-    }
+        return { tier: 'live', rank: hours ?? exports.NOT_STARTED_RANK };
+    if (hours !== null || sevenDay)
+        return { tier: 'idle', rank: hours ?? exports.NOT_STARTED_RANK };
     return { tier: 'unknown', rank: Number.POSITIVE_INFINITY };
 }
 function usedOf(fiveHour, sevenDay) {
@@ -56,11 +67,16 @@ function toRanked(entries, live, state, nowMs) {
         };
     });
 }
+function weekLeft(entry) {
+    return 100 - (entry.sevenDay?.usedPercent ?? 0);
+}
 function order(list, preferred) {
     const wanted = preferred?.toLowerCase() ?? null;
     return [...list].sort((left, right) => Number(right.alias.toLowerCase() === wanted) - Number(left.alias.toLowerCase() === wanted) ||
-        left.rank - right.rank ||
-        left.usedPercent - right.usedPercent ||
+        compare(Math.floor(left.rank), Math.floor(right.rank)) ||
+        Number(right.tier === 'live') - Number(left.tier === 'live') ||
+        compare(weekLeft(right), weekLeft(left)) ||
+        compare(left.usedPercent, right.usedPercent) ||
         left.alias.localeCompare(right.alias));
 }
 function nextPick(list, preferred) {
@@ -69,6 +85,19 @@ function nextPick(list, preferred) {
 function soonestReset(entry) {
     const resets = [resetMs(entry.fiveHour), resetMs(entry.sevenDay)].filter((value) => value !== null);
     return resets.length ? Math.min(...resets) : Number.POSITIVE_INFINITY;
+}
+function hoursText(hours) {
+    if (hours < 1)
+        return `${Math.max(1, Math.round(hours * 60))}m`;
+    if (hours < 48)
+        return `${Math.round(hours)}h`;
+    return `${Math.round(hours / 24)}d`;
+}
+function expiringPick(list, active, preferred) {
+    return order(list.filter(entry => !entry.active &&
+        entry.hasRoom &&
+        entry.rank <= exports.EXPIRING_HOURS &&
+        entry.rank < active.rank - exports.EXPIRY_GAP_HOURS), preferred)[0] ?? null;
 }
 function decide(list, state, now) {
     const at = now.toISOString();
@@ -103,10 +132,9 @@ function decide(list, state, now) {
     const sinceSwitch = state.lastSwitchAt ? now.getTime() - Date.parse(state.lastSwitchAt) : Number.POSITIVE_INFINITY;
     if (sinceSwitch < cooldownSeconds * 1000)
         return stay('just switched, waiting out the cooldown');
-    if (active.tier === 'live') {
-        const sooner = order(list.filter(entry => !entry.active && entry.hasRoom && entry.tier === 'live' && entry.rank < active.rank - exports.CONSUME_MARGIN_HOURS), state.preferredNext)[0];
-        if (sooner)
-            return go(sooner, 'consume', `${sooner.alias} has a session that resets sooner`);
+    const expiring = expiringPick(list, active, state.preferredNext);
+    if (expiring) {
+        return go(expiring, 'expiring', `${expiring.alias} has ${Math.round(weekLeft(expiring))}% of its week left and it resets in ${hoursText(expiring.rank)}, so it is spent before that quota is lost`);
     }
     return stay(`staying on ${active.alias}`);
 }

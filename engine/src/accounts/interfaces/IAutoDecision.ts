@@ -1,4 +1,4 @@
-export type AutoTrigger = 'limit' | 'at-limit' | 'consume' | 'none';
+export type AutoTrigger = 'limit' | 'at-limit' | 'expiring' | 'none';
 
 export interface IAutoDecision {
   at: string;

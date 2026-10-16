@@ -136,15 +136,17 @@ export function reasonOf(account: Ranked, live: Live | null, nowMs: number): str
   if (account.status === 'no-login') return 'No Claude Code login saved for this account.'
   if (account.held) return 'Held out of auto switch.'
   if (account.status === 'unchecked') return 'Usage not checked yet.'
+  const weekReset = until(account.sevenDay?.resetsAt ?? null, nowMs)
+  const weekLeft = Math.round(100 - (account.sevenDay?.usedPercent ?? 0))
+  const week = weekReset
+    ? `${weekLeft}% of the week left, lost if unused in ${weekReset}.`
+    : `${weekLeft}% of the week left, its week has not started.`
   if (account.tier === 'live') {
     const reset = until(account.fiveHour?.resetsAt ?? null, nowMs)
-    return reset ? `Session running, ends in ${reset}.` : 'Session running.'
+    return `${reset ? `Session running, ends in ${reset}.` : 'Session running.'} ${week}`
   }
-  if (account.tier === 'idle') {
-    const reset = until(account.sevenDay?.resetsAt ?? null, nowMs)
-    const left = Math.round(100 - (account.sevenDay?.usedPercent ?? 0))
-    return reset ? `Idle. ${left}% of the week left, it resets in ${reset}.` : `Idle. ${left}% of the week left.`
-  }
+  if (account.tier === 'idle') return `Idle. ${week}`
+
   return 'No usage data yet.'
 }
 

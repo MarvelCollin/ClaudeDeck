@@ -115,7 +115,8 @@ test('the pane lists the active account first, then the next pick, and explains 
   expect(order[1]).toBe('two')
   expect(order[order.length - 1]).toBe('three')
   expect(reasonOf(DECK.ranked[2]!, null, NOW_MS)).toMatch(/Sign in again/)
-  expect(reasonOf(DECK.ranked[1]!, null, NOW_MS)).toBe('Session running, ends in 1h 0m.')
+  expect(reasonOf(DECK.ranked[1]!, null, NOW_MS)).toBe('Session running, ends in 1h 0m. 25% of the week left, lost if unused in 2d 20h.')
+  expect(reasonOf(DECK.ranked[0]!, null, NOW_MS)).toBe('Idle. 52% of the week left, lost if unused in 6h 48m.')
 })
 
 test('every account gets a card with the right actions on desktop and terminal', async ($, on) => {

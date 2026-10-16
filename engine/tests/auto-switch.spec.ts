@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { decide, nextPick, rankOf, toRanked } from '../src/accounts/auto-rank';
+import { decide, nextPick, order, rankOf, toRanked } from '../src/accounts/auto-rank';
 import {
   createAutoSwitch,
   launcherScript,
@@ -44,30 +44,41 @@ const fleet: Record<string, ILiveUsage> = {
   four: usage(40, 1.7, 27, 100),
 };
 
-test('a live 5h session ranks ahead of any idle account', () => {
-  const live = rankOf({ usedPercent: 90, resetsAt: at(4.9) }, { usedPercent: 99, resetsAt: at(1) }, NOW.getTime());
+test('the account whose week resets soonest is spent first, with a running session or not', () => {
+  const live = rankOf({ usedPercent: 90, resetsAt: at(4.9) }, { usedPercent: 60, resetsAt: at(30) }, NOW.getTime());
   const idle = rankOf(null, { usedPercent: 0, resetsAt: at(1) }, NOW.getTime());
+  const unstarted = rankOf(null, { usedPercent: 0, resetsAt: null }, NOW.getTime());
   assert.strictEqual(live.tier, 'live');
   assert.strictEqual(idle.tier, 'idle');
-  assert.ok(live.rank < idle.rank);
+  assert.strictEqual(Math.round(live.rank), 30);
+  assert.strictEqual(Math.round(idle.rank), 1);
+  assert.ok(idle.rank < live.rank);
+  assert.strictEqual(unstarted.tier, 'idle');
+  assert.ok(unstarted.rank > live.rank);
+  assert.strictEqual(rankOf(null, null, NOW.getTime()).tier, 'unknown');
 });
 
-test('idle accounts with the most quota about to expire rank first', () => {
-  const soon = rankOf(null, { usedPercent: 48, resetsAt: at(6.8) }, NOW.getTime());
-  const later = rankOf(null, { usedPercent: 26, resetsAt: at(100) }, NOW.getTime());
-  const ahead = rankOf(null, { usedPercent: 74, resetsAt: at(68) }, NOW.getTime());
-  assert.ok(soon.rank < later.rank);
-  assert.ok(later.rank < ahead.rank);
+test('within the same hour a running session goes first, then the most quota left', () => {
+  const tied: Record<string, ILiveUsage> = {
+    one: usage(0, null, 50, 10.2),
+    two: usage(20, 2, 70, 10.7),
+    three: usage(0, null, 10, 10.5),
+    four: usage(0, null, 0, 11.1),
+  };
+  const ranked = toRanked(entries('none'), tied, state(), NOW.getTime());
+  assert.deepStrictEqual(order(ranked, null).map(entry => entry.alias), ['two', 'three', 'one', 'four']);
+  assert.deepStrictEqual(order(ranked, 'four').map(entry => entry.alias), ['four', 'two', 'three', 'one']);
 });
 
-test('below the threshold Claude Code stays on its account unless a sooner session can be used', () => {
+test('below the threshold it moves early only to a week that resets well before the active one', () => {
   const ranked = toRanked(entries('four'), fleet, state(), NOW.getTime());
   const decision = decide(ranked, state(), NOW);
   assert.strictEqual(decision.action, 'switch');
-  assert.strictEqual(decision.target, 'two');
-  assert.strictEqual(decision.trigger, 'consume');
+  assert.strictEqual(decision.target, 'one');
+  assert.strictEqual(decision.trigger, 'expiring');
+  assert.match(decision.reason, /one has 52% of its week left and it resets in 7h/);
 
-  const calm = toRanked(entries('two'), fleet, state(), NOW.getTime());
+  const calm = toRanked(entries('one'), fleet, state(), NOW.getTime());
   assert.strictEqual(decide(calm, state(), NOW).action, 'stay');
 });
 
@@ -76,7 +87,7 @@ test('at the threshold it moves to the best account with room, and a chosen next
   const ranked = toRanked(entries('two'), hot, state(), NOW.getTime());
   const decision = decide(ranked, state(), NOW);
   assert.strictEqual(decision.action, 'switch');
-  assert.strictEqual(decision.target, 'four');
+  assert.strictEqual(decision.target, 'one');
   assert.strictEqual(decision.trigger, 'limit');
 
   const chosen = decide(ranked, state({ preferredNext: 'three' }), NOW);
@@ -106,10 +117,13 @@ test('when every account is near its limit it escapes only from a hit limit', ()
   assert.strictEqual(hit.trigger, 'at-limit');
 });
 
-test('sessions that reset within the same quarter hour are not worth a move', () => {
-  const close = { ...fleet, two: usage(38, 1.7 - 0.1, 75, 68) };
-  const ranked = toRanked(entries('four'), close, state(), NOW.getTime());
-  assert.strictEqual(decide(ranked, state(), NOW).action, 'stay');
+test('a week that resets only a little sooner, or days away, is not worth a move', () => {
+  const close = { ...fleet, one: usage(0, null, 48, 95) };
+  assert.strictEqual(decide(toRanked(entries('four'), close, state(), NOW.getTime()), state(), NOW).action, 'stay');
+  const far = { ...fleet, one: usage(0, null, 48, 60) };
+  assert.strictEqual(decide(toRanked(entries('four'), far, state(), NOW.getTime()), state(), NOW).action, 'stay');
+  const full = { ...fleet, one: usage(0, null, 90, 6.8) };
+  assert.strictEqual(decide(toRanked(entries('four'), full, state(), NOW.getTime()), state(), NOW).action, 'stay');
 });
 
 test('a voluntary move waits out the cooldown, a limit move does not', () => {
