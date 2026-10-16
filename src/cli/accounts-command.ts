@@ -1,3 +1,4 @@
+import { exportFromCswap, importEnvelope } from '../accounts/cswap-import';
 import { IAccountUsage } from '../accounts/interfaces';
 import { createSwitcher } from '../accounts/switcher';
 import {
@@ -22,6 +23,7 @@ export const USAGE = [
   '  list --json        the same as JSON, add --refresh to fetch live usage first',
   '  usage [refresh]    live 5h and weekly usage with reset times for every account',
   '  save               save the account you are signed into now',
+  '  import cswap       bring in every account saved by claude-swap (cswap)',
   '  open <alias>       open a second Claude Desktop window on that account',
   '  open <alias> fresh wipe that profile first and open a plain sign in screen',
   '  close <alias>      close the window for that account',
@@ -161,6 +163,19 @@ export async function runAccountsCommand(argv: string[] = []): Promise<void> {
   }
   if (command === 'usage') {
     await runUsageCommand(first === 'refresh');
+    return;
+  }
+  if (command === 'import') {
+    if (first !== 'cswap') throw new Error('Command "import" needs "cswap".');
+    const imported = importEnvelope(exportFromCswap());
+    const line = (label: string, list: string[]) => list.length && console.log(`${label}: ${list.join(', ')}`);
+    line('Added', imported.added);
+    line('Refreshed', imported.updated);
+    line('Already newer here', imported.kept);
+    line('Skipped', imported.skipped);
+    if (imported.added.length || imported.updated.length) {
+      console.log('Their Claude Desktop session is saved the next time you sign in to Desktop with them and run save.');
+    }
     return;
   }
   if (command === 'save' || command === 'sync') {

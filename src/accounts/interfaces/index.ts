@@ -8,6 +8,8 @@ export { IClaudeProcess } from './IClaudeProcess';
 export { ICodeAccountFile } from './ICodeAccountFile';
 export { ICodeSwitchOptions } from './ICodeSwitchOptions';
 export { ICodeSwitchResult } from './ICodeSwitchResult';
+export { ICswapImportDeps } from './ICswapImportDeps';
+export { ICswapImportResult } from './ICswapImportResult';
 export { IDeeplinkDeps } from './IDeeplinkDeps';
 export { IDeeplinkResult } from './IDeeplinkResult';
 export { IDeeplinkHandler, IDeeplinkState } from './IDeeplinkState';

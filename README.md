@@ -191,6 +191,14 @@ Saved sessions live in:
 ~/Library/Application Support/ClaudeDeck/sessions        macOS
 ```
 
+### Bring accounts over from claude-swap
+
+```bash
+claudedeck import cswap
+```
+
+Runs `cswap export` into a temporary file, copies each account's Claude Code token and `oauthAccount` into its ClaudeDeck slot, and deletes the file. An account already saved here keeps its alias and only takes the imported token when it is fresher. Stop `cswap auto` first, or it keeps rotating the tokens you just copied.
+
 ## Run accounts side by side
 
 Switching closes and reopens Claude Desktop. If you would rather keep every account signed in at once, open each one in its own window instead:
