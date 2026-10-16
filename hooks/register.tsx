@@ -13,6 +13,8 @@ import {
   reasonOf,
   sessionOf,
   sortForPane,
+  stripSvg,
+  stripText,
   until,
 } from './view'
 
@@ -28,6 +30,7 @@ const errorA = atom({ plugin: 'claudedeck', key: 'error' } as const, null)
 const confirmA = atom({ plugin: 'claudedeck', key: 'confirm' } as const, null)
 const alertedA = atom({ plugin: 'claudedeck', key: 'alerted' } as const, [])
 const lastCodeA = atom({ plugin: 'claudedeck', key: 'lastCode' } as const, null)
+const paneOpenA = atom({ plugin: 'claudedeck', key: 'paneOpen' } as const, false)
 
 type $ = EngineInterface
 
@@ -136,8 +139,20 @@ async function relogin($: $, entry: Ranked) {
   return text
 }
 
-function openPane($: $) {
+async function openPane($: $) {
+  await update($, paneOpenA, () => true)
   return $.ui.open({ id: PANE, title: 'ClaudeDeck', columns: 46 })
+}
+
+async function closePane($: $) {
+  await update($, paneOpenA, () => false)
+  await $.ui.close({ id: PANE })
+}
+
+async function togglePane($: $) {
+  const panes = await $.ui.panes()
+  if (panes.some(pane => pane.id === PANE)) await closePane($)
+  else await openPane($)
 }
 
 function findAlias(deck: DeckState | null, text: string): string | null {
@@ -151,7 +166,7 @@ function findAlias(deck: DeckState | null, text: string): string | null {
 }
 
 const HELP = [
-  '/deck                 open the ClaudeDeck pane',
+  '/deck                 open or close the ClaudeDeck sidebar',
   '/deck use <name>      move Claude Code to that account now',
   '/deck next <name>     use that account next, /deck next clear to undo',
   '/deck hold <name>     keep an account out of auto switch, /deck release <name>',
@@ -167,7 +182,8 @@ export const register: Register = on => {
       argumentHint: '[use|next|hold|release <name> | auto on | refresh]',
     })
     void refresh($)
-    void openPane($)
+    const panes = await $.ui.panes()
+    await update($, paneOpenA, () => panes.some(pane => pane.id === PANE))
     $.clock.every(POLL_MS, () => {
       void refresh($)
     })
@@ -180,7 +196,11 @@ export const register: Register = on => {
     const deck = (await read($, deckA)) ?? (await refresh($))
     if (verb === '' || verb === 'open') {
       void openPane($)
-      return { text: 'ClaudeDeck pane opened.' }
+      return { text: 'ClaudeDeck sidebar opened.' }
+    }
+    if (verb === 'close') {
+      await closePane($)
+      return { text: 'ClaudeDeck sidebar closed.' }
     }
     if (verb === 'help') return { text: HELP }
     if (verb === 'refresh') {
@@ -205,6 +225,27 @@ export const register: Register = on => {
       }
     }
     return { text: HELP }
+  })
+
+  on('ui.close', { id: PANE }, async ($, e, next) => {
+    await update($, paneOpenA, () => false)
+    return next(e)
+  })
+
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    const deck = await read($, deckA)
+    if (e.props.hasSurvey || !deck) return next(e)
+    const els = $.ui.resolve(e)
+    const { Box, Button, Text } = els
+    const Svg = e.surface !== 'terminal' && 'Svg' in els ? els.Svg : undefined
+    const nameOf = (alias: string | null) => displayName(deck, alias)
+    const open = await read($, paneOpenA)
+    return (
+      <Box flexDirection="row" gap={1} alignItems="center">
+        {Svg ? <Svg source={stripSvg(deck, nameOf)} alt={stripText(deck, nameOf)} /> : <Text>{stripText(deck, nameOf)}</Text>}
+        <Button key="deck-toggle" label={open ? 'Close' : 'Open'} onPress={() => void togglePane($)} />
+      </Box>
+    )
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {

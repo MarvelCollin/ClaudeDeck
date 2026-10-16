@@ -86,6 +86,45 @@ export function headerAlt(deck: DeckState, nameOf: (alias: string | null) => str
   return `Claude Code is on ${deck.code ? nameOf(deck.code.alias) || deck.code.name : 'no account'}. Auto switch is ${deck.auto.running ? 'on' : 'off'}.`
 }
 
+export const STRIP_WIDTH = 470
+
+function mini(x: number, width: number, label: string, win: Win | null, stale: boolean): string {
+  const used = Math.min(100, Math.max(0, win?.usedPercent ?? 0))
+  const fill = Math.round((width * used) / 100)
+  const barX = x + (label === 'SESSION' ? 50 : 36)
+  return [
+    `<text class="label" x="${x}" y="16">${label}</text>`,
+    `<rect class="track" x="${barX}" y="9" width="${width}" height="6" rx="3"/>`,
+    fill > 0 ? `<rect class="${level(used, stale)}" x="${barX}" y="9" width="${fill}" height="6" rx="3"/>` : '',
+    `<text x="${barX + width + 6}" y="17" font-size="12" font-weight="600">${win ? `${Math.round(used)}%` : 'n/a'}</text>`,
+  ].join('')
+}
+
+export function stripSvg(deck: DeckState, nameOf: (alias: string | null) => string): string {
+  const active = deck.ranked.find(entry => entry.active) ?? null
+  const name = deck.code ? nameOf(deck.code.alias) || deck.code.name : 'Not signed in'
+  const short = name.length > 14 ? `${name.slice(0, 13)}…` : name
+  const stale = !active || active.status !== 'ok'
+  const next = deck.next ? `next ${nameOf(deck.next)}` : 'no account with room'
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${STRIP_WIDTH}" height="24" viewBox="0 0 ${STRIP_WIDTH} 24"><style>${PALETTE}</style>`,
+    `<circle class="${deck.auto.running ? 'accent' : 'stale'}" cx="5" cy="12" r="4"/>`,
+    `<text class="serif" x="15" y="17" font-size="13.5" font-weight="600">${esc(short)}</text>`,
+    mini(120, 56, 'SESSION', active?.fiveHour ?? null, stale),
+    mini(270, 44, 'WEEK', active?.sevenDay ?? null, stale),
+    `<text class="muted" x="392" y="17" font-size="11.5">${esc(next.length > 14 ? `${next.slice(0, 13)}…` : next)}</text>`,
+    '</svg>',
+  ].join('')
+}
+
+export function stripText(deck: DeckState, nameOf: (alias: string | null) => string): string {
+  const active = deck.ranked.find(entry => entry.active) ?? null
+  const pct = (win: Win | null | undefined) => (win ? `${Math.round(win.usedPercent)}%` : 'n/a')
+  const name = deck.code ? nameOf(deck.code.alias) || deck.code.name : 'not signed in'
+  const next = deck.next ? `next ${nameOf(deck.next)}` : 'no account with room'
+  return `${deck.auto.running ? 'Auto' : 'Manual'} · ${name} · session ${pct(active?.fiveHour)} · week ${pct(active?.sevenDay)} · ${next}`
+}
+
 export function reasonOf(account: Ranked, live: Live | null, nowMs: number): string {
   if (account.status === 'relogin' || live?.status === 'relogin') return 'Login expired. Sign in again to use it.'
   if (account.status === 'no-login') return 'No Claude Code login saved for this account.'

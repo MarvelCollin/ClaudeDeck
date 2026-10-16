@@ -2,7 +2,7 @@ import type { On } from 'claude-code'
 import { expect, test } from 'claude-code/testing'
 
 import type { DeckState } from '../types'
-import { blockText, level, parseBlock, reasonOf, sortForPane, until } from './view'
+import { blockText, level, parseBlock, reasonOf, sortForPane, stripSvg, stripText, until } from './view'
 
 const NOW = '2026-10-16T07:00:00.000Z'
 const NOW_MS = Date.parse(NOW)
@@ -167,4 +167,37 @@ test('the Background runs tab turns warming every account on', async ($, on) => 
   await ui.press({ key: 'warm-all' })
   await ui.unmount()
   expect(calls.find(call => call.route === 'schedule/save')?.body).toEqual({ warmAllAccounts: true })
+})
+
+const BAND = { hasSurvey: false, isWorking: false, maxRows: 6, bodyColumns: 100, scroll: { offset: 0, bodyRows: 6 }, view: {} }
+
+test('the strip above the prompt sums up the active account in one line', () => {
+  const text = stripText(DECK, alias => DECK.sessions.find(entry => entry.alias === alias)?.name ?? '')
+  expect(text).toBe('Auto · Four · session 40% · week 27% · next Two')
+  const svg = stripSvg(DECK, alias => DECK.sessions.find(entry => entry.alias === alias)?.name ?? '')
+  expect(svg.startsWith('<svg')).toBe(true)
+  expect(svg).toContain('next Two')
+})
+
+test('the strip is always there and its button opens the sidebar', async ($, on) => {
+  const opened: string[] = []
+  fakeDeck(on, [])
+  on('ui.panes', () => ({ value: [] }))
+  on('ui.open', (_, e) => {
+    opened.push(e.id)
+    return { value: { isPlaced: true } }
+  })
+  await $.command.run({ command: 'deck', args: 'refresh', ...CMD })
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ plugin: 'claudedeck', surface, component: 'AbovePrompt', props: BAND })
+    expect((await ui.find({ key: 'deck-toggle' }))?.props?.label).toBe('Open')
+    if (surface === 'desktop') expect(await ui.find({ type: 'Svg' })).toBeDefined()
+    else expect(await ui.find({ type: 'Text', text: /session 40%/ })).toBeDefined()
+    await ui.unmount()
+  }
+  const ui = await $.ui.mount({ plugin: 'claudedeck', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+  await ui.press({ key: 'deck-toggle' })
+  expect(opened).toEqual(['claudedeck'])
+  expect((await ui.find({ key: 'deck-toggle' }))?.props?.label).toBe('Close')
+  await ui.unmount()
 })

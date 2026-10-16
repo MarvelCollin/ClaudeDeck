@@ -109,13 +109,13 @@ The run's exit code stays the main run's, so a failed warm shows in the log with
 
 ## The pane
 
-The pane opens beside the chat with every Claude Desktop session and has three tabs:
+A slim strip sits above the message box in every session and stays there: the account Claude Code is on, its session and weekly meters, the next account, and an **Open** button. **Open** brings up the full deck as a sidebar beside the chat and turns into **Close**. The deck has three tabs:
 
 - **Accounts**: one card per account with its live session and weekly usage, when each resets, and which account Claude Code and Desktop are on. **Use now** moves Claude Code without restarting Desktop, **Use next** picks the account auto switch moves to next, **Hold** keeps it out, **Sign in again** walks a dead login through a fresh sign in, and **More** opens it in its own Desktop window, switches Desktop too, or forgets it.
 - **Background runs**: turn the scheduled runs on or off, run once now, and edit the prompt and the times.
 - **Run log**: the last runs.
 
-`/deck` reopens the pane. `/deck use <name>`, `/deck next <name>`, `/deck hold <name>`, `/deck auto on` and `/deck refresh` do the same from the prompt.
+`/deck` opens the sidebar and `/deck close` closes it. `/deck use <name>`, `/deck next <name>`, `/deck hold <name>`, `/deck auto on` and `/deck refresh` do the same from the prompt.
 
 To work on the mod from a clone, point Claude Code at the folder in `~/.claude/settings.json` instead of installing it:
 

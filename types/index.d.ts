@@ -90,6 +90,7 @@ declare module 'claude-code' {
       confirm: string | null
       alerted: string[]
       lastCode: string | null
+      paneOpen: boolean
     }
   }
 }
