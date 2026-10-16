@@ -1,23 +1,11 @@
-import { loadConfig } from '../core/config/loader';
-import { selectScheduler } from '../scheduler';
-import { runAccountsCommand } from './accounts-command';
-import { HELP } from './help';
-import { createActions } from './task-actions';
-import { routeCommand } from './router';
+import { runApiCommand } from './api-command';
+import { runAutoLoop } from './auto-loop';
+
+export const ENGINE_USAGE = 'ClaudeDeck runs from its Claude mod. The engine only takes "api <route>" and "auto".';
 
 export async function runCli(argv: string[] = process.argv.slice(2)): Promise<void> {
-  const route = routeCommand(argv);
-
-  if (route.kind === 'help') {
-    console.log(HELP);
-    return;
-  }
-  if (route.kind === 'web') return runAccountsCommand(route.args);
-
-  const context = loadConfig();
-  const scheduler = selectScheduler();
-  const actions = createActions(context, scheduler);
-
-  actions.syncInstalledTask();
-  return actions.execute(route.args[0]);
+  const [command, ...rest] = argv;
+  if (command === 'api') return runApiCommand(rest);
+  if (command === 'auto') return runAutoLoop();
+  throw new Error(ENGINE_USAGE);
 }

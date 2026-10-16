@@ -173,6 +173,7 @@ const HELP = [
   '/deck hold <name>     keep an account out of auto switch, /deck release <name>',
   '/deck auto on         start auto switch now and at every sign in',
   '/deck refresh         fetch live usage for every account',
+  '/deck import          bring in every account saved by claude-swap',
 ].join('\n')
 
 export const register: Register = on => {
@@ -180,7 +181,7 @@ export const register: Register = on => {
     await $.command.register({
       name: 'deck',
       description: 'ClaudeDeck: accounts, live usage, auto switch, next account',
-      argumentHint: '[use|next|hold|release <name> | auto on | refresh]',
+      argumentHint: '[use|next|hold|release <name> | auto on | refresh | import]',
     })
     void refresh($)
     const panes = await $.ui.panes()
@@ -207,6 +208,9 @@ export const register: Register = on => {
     if (verb === 'refresh') {
       await refresh($, true)
       return { text: 'Usage refreshed.' }
+    }
+    if (verb === 'import') {
+      return { text: await act($, 'Importing from claude-swap', 'accounts/import', {}, 'Imported the claude-swap accounts') }
     }
     if (verb === 'auto') {
       if (arg !== 'on') return { text: HELP }
@@ -482,7 +486,7 @@ export const register: Register = on => {
               </Text>
               {!session?.desktopActive && !session?.desktopCaptured && !needsLogin && (
                 <Text dimColor size="footnote">
-                  Desktop login not saved yet. Sign in to Desktop with it once, then run claudedeck save.
+                  Desktop login not saved yet. Sign in to Claude Desktop with it once so ClaudeDeck can keep it.
                 </Text>
               )}
               {pendingDesktop ? (
@@ -567,11 +571,6 @@ export const register: Register = on => {
           )}
           <Button key="refresh" label="Refresh usage" onPress={() => void refresh($, true)} />
           <Button key="save" label="Save signed-in account" onPress={() => void act($, 'Saving the Claude Code login', 'accounts/save', { codeOnly: true }, 'Saved')} />
-          <Button
-            key="share"
-            label={`Shared history: ${deck.shareSession ? 'on' : 'off'}`}
-            onPress={() => void act($, 'Saving', 'accounts/sharing', { enabled: !deck.shareSession }, 'Saved')}
-          />
         </Box>
       </Box>
     )

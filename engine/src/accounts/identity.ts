@@ -3,7 +3,6 @@ import path from 'node:path';
 import { readJsonFile } from '../core/fs/json';
 import {
   IAccountIdentity,
-  ICachedIdentity,
   ICodeAccountFile,
   IIdentityLookupOptions,
   IParsedAccount,
@@ -124,7 +123,7 @@ export function scanIndexedDb(profileDir: string): IParsedAccount | null {
   return null;
 }
 
-function fromCache(uuid: string, known: Pick<ICachedIdentity, 'email' | 'name'> | { email?: string; name?: string }): IAccountIdentity | null {
+function fromCache(uuid: string, known: { email?: string; name?: string }): IAccountIdentity | null {
   if (!known.email) return null;
   return { accountUuid: uuid, email: known.email, name: known.name || (known.email.split('@')[0] as string) };
 }

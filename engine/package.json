@@ -9,9 +9,6 @@
   },
   "license": "MIT",
   "author": "Marvel Collin",
-  "bin": {
-    "claudedeck": "bin/claudedeck.js"
-  },
   "engines": {
     "node": ">=18.19"
   },
@@ -20,8 +17,6 @@
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "typecheck": "tsc --project tsconfig.test.json",
     "dev": "tsx src/bin/claudedeck.ts",
-    "web": "tsx src/bin/claudedeck.ts web",
-    "start": "tsx src/bin/run-claude.ts",
     "check": "npm run typecheck && tsx src/dev/check.ts",
     "test": "node --import tsx --test tests/*.spec.ts"
   },
@@ -34,12 +29,9 @@
     "claude",
     "claude-code",
     "claude-desktop",
+    "claude-code-plugin",
     "account-switcher",
-    "session",
     "multi-account",
-    "cron",
-    "scheduler",
-    "launchd",
-    "automation"
+    "usage"
   ]
 }

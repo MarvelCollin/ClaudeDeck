@@ -11,7 +11,7 @@ const schedule_1 = require("../core/config/schedule");
 const exec_1 = require("../core/exec");
 const run_log_1 = require("../core/logging/run-log");
 const paths_1 = require("../core/paths");
-const NOT_LOADED = 'Task is not loaded.';
+const NOT_LOADED = 'Background task is not loaded.';
 function domain() {
     return `gui/${process.getuid?.() ?? 0}`;
 }
@@ -101,7 +101,6 @@ function install(context) {
         (0, exec_1.runCapture)('launchctl', ['bootout', domain(), file]);
     (0, exec_1.runCapture)('launchctl', ['bootstrap', domain(), file]);
     (0, exec_1.runCapture)('launchctl', ['enable', serviceTarget(context)]);
-    console.log(`Installed task ${context.config.macLabel}`);
 }
 function summary(context) {
     const installed = exists(context);
@@ -125,49 +124,18 @@ function summary(context) {
         counts,
     };
 }
-function status(context) {
-    const info = summary(context);
-    console.log('');
-    console.log(`Installed: ${info.installed ? 'Yes' : 'No'}`);
-    console.log(`Loaded: ${info.loaded}`);
-    console.log(`Enabled: ${info.enabled}`);
-    console.log(`Current state: ${info.state}`);
-    console.log(`Last run: ${info.lastRun}`);
-    console.log(`Next run: ${info.nextRun}`);
-    console.log(`Configured schedule: ${(0, schedule_1.scheduleSummary)(context.config)}`);
-    console.log(`Run count: ${info.counts.runs}`);
-    console.log(`Success count: ${info.counts.success}`);
-    console.log(`Failed count: ${info.counts.failed}`);
-    console.log(`Incomplete count: ${info.counts.incomplete}`);
-    console.log(`Log: ${context.logPath}`);
-    if (info.installed)
-        console.log(`Plist: ${plistPath(context)}`);
-}
 function invokeWhenLoaded(context, args) {
-    if (!loaded(context)) {
-        console.log(NOT_LOADED);
-        return;
-    }
-    (0, exec_1.runInherited)('launchctl', args);
-}
-function deleteTask(context) {
-    const file = plistPath(context);
-    if (loaded(context))
-        (0, exec_1.runInherited)('launchctl', ['bootout', domain(), file]);
-    if (node_fs_1.default.existsSync(file))
-        node_fs_1.default.unlinkSync(file);
-    console.log(`Deleted task ${context.config.macLabel}`);
+    if (!loaded(context))
+        throw new Error(NOT_LOADED);
+    (0, exec_1.runCapture)('launchctl', args);
 }
 exports.macosScheduler = {
     name: 'macos',
     exists,
     install,
     summary,
-    status,
     runNow: context => invokeWhenLoaded(context, ['kickstart', '-k', serviceTarget(context)]),
     stop: context => invokeWhenLoaded(context, ['kill', 'TERM', serviceTarget(context)]),
     disable: context => invokeWhenLoaded(context, ['disable', serviceTarget(context)]),
     enable: context => invokeWhenLoaded(context, ['enable', serviceTarget(context)]),
-    deleteTask,
-    openLog: context => (0, exec_1.runInherited)('open', [context.logPath]),
 };

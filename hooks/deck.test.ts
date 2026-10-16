@@ -29,14 +29,12 @@ const DECK: DeckState = {
   code: { email: 'four@x.com', name: 'Four', alias: 'four' },
   desktop: { email: 'two@x.com', name: 'Two' },
   desktopRunning: true,
-  shareSession: true,
   sessions: ['one', 'two', 'three', 'four'].map(alias => ({
     alias,
     email: `${alias}@x.com`,
     name: alias[0]!.toUpperCase() + alias.slice(1),
     desktopActive: alias === 'two',
     desktopCaptured: true,
-    windowOpen: false,
   })),
   live: {},
   ranked: [

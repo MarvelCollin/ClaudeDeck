@@ -15,12 +15,6 @@ export function runCapture(
   return result.stdout || '';
 }
 
-export function runInherited(command: string, args: string[]): void {
-  const result = spawnSync(command, args, { cwd: packageRoot, stdio: 'inherit', shell: false });
-  if (result.error) throw result.error;
-  if (result.status !== 0) throw new Error(`${command} failed with exit code ${result.status}.`);
-}
-
 export function tryCapture(command: string, args: string[]): string | null {
   const result = spawnSync(command, args, { encoding: 'utf8' });
   if (result.error || result.status !== 0) return null;

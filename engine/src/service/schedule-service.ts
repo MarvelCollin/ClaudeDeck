@@ -1,37 +1,17 @@
-import { createSwitcher } from '../accounts/switcher';
 import { loadConfig, saveConfig } from '../core/config/loader';
 import { calendarEntryCount, scheduleSummary } from '../core/config/schedule';
 import { IConfigContext, IScheduler } from '../core/interfaces';
 import { readLogLines } from '../core/logging/run-log';
-import { writeState } from '../core/state/task-state';
 import { selectScheduler } from '../scheduler';
-import {
-  IAliasBody,
-  ILogView,
-  IPanelService,
-  IPanelState,
-  IScheduleDraft,
-  IScheduleState,
-  ISharingBody,
-} from './interfaces';
+import { ILogView, IScheduleDraft, IScheduleService, IScheduleState } from './interfaces';
 
-export function createService(): IPanelService {
+export function createScheduleService(): IScheduleService {
   let context: IConfigContext = loadConfig();
   let scheduler: IScheduler | null = null;
-  const switcher = createSwitcher();
 
   function schedulerOrThrow(): IScheduler {
     if (!scheduler) scheduler = selectScheduler();
     return scheduler;
-  }
-
-  function reload(): void {
-    context = loadConfig(context.configPath);
-  }
-
-  function install(): void {
-    schedulerOrThrow().install(context);
-    writeState(context.configHash);
   }
 
   function scheduleState(): IScheduleState {
@@ -68,13 +48,13 @@ export function createService(): IPanelService {
       schedules: Array.isArray(body.schedules) ? body.schedules : context.config.schedules,
     };
     context = saveConfig(context, next);
-    if (schedulerOrThrow().exists(context)) install();
+    if (schedulerOrThrow().exists(context)) schedulerOrThrow().install(context);
     return scheduleState();
   }
 
   function startBackground(): IScheduleState {
     const active = schedulerOrThrow();
-    if (!active.exists(context)) install();
+    if (!active.exists(context)) active.install(context);
     active.enable(context);
     return scheduleState();
   }
@@ -97,37 +77,5 @@ export function createService(): IPanelService {
     return { path: context.logPath, lines: readLogLines(context.logPath, limit) };
   }
 
-  function requireAlias(body: IAliasBody, question: string): string {
-    if (!body || !body.alias) throw new Error(question);
-    return body.alias;
-  }
-
-  function setSharing(body: ISharingBody): ReturnType<typeof switcher.listSessions> {
-    if (!body || typeof body.enabled !== 'boolean') throw new Error('Should shared history be on or off?');
-    switcher.setSharing(body.enabled);
-    return switcher.listSessions();
-  }
-
-  function state(): IPanelState {
-    return { schedule: scheduleState(), accounts: switcher.listSessions() };
-  }
-
-  return {
-    accountsState: () => switcher.listSessions(),
-    closeAccount: body => switcher.closeAccount(requireAlias(body, 'Which account should I close?')),
-    forgetAccount: body => switcher.forget(requireAlias(body, 'Which account should I forget?')),
-    openAccount: body => switcher.openAccount(requireAlias(body, 'Which account should I open?'), { fresh: Boolean(body?.fresh) }),
-    install,
-    readLog,
-    reload,
-    runNow,
-    saveSchedule,
-    scheduleState,
-    setSharing,
-    startBackground,
-    state,
-    stopBackground,
-    switchAccount: body => switcher.switchTo(requireAlias(body, 'Which account should I switch to?')),
-    syncCurrent: body => switcher.sync({ install: typeof body?.install === 'string' ? body.install : undefined }),
-  };
+  return { readLog, runNow, saveSchedule, scheduleState, startBackground, stopBackground };
 }

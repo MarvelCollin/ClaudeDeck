@@ -5,8 +5,3 @@ node_modules/
 *.log
 *.tgz
 npm-debug.log*
-claudecron.local.json
-claudecron.*.local.json
-schedules*.json
-*.schedule.json
-*.schedules.json

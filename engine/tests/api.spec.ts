@@ -53,8 +53,8 @@ test('the command prints one JSON line with ok or the error', async () => {
     return true;
   }) as typeof process.stdout.write;
   try {
-    await runApiCommand(['api', 'nope']);
-    await runApiCommand(['api', 'auto/settings', '{"cooldownSeconds":30}']);
+    await runApiCommand(['nope']);
+    await runApiCommand(['auto/settings', '{"cooldownSeconds":30}']);
   } finally {
     process.stdout.write = write;
   }

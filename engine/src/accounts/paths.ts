@@ -3,8 +3,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { deckHome } from '../core/paths';
 
-export const DEFAULT_ALIAS = 'default';
-
 const ALIAS_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,31}$/;
 const PACKAGED_FAMILY_PREFIX = 'Claude_';
 const PACKAGED_PROFILE_PARTS = ['LocalCache', 'Roaming', 'Claude'];
@@ -48,24 +46,12 @@ function deckDir(platform: NodeJS.Platform, env: NodeJS.ProcessEnv, ...parts: st
   return path.join(roamingDir(platform, env), 'ClaudeDeck', ...parts);
 }
 
-export function profilesRoot(platform: NodeJS.Platform = process.platform, env = process.env): string {
-  return deckDir(platform, env, 'profiles');
-}
-
 export function registryPath(platform: NodeJS.Platform = process.platform, env = process.env): string {
   return deckDir(platform, env, 'profiles.json');
 }
 
 export function sessionsRoot(platform: NodeJS.Platform = process.platform, env = process.env): string {
   return deckDir(platform, env, 'sessions');
-}
-
-export function sharedRoot(platform: NodeJS.Platform = process.platform, env = process.env): string {
-  return deckDir(platform, env, 'shared');
-}
-
-export function deeplinkStatePath(platform: NodeJS.Platform = process.platform, env = process.env): string {
-  return deckDir(platform, env, 'deeplink.json');
 }
 
 export function liveUsagePath(platform: NodeJS.Platform = process.platform, env = process.env): string {
@@ -105,10 +91,6 @@ export function desktopConfigPath(profileDir: string): string {
   return path.join(profileDir, 'config.json');
 }
 
-export function isDefaultAlias(alias: string): boolean {
-  return String(alias).toLowerCase() === DEFAULT_ALIAS;
-}
-
 export function isValidAlias(alias: unknown): alias is string {
   return typeof alias === 'string' && ALIAS_PATTERN.test(alias);
 }
@@ -132,10 +114,4 @@ export function deriveAlias(label: string): string {
     .replace(/[^a-z0-9]+$/, '');
   if (!alias) throw new Error(`Cannot build a folder name from "${label}". Use letters or digits.`);
   return alias;
-}
-
-export function profilePath(alias: string, platform: NodeJS.Platform = process.platform, env = process.env): string {
-  if (isDefaultAlias(alias)) return desktopProfileDir(platform, env);
-  assertValidAlias(alias);
-  return path.join(profilesRoot(platform, env), alias);
 }

@@ -6,5 +6,4 @@ export interface ISwitchResult extends IRestoreResult {
   name: string;
   stopped: number;
   relaunched: boolean;
-  sharedItems: string[];
 }

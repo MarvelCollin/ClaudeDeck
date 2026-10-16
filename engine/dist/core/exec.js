@@ -1,7 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.runCapture = runCapture;
-exports.runInherited = runInherited;
 exports.tryCapture = tryCapture;
 exports.succeeds = succeeds;
 exports.spawnDetached = spawnDetached;
@@ -16,13 +15,6 @@ function runCapture(command, args, options = {}) {
         throw new Error(message);
     }
     return result.stdout || '';
-}
-function runInherited(command, args) {
-    const result = (0, node_child_process_1.spawnSync)(command, args, { cwd: paths_1.packageRoot, stdio: 'inherit', shell: false });
-    if (result.error)
-        throw result.error;
-    if (result.status !== 0)
-        throw new Error(`${command} failed with exit code ${result.status}.`);
 }
 function tryCapture(command, args) {
     const result = (0, node_child_process_1.spawnSync)(command, args, { encoding: 'utf8' });

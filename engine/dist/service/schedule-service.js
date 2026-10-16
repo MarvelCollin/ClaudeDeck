@@ -1,27 +1,17 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createService = createService;
-const switcher_1 = require("../accounts/switcher");
+exports.createScheduleService = createScheduleService;
 const loader_1 = require("../core/config/loader");
 const schedule_1 = require("../core/config/schedule");
 const run_log_1 = require("../core/logging/run-log");
-const task_state_1 = require("../core/state/task-state");
 const scheduler_1 = require("../scheduler");
-function createService() {
+function createScheduleService() {
     let context = (0, loader_1.loadConfig)();
     let scheduler = null;
-    const switcher = (0, switcher_1.createSwitcher)();
     function schedulerOrThrow() {
         if (!scheduler)
             scheduler = (0, scheduler_1.selectScheduler)();
         return scheduler;
-    }
-    function reload() {
-        context = (0, loader_1.loadConfig)(context.configPath);
-    }
-    function install() {
-        schedulerOrThrow().install(context);
-        (0, task_state_1.writeState)(context.configHash);
     }
     function scheduleState() {
         const summary = schedulerOrThrow().summary(context);
@@ -57,13 +47,13 @@ function createService() {
         };
         context = (0, loader_1.saveConfig)(context, next);
         if (schedulerOrThrow().exists(context))
-            install();
+            schedulerOrThrow().install(context);
         return scheduleState();
     }
     function startBackground() {
         const active = schedulerOrThrow();
         if (!active.exists(context))
-            install();
+            active.install(context);
         active.enable(context);
         return scheduleState();
     }
@@ -84,36 +74,5 @@ function createService() {
     function readLog(limit = 400) {
         return { path: context.logPath, lines: (0, run_log_1.readLogLines)(context.logPath, limit) };
     }
-    function requireAlias(body, question) {
-        if (!body || !body.alias)
-            throw new Error(question);
-        return body.alias;
-    }
-    function setSharing(body) {
-        if (!body || typeof body.enabled !== 'boolean')
-            throw new Error('Should shared history be on or off?');
-        switcher.setSharing(body.enabled);
-        return switcher.listSessions();
-    }
-    function state() {
-        return { schedule: scheduleState(), accounts: switcher.listSessions() };
-    }
-    return {
-        accountsState: () => switcher.listSessions(),
-        closeAccount: body => switcher.closeAccount(requireAlias(body, 'Which account should I close?')),
-        forgetAccount: body => switcher.forget(requireAlias(body, 'Which account should I forget?')),
-        openAccount: body => switcher.openAccount(requireAlias(body, 'Which account should I open?'), { fresh: Boolean(body?.fresh) }),
-        install,
-        readLog,
-        reload,
-        runNow,
-        saveSchedule,
-        scheduleState,
-        setSharing,
-        startBackground,
-        state,
-        stopBackground,
-        switchAccount: body => switcher.switchTo(requireAlias(body, 'Which account should I switch to?')),
-        syncCurrent: body => switcher.sync({ install: typeof body?.install === 'string' ? body.install : undefined }),
-    };
+    return { readLog, runNow, saveSchedule, scheduleState, startBackground, stopBackground };
 }

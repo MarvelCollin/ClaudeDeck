@@ -1,8 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { errorCode } from '../core/fs/json';
 import { tryCapture } from '../core/exec';
-import { IClaudeProcess, IProfileLocation } from './interfaces';
-import { DEFAULT_ALIAS } from './paths';
+import { IClaudeProcess } from './interfaces';
 
 export const SEPARATOR = '|::|';
 
@@ -37,32 +36,6 @@ export function parsePosixProcessLines(text: string): IClaudeProcess[] {
   return processes;
 }
 
-export function userDataDirOf(commandLine: string): string | null {
-  const quoted = commandLine.match(/--user-data-dir="([^"]+)"/);
-  if (quoted) return quoted[1] as string;
-  const bare = commandLine.match(/--user-data-dir=(\S+)/);
-  return bare ? (bare[1] as string) : null;
-}
-
-export function samePath(left: string | null | undefined, right: string | null | undefined): boolean {
-  if (!left || !right) return false;
-  const clean = (value: string): string => String(value).replace(/[\\/]+$/, '').toLowerCase();
-  return clean(left) === clean(right);
-}
-
-export function aliasForCommandLine(
-  commandLine: string,
-  profiles: readonly IProfileLocation[],
-  defaultDir: string
-): string | null {
-  const dir = userDataDirOf(commandLine);
-  if (!dir) return DEFAULT_ALIAS;
-  const match = profiles.find(profile => samePath(profile.dir, dir));
-  if (match) return match.alias;
-  if (samePath(dir, defaultDir)) return DEFAULT_ALIAS;
-  return null;
-}
-
 export function listClaudeProcesses(platform: NodeJS.Platform = process.platform): IClaudeProcess[] {
   if (platform === 'win32') {
     const command = `Get-CimInstance Win32_Process -Filter "Name='claude.exe'" | ForEach-Object { "$($_.ProcessId)${SEPARATOR}$($_.CommandLine)" }`;
@@ -74,22 +47,6 @@ export function listClaudeProcesses(platform: NodeJS.Platform = process.platform
     return output === null ? [] : parsePosixProcessLines(output).filter(entry => MACOS_BINARY.test(entry.commandLine));
   }
   return [];
-}
-
-export function groupProcesses(
-  processes: readonly IClaudeProcess[],
-  profiles: readonly IProfileLocation[],
-  defaultDir: string
-): Map<string, number[]> {
-  const groups = new Map<string, number[]>();
-  for (const entry of processes) {
-    const alias = aliasForCommandLine(entry.commandLine, profiles, defaultDir);
-    if (!alias) continue;
-    const pids = groups.get(alias) ?? [];
-    pids.push(entry.pid);
-    groups.set(alias, pids);
-  }
-  return groups;
 }
 
 export function killPids(pids: readonly number[], platform: NodeJS.Platform = process.platform): number {

@@ -3,16 +3,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.SEPARATOR = void 0;
 exports.parseProcessLines = parseProcessLines;
 exports.parsePosixProcessLines = parsePosixProcessLines;
-exports.userDataDirOf = userDataDirOf;
-exports.samePath = samePath;
-exports.aliasForCommandLine = aliasForCommandLine;
 exports.listClaudeProcesses = listClaudeProcesses;
-exports.groupProcesses = groupProcesses;
 exports.killPids = killPids;
 const node_child_process_1 = require("node:child_process");
 const json_1 = require("../core/fs/json");
 const exec_1 = require("../core/exec");
-const paths_1 = require("./paths");
 exports.SEPARATOR = '|::|';
 const MACOS_BINARY = /Claude\.app\/Contents\/MacOS\/Claude/;
 function nonEmptyLines(text) {
@@ -44,30 +39,6 @@ function parsePosixProcessLines(text) {
     }
     return processes;
 }
-function userDataDirOf(commandLine) {
-    const quoted = commandLine.match(/--user-data-dir="([^"]+)"/);
-    if (quoted)
-        return quoted[1];
-    const bare = commandLine.match(/--user-data-dir=(\S+)/);
-    return bare ? bare[1] : null;
-}
-function samePath(left, right) {
-    if (!left || !right)
-        return false;
-    const clean = (value) => String(value).replace(/[\\/]+$/, '').toLowerCase();
-    return clean(left) === clean(right);
-}
-function aliasForCommandLine(commandLine, profiles, defaultDir) {
-    const dir = userDataDirOf(commandLine);
-    if (!dir)
-        return paths_1.DEFAULT_ALIAS;
-    const match = profiles.find(profile => samePath(profile.dir, dir));
-    if (match)
-        return match.alias;
-    if (samePath(dir, defaultDir))
-        return paths_1.DEFAULT_ALIAS;
-    return null;
-}
 function listClaudeProcesses(platform = process.platform) {
     if (platform === 'win32') {
         const command = `Get-CimInstance Win32_Process -Filter "Name='claude.exe'" | ForEach-Object { "$($_.ProcessId)${exports.SEPARATOR}$($_.CommandLine)" }`;
@@ -79,18 +50,6 @@ function listClaudeProcesses(platform = process.platform) {
         return output === null ? [] : parsePosixProcessLines(output).filter(entry => MACOS_BINARY.test(entry.commandLine));
     }
     return [];
-}
-function groupProcesses(processes, profiles, defaultDir) {
-    const groups = new Map();
-    for (const entry of processes) {
-        const alias = aliasForCommandLine(entry.commandLine, profiles, defaultDir);
-        if (!alias)
-            continue;
-        const pids = groups.get(alias) ?? [];
-        pids.push(entry.pid);
-        groups.set(alias, pids);
-    }
-    return groups;
 }
 function killPids(pids, platform = process.platform) {
     if (!pids.length)

@@ -1,14 +1,14 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { nextRunTime, scheduleSummary, splitTime, weekdayIndex } from '../core/config/schedule';
-import { runCapture, runInherited, succeeds } from '../core/exec';
+import { nextRunTime, splitTime, weekdayIndex } from '../core/config/schedule';
+import { runCapture, succeeds } from '../core/exec';
 import { IConfigContext, IScheduler, ISchedulerSummary } from '../core/interfaces';
 import { lastRunTime, logCounts } from '../core/logging/run-log';
 import { packageRoot, runnerScriptPath } from '../core/paths';
 import { Weekday } from '../core/types';
 
-const NOT_LOADED = 'Task is not loaded.';
+const NOT_LOADED = 'Background task is not loaded.';
 
 function domain(): string {
   return `gui/${process.getuid?.() ?? 0}`;
@@ -107,7 +107,6 @@ function install(context: IConfigContext): void {
   if (loaded(context)) runCapture('launchctl', ['bootout', domain(), file]);
   runCapture('launchctl', ['bootstrap', domain(), file]);
   runCapture('launchctl', ['enable', serviceTarget(context)]);
-  console.log(`Installed task ${context.config.macLabel}`);
 }
 
 function summary(context: IConfigContext): ISchedulerSummary {
@@ -133,37 +132,9 @@ function summary(context: IConfigContext): ISchedulerSummary {
   };
 }
 
-function status(context: IConfigContext): void {
-  const info = summary(context);
-  console.log('');
-  console.log(`Installed: ${info.installed ? 'Yes' : 'No'}`);
-  console.log(`Loaded: ${info.loaded}`);
-  console.log(`Enabled: ${info.enabled}`);
-  console.log(`Current state: ${info.state}`);
-  console.log(`Last run: ${info.lastRun}`);
-  console.log(`Next run: ${info.nextRun}`);
-  console.log(`Configured schedule: ${scheduleSummary(context.config)}`);
-  console.log(`Run count: ${info.counts.runs}`);
-  console.log(`Success count: ${info.counts.success}`);
-  console.log(`Failed count: ${info.counts.failed}`);
-  console.log(`Incomplete count: ${info.counts.incomplete}`);
-  console.log(`Log: ${context.logPath}`);
-  if (info.installed) console.log(`Plist: ${plistPath(context)}`);
-}
-
 function invokeWhenLoaded(context: IConfigContext, args: string[]): void {
-  if (!loaded(context)) {
-    console.log(NOT_LOADED);
-    return;
-  }
-  runInherited('launchctl', args);
-}
-
-function deleteTask(context: IConfigContext): void {
-  const file = plistPath(context);
-  if (loaded(context)) runInherited('launchctl', ['bootout', domain(), file]);
-  if (fs.existsSync(file)) fs.unlinkSync(file);
-  console.log(`Deleted task ${context.config.macLabel}`);
+  if (!loaded(context)) throw new Error(NOT_LOADED);
+  runCapture('launchctl', args);
 }
 
 export const macosScheduler: IScheduler = {
@@ -171,11 +142,8 @@ export const macosScheduler: IScheduler = {
   exists,
   install,
   summary,
-  status,
   runNow: context => invokeWhenLoaded(context, ['kickstart', '-k', serviceTarget(context)]),
   stop: context => invokeWhenLoaded(context, ['kill', 'TERM', serviceTarget(context)]),
   disable: context => invokeWhenLoaded(context, ['disable', serviceTarget(context)]),
   enable: context => invokeWhenLoaded(context, ['enable', serviceTarget(context)]),
-  deleteTask,
-  openLog: context => runInherited('open', [context.logPath]),
 };

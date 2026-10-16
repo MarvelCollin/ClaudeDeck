@@ -8,10 +8,10 @@ import { launchArgs, windowsCandidates } from '../src/accounts/desktop-app';
 import * as paths from '../src/accounts/paths';
 import * as procs from '../src/accounts/processes';
 import * as registry from '../src/accounts/registry';
-import * as shared from '../src/accounts/shared-store';
+import * as session from '../src/accounts/session-store';
+import { createSwitcher } from '../src/accounts/switcher';
 import * as usage from '../src/accounts/usage';
-import { createInstances } from '../src/accounts/instances';
-import { routeCommand } from '../src/cli/router';
+import { runCli } from '../src/cli/main';
 import * as appPaths from '../src/core/paths';
 
 process.env.CLAUDEDECK_HOME = '';
@@ -26,13 +26,6 @@ test('alias validation accepts safe names and rejects traversal', () => {
   assert.ok(!paths.isValidAlias('has space'));
   assert.ok(!paths.isValidAlias('a'.repeat(33)));
   assert.throws(() => paths.assertValidAlias('../escape'), /Invalid alias/);
-});
-
-test('default alias maps to the real Claude Desktop profile', () => {
-  assert.ok(paths.isDefaultAlias('default'));
-  assert.ok(paths.isDefaultAlias('DEFAULT'));
-  assert.strictEqual(paths.profilePath('default', 'win32', env), path.join(env.APPDATA, 'Claude'));
-  assert.strictEqual(paths.profilePath('work', 'win32', env), path.join(env.APPDATA, 'ClaudeDeck', 'profiles', 'work'));
 });
 
 test('the packaged Claude Desktop profile is found when the roaming folder is absent', () => {
@@ -55,40 +48,23 @@ test('the packaged Claude Desktop profile is found when the roaming folder is ab
   }
 });
 
-test('registry add rejects duplicates and the reserved default alias', () => {
-  let data = registry.emptyRegistry();
-  data = registry.add(data, 'work', 'Work Account', new Date('2026-01-01T00:00:00Z'));
-  assert.strictEqual(data.profiles.length, 1);
-  assert.strictEqual(data.profiles[0].createdAt, '2026-01-01T00:00:00.000Z');
-  assert.strictEqual(data.profiles[0].label, 'Work Account');
-  assert.throws(() => registry.add(data, 'work'), /already exists/);
-  assert.throws(() => registry.add(data, 'WORK'), /already exists/);
-  assert.throws(() => registry.add(data, 'default'), /reserved/);
-});
-
-test('registry remove and touch operate case insensitively', () => {
-  let data = registry.add(registry.emptyRegistry(), 'work');
-  data = registry.touch(data, 'WORK', new Date('2026-02-02T00:00:00Z'));
-  assert.strictEqual(data.profiles[0].lastLaunchedAt, '2026-02-02T00:00:00.000Z');
-  data = registry.remove(data, 'WORK');
-  assert.strictEqual(data.profiles.length, 0);
-  assert.throws(() => registry.remove(data, 'ghost'), /not found/);
-  assert.throws(() => registry.remove(registry.emptyRegistry(), 'default'), /Cannot remove the default/);
-});
-
 test('registry normalize drops junk entries and duplicate aliases', () => {
-  const data = registry.normalize({ profiles: [{ alias: 'a' }, { alias: 'A' }, { nope: 1 }, null] });
-  assert.strictEqual(data.profiles.length, 1);
-  assert.strictEqual(registry.normalize(null).profiles.length, 0);
+  const data = registry.normalize({
+    profiles: [{ alias: 'old' }],
+    sessions: [{ alias: 'a', email: 'a@x.com' }, { alias: 'A', email: 'a2@x.com' }, { nope: 1 }, null],
+  });
+  assert.deepStrictEqual(data.sessions.map(entry => entry.alias), ['a']);
+  assert.deepStrictEqual(Object.keys(data).sort(), ['sessions', 'version']);
+  assert.strictEqual(registry.normalize(null).sessions.length, 0);
 });
 
 test('registry survives a round trip through disk', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cc-profiles-'));
   const file = path.join(dir, 'profiles.json');
   try {
-    assert.strictEqual(registry.read(file).profiles.length, 0);
-    registry.write(registry.add(registry.emptyRegistry(), 'work'), file);
-    assert.strictEqual(registry.read(file).profiles[0].alias, 'work');
+    assert.strictEqual(registry.read(file).sessions.length, 0);
+    registry.write(registry.saveSession(registry.emptyRegistry(), { alias: 'work', email: 'w@e.com' }), file);
+    assert.strictEqual(registry.read(file).sessions[0].alias, 'work');
     fs.writeFileSync(file, 'not json', 'utf8');
     assert.throws(() => registry.read(file), /not valid JSON/);
   } finally {
@@ -105,20 +81,6 @@ test('deriveAlias turns a free text name into a safe folder name', () => {
   assert.throws(() => paths.deriveAlias(''), /Cannot build a folder name/);
 });
 
-test('setLabel renames only the display name', () => {
-  let data = registry.add(registry.emptyRegistry(), 'work', 'Work');
-  data = registry.setLabel(data, 'WORK', '  Personal  ');
-  assert.strictEqual(data.profiles[0].label, 'Personal');
-  assert.strictEqual(data.profiles[0].alias, 'work');
-  assert.throws(() => registry.setLabel(data, 'work', '   '), /cannot be empty/);
-  assert.throws(() => registry.setLabel(data, 'ghost', 'x'), /not found/);
-});
-
-test('normalize falls back to the alias when no label is stored', () => {
-  const data = registry.normalize({ profiles: [{ alias: 'work' }] });
-  assert.strictEqual(data.profiles[0].label, 'work');
-});
-
 test('launchArgs omits the flag for the default profile', () => {
   assert.deepStrictEqual(launchArgs('C:\\dir', true), []);
   assert.deepStrictEqual(launchArgs('C:\\dir', false), ['--user-data-dir=C:\\dir']);
@@ -130,18 +92,6 @@ test('windows install candidates cover both installer layouts', () => {
   assert.ok(candidates.every(entry => entry.endsWith('Claude.exe')));
 });
 
-test('userDataDirOf reads quoted and bare flags', () => {
-  assert.strictEqual(procs.userDataDirOf('Claude.exe --user-data-dir="C:\\a b\\Claude" --x'), 'C:\\a b\\Claude');
-  assert.strictEqual(procs.userDataDirOf('Claude.exe --user-data-dir=C:\\work'), 'C:\\work');
-  assert.strictEqual(procs.userDataDirOf('Claude.exe'), null);
-});
-
-test('samePath ignores case and trailing separators', () => {
-  assert.ok(procs.samePath('C:\\Claude\\', 'c:\\claude'));
-  assert.ok(!procs.samePath('C:\\Claude', 'C:\\Claude2'));
-  assert.ok(!procs.samePath(null, 'C:\\Claude'));
-});
-
 test('process lines parse into pid and command line', () => {
   const text = `100${procs.SEPARATOR}Claude.exe --user-data-dir=C:\\work\n\nbad line\n0${procs.SEPARATOR}x`;
   const parsed = procs.parseProcessLines(text);
@@ -150,35 +100,6 @@ test('process lines parse into pid and command line', () => {
   assert.deepStrictEqual(procs.parsePosixProcessLines(' 42 /Applications/Claude.app/Contents/MacOS/Claude'), [
     { pid: 42, commandLine: '/Applications/Claude.app/Contents/MacOS/Claude' },
   ]);
-});
-
-test('processes map back to the profile that owns them', () => {
-  const profiles = [
-    { alias: 'default', dir: 'C:\\Roaming\\Claude' },
-    { alias: 'work', dir: 'C:\\Roaming\\ClaudeDeck\\profiles\\work' },
-  ];
-  const defaultDir = 'C:\\Roaming\\Claude';
-  assert.strictEqual(procs.aliasForCommandLine('Claude.exe', profiles, defaultDir), 'default');
-  assert.strictEqual(procs.aliasForCommandLine('Claude.exe --user-data-dir="C:\\Roaming\\Claude"', profiles, defaultDir), 'default');
-  assert.strictEqual(
-    procs.aliasForCommandLine('Claude.exe --user-data-dir="C:\\Roaming\\ClaudeDeck\\profiles\\work"', profiles, defaultDir),
-    'work'
-  );
-  assert.strictEqual(procs.aliasForCommandLine('Claude.exe --user-data-dir="C:\\elsewhere"', profiles, defaultDir), null);
-
-  const groups = procs.groupProcesses(
-    [
-      { pid: 1, commandLine: 'Claude.exe' },
-      { pid: 2, commandLine: 'Claude.exe --user-data-dir="C:\\Roaming\\ClaudeDeck\\profiles\\work"' },
-      { pid: 3, commandLine: 'Claude.exe --user-data-dir="C:\\Roaming\\ClaudeDeck\\profiles\\work"' },
-      { pid: 4, commandLine: 'Claude.exe --user-data-dir="C:\\unknown"' },
-    ],
-    profiles,
-    defaultDir
-  );
-  assert.deepStrictEqual(groups.get('default'), [1]);
-  assert.deepStrictEqual(groups.get('work'), [2, 3]);
-  assert.strictEqual(groups.has('unknown'), false);
 });
 
 test('killPids is a no-op for an empty list', () => {
@@ -289,42 +210,6 @@ test('readIdentity ignores IndexedDB folders for other origins', () => {
   }
 });
 
-test('registry caches an identity per alias and drops it on remove', () => {
-  let data = registry.add(registry.emptyRegistry(), 'work', 'Work');
-  data = registry.rememberIdentity(data, 'WORK', { email: 'w@e.com', name: 'Worker' }, new Date('2026-03-03T00:00:00Z'));
-  assert.deepStrictEqual(registry.identityFor(data, 'work'), {
-    email: 'w@e.com',
-    name: 'Worker',
-    seenAt: '2026-03-03T00:00:00.000Z',
-  });
-  assert.strictEqual(registry.identityFor(data, 'missing'), null);
-  assert.strictEqual(registry.rememberIdentity(data, 'work', { name: 'no email' }), data);
-
-  data = registry.rememberIdentity(data, 'default', { email: 'me@e.com', name: 'Me' });
-  assert.strictEqual(registry.identityFor(data, 'default')!.name, 'Me');
-
-  data = registry.remove(data, 'work');
-  assert.strictEqual(registry.identityFor(data, 'work'), null);
-  assert.strictEqual(registry.identityFor(data, 'default')!.name, 'Me');
-});
-
-test('registry identities survive normalize and a disk round trip', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cd-reg-id-'));
-  const file = path.join(dir, 'profiles.json');
-  try {
-    let data = registry.rememberIdentity(registry.emptyRegistry(), 'default', { email: 'me@e.com', name: 'Me' });
-    registry.write(data, file);
-    assert.strictEqual(registry.read(file).identities.default.email, 'me@e.com');
-    const junk = registry.normalize({ profiles: [], identities: { a: { name: 'no email' }, b: null } });
-    assert.deepStrictEqual(junk.identities, {});
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-import * as session from '../src/accounts/session-store';
-import { createSwitcher } from '../src/accounts/switcher';
-
 function seedDesktop(dir, cookie) {
   fs.mkdirSync(path.join(dir, 'Network'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'Network', 'Cookies'), cookie);
@@ -399,7 +284,6 @@ function switcherHarness() {
     profileDir,
     credPath,
     accountPath: path.join(base, 'no-claude-account.json'),
-    sharedDir: path.join(base, 'shared'),
     slotOf: alias => path.join(base, 'sessions', alias),
     registryFile: path.join(base, 'profiles.json'),
     installs: [],
@@ -407,8 +291,6 @@ function switcherHarness() {
     kill: pids => { if (pids.length) events.push('killed'); return pids.length; },
     launch: () => { events.push('launched'); return 999; },
     locate: () => 'C:/Claude.exe',
-    loginRouting: () => true,
-    instances: { remember: () => undefined, routeLogins: () => true },
     now: () => new Date('2026-05-05T00:00:00Z'),
   };
   return { base, profileDir, credPath, deps, events };
@@ -620,213 +502,6 @@ const savedFor = (alias: string) => ({
   savedAt: null,
 });
 
-test('opening an account seeds its own profile from the saved session', () => {
-  const h = instanceHarness();
-  try {
-    const instances = createInstances(h.deps);
-    const sessions = [savedFor('work')];
-
-    const slot = path.join(h.base, 'sessions', 'work', 'desktop');
-    fs.mkdirSync(path.join(slot, 'Network'), { recursive: true });
-    fs.writeFileSync(path.join(slot, 'Network', 'Cookies'), 'SESSION-WORK');
-    fs.writeFileSync(path.join(slot, 'Local State'), 'state-work');
-
-    assert.deepStrictEqual(instances.describe(sessions)[0].seeded, false);
-
-    const opened = instances.open('work', sessions);
-    assert.strictEqual(opened.alreadyRunning, false);
-    assert.strictEqual(opened.pid, 4242);
-    assert.ok(opened.seededFrom, 'a saved session seeds the new profile');
-
-    const dir = path.join(h.base, 'profiles', 'work');
-    assert.strictEqual(fs.readFileSync(path.join(dir, 'Network', 'Cookies'), 'utf8'), 'SESSION-WORK');
-    assert.deepStrictEqual(h.launched, [['C:/Claude.exe', '--user-data-dir=' + dir]]);
-    assert.strictEqual(instances.describe(sessions)[0].seeded, true);
-  } finally {
-    fs.rmSync(h.base, { recursive: true, force: true });
-  }
-});
-
-test('opening an account carries its saved login into the new profile', () => {
-  const h = instanceHarness();
-  try {
-    const instances = createInstances(h.deps);
-    const sessions = [savedFor('work')];
-    slotWithLogin(h.base, 'work', 'token-work');
-
-    const opened = instances.open('work', sessions);
-    const dir = path.join(h.base, 'profiles', 'work');
-    const config = JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8'));
-
-    assert.strictEqual(config['oauth:tokenCache'], 'token-work');
-    assert.strictEqual(config.lastKnownAccountUuid, 'uuid-work');
-    assert.strictEqual(opened.signedIn, true, 'the window opens already signed in');
-    assert.strictEqual(opened.loginRouted, false, 'no sign in link routing is needed');
-    assert.deepStrictEqual(h.remembered, [['work', dir]]);
-    assert.strictEqual(instances.describe(sessions)[0].signedIn, true);
-  } finally {
-    fs.rmSync(h.base, { recursive: true, force: true });
-  }
-});
-
-test('a profile left signed out by a failed login is repaired on the next open', () => {
-  const h = instanceHarness();
-  try {
-    const instances = createInstances(h.deps);
-    const sessions = [savedFor('work')];
-    slotWithLogin(h.base, 'work', 'token-work');
-
-    const dir = path.join(h.base, 'profiles', 'work');
-    fs.mkdirSync(path.join(dir, 'Network'), { recursive: true });
-    fs.writeFileSync(path.join(dir, 'Network', 'Cookies'), 'HALF-LOGGED-IN');
-    fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ locale: 'en-US', windowSizeWasSignedIn: false }));
-
-    assert.strictEqual(instances.describe(sessions)[0].signedIn, false);
-
-    const opened = instances.open('work', sessions);
-    const config = JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8'));
-
-    assert.strictEqual(config['oauth:tokenCache'], 'token-work');
-    assert.strictEqual(config.locale, 'en-US', 'the profile keeps its own settings');
-    assert.strictEqual(fs.readFileSync(path.join(dir, 'Network', 'Cookies'), 'utf8'), 'HALF-LOGGED-IN');
-    assert.strictEqual(opened.signedIn, true);
-  } finally {
-    fs.rmSync(h.base, { recursive: true, force: true });
-  }
-});
-
-test('a window with no saved login asks for sign in link routing', () => {
-  const h = instanceHarness();
-  try {
-    const instances = createInstances(h.deps);
-    const sessions = [savedFor('work')];
-
-    const opened = instances.open('work', sessions);
-    assert.strictEqual(opened.signedIn, false);
-    assert.strictEqual(opened.loginRouted, true);
-    assert.strictEqual(h.routed.length, 1);
-  } finally {
-    fs.rmSync(h.base, { recursive: true, force: true });
-  }
-});
-
-test('a fresh open wipes the profile and skips the saved session', () => {
-  const h = instanceHarness();
-  try {
-    const instances = createInstances(h.deps);
-    const sessions = [savedFor('work')];
-    slotWithLogin(h.base, 'work', 'token-work');
-
-    const dir = path.join(h.base, 'profiles', 'work');
-    instances.open('work', sessions);
-    assert.ok(fs.existsSync(path.join(dir, 'config.json')));
-    h.setProcs([{ pid: 55, commandLine: 'Claude.exe --user-data-dir="' + dir + '"' }]);
-
-    const opened = instances.open('work', sessions, { fresh: true });
-    assert.strictEqual(opened.wiped, true);
-    assert.strictEqual(opened.alreadyRunning, false, 'the open window is closed first');
-    assert.deepStrictEqual(h.killed, [55]);
-    assert.strictEqual(opened.seededFrom, null, 'an expired saved login is not put back');
-    assert.strictEqual(opened.signedIn, false);
-    assert.strictEqual(opened.loginRouted, true);
-    assert.deepStrictEqual(fs.readdirSync(dir), [], 'the profile starts empty');
-  } finally {
-    fs.rmSync(h.base, { recursive: true, force: true });
-  }
-});
-
-test('an account already open is not launched twice', () => {
-  const h = instanceHarness();
-  try {
-    const instances = createInstances(h.deps);
-    const sessions = [savedFor('work')];
-    const dir = path.join(h.base, 'profiles', 'work');
-    h.setProcs([{ pid: 77, commandLine: 'Claude.exe --user-data-dir="' + dir + '"' }]);
-
-    const described = instances.describe(sessions)[0];
-    assert.strictEqual(described.running, true);
-    assert.deepStrictEqual(described.pids, [77]);
-
-    const opened = instances.open('work', sessions);
-    assert.strictEqual(opened.alreadyRunning, true);
-    assert.deepStrictEqual(h.launched, [], 'no second launch');
-
-    assert.deepStrictEqual(instances.stop('work', sessions), { alias: 'work', stopped: 1 });
-    assert.deepStrictEqual(h.killed, [77]);
-  } finally {
-    fs.rmSync(h.base, { recursive: true, force: true });
-  }
-});
-
-test('each open account reports usage from its own profile', () => {
-  const h = instanceHarness();
-  try {
-    const instances = createInstances(h.deps);
-    const sessions = [savedFor('a'), savedFor('b')];
-    for (const [alias, fh, org] of [['a', 20, 'org-a'], ['b', 70, 'org-b']] as const) {
-      const dir = path.join(h.base, 'profiles', alias);
-      fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(
-        path.join(dir, usage.USAGE_FILE),
-        JSON.stringify({ version: 2, samples: [{ t: 1, org, u: { fh, sd: 5 } }] })
-      );
-    }
-    const described = instances.describe(sessions);
-    assert.strictEqual(described[0].usage?.session?.leftPercent, 80);
-    assert.strictEqual(described[0].usage?.orgUuid, 'org-a');
-    assert.strictEqual(described[1].usage?.session?.leftPercent, 30);
-    assert.strictEqual(described[1].usage?.orgUuid, 'org-b');
-  } finally {
-    fs.rmSync(h.base, { recursive: true, force: true });
-  }
-});
-
-test('registry settings default to sharing and reject unknown keys', () => {
-  assert.strictEqual(registry.emptyRegistry().settings.shareSession, true);
-  assert.strictEqual(registry.settingsOf(null).shareSession, true);
-  assert.strictEqual(registry.normalize({ profiles: [], settings: { shareSession: 'yes' } }).settings.shareSession, true);
-  const off = registry.setSetting(registry.emptyRegistry(), 'shareSession', false);
-  assert.strictEqual(off.settings.shareSession, false);
-  assert.strictEqual(registry.normalize(off).settings.shareSession, false);
-  assert.throws(() => registry.setSetting(off, 'nope' as 'shareSession', true), /Unknown setting/);
-  assert.throws(() => registry.setSetting(off, 'shareSession', 'on' as unknown as boolean), /expects a boolean/);
-});
-
-test('swappedItems removes only the items it is told to share', () => {
-  const all = ['Local State', 'Network', 'Local Storage', 'Session Storage', 'IndexedDB'];
-  assert.deepStrictEqual(shared.swappedItems(all, ['Local Storage'], true), ['Local State', 'Network', 'Session Storage', 'IndexedDB']);
-  assert.deepStrictEqual(shared.swappedItems(all, ['Local Storage'], false), all);
-  assert.ok(shared.SHARED_CODE_ITEMS.includes('projects'));
-  assert.ok(shared.SHARED_CODE_ITEMS.includes('history.jsonl'));
-});
-
-test('no Claude Desktop store is shared, because they all carry the signed in session', () => {
-  assert.deepStrictEqual([...shared.SHARED_DESKTOP_ITEMS], []);
-  const all: string[] = [...session.DESKTOP_ITEMS];
-  assert.deepStrictEqual(shared.swappedItems(all, shared.SHARED_DESKTOP_ITEMS, true), all);
-  for (const item of ['Local State', 'Preferences', 'Network', 'Local Storage', 'Session Storage', 'WebStorage', 'IndexedDB']) {
-    assert.ok(all.includes(item), item + ' must be swapped per account');
-  }
-});
-
-test('shared capture and apply move the common state without touching the login', () => {
-  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'cd-shared-'));
-  try {
-    const live = path.join(base, 'Claude');
-    const store = path.join(base, 'shared');
-    seedDesktop(live, 'AAA');
-    assert.deepStrictEqual(shared.capture(live, store, ['Local Storage']), ['Local Storage']);
-    seedDesktop(live, 'BBB');
-    assert.deepStrictEqual(shared.apply(store, live, ['Local Storage']), ['Local Storage']);
-    assert.strictEqual(fs.readFileSync(path.join(live, 'Local Storage', 'leveldb.log'), 'utf8'), 'ls-AAA');
-    assert.strictEqual(fs.readFileSync(path.join(live, 'Network', 'Cookies'), 'utf8'), 'BBB');
-    assert.deepStrictEqual(shared.capture(path.join(base, 'missing'), store, ['Local Storage']), []);
-    assert.deepStrictEqual(shared.apply(path.join(base, 'no-store'), live, ['Local Storage']), []);
-  } finally {
-    fs.rmSync(base, { recursive: true, force: true });
-  }
-});
-
 function seedTwoAccounts(h) {
   seedDesktop(h.profileDir, 'SESSION-A');
   accountBlobFile(h.profileDir, 'a@team.com', 'Person A');
@@ -839,107 +514,16 @@ function seedTwoAccounts(h) {
   createSwitcher(h.deps).sync();
 }
 
-test('switching restores the local storage that belongs to the account', () => {
-  const h = switcherHarness();
-  try {
-    seedTwoAccounts(h);
-    fs.writeFileSync(path.join(h.profileDir, 'Local Storage', 'leveldb.log'), 'leftover-from-b');
-
-    const result = createSwitcher(h.deps).switchTo('a-team.com');
-    assert.deepStrictEqual(result.sharedItems, []);
-    assert.strictEqual(fs.readFileSync(path.join(h.profileDir, 'Local Storage', 'leveldb.log'), 'utf8'), 'ls-SESSION-A');
-    assert.strictEqual(fs.readFileSync(path.join(h.profileDir, 'Network', 'Cookies'), 'utf8'), 'SESSION-A');
-    assert.strictEqual(fs.readFileSync(path.join(h.profileDir, 'Local State'), 'utf8'), 'state-SESSION-A');
-    assert.strictEqual(JSON.parse(fs.readFileSync(h.credPath, 'utf8')).claudeAiOauth.accessToken, 'code-A');
-
-    createSwitcher(h.deps).switchTo('b-team.com');
-    assert.strictEqual(fs.readFileSync(path.join(h.profileDir, 'Local Storage', 'leveldb.log'), 'utf8'), 'leftover-from-b');
-    assert.strictEqual(fs.readFileSync(path.join(h.profileDir, 'Network', 'Cookies'), 'utf8'), 'SESSION-B');
-    assert.strictEqual(fs.readFileSync(path.join(h.profileDir, 'Local State'), 'utf8'), 'state-SESSION-B');
-  } finally {
-    fs.rmSync(h.base, { recursive: true, force: true });
-  }
+test('the engine only answers the mod and the auto switch task', async () => {
+  await assert.rejects(runCli([]), /only takes "api <route>" and "auto"/);
+  await assert.rejects(runCli(['list']), /only takes "api <route>" and "auto"/);
+  await assert.rejects(runCli(['web', 'list']), /only takes "api <route>" and "auto"/);
 });
 
-test('turning sharing off gives every account its own history again', () => {
-  const h = switcherHarness();
-  try {
-    createSwitcher(h.deps).setSharing(false);
-    seedTwoAccounts(h);
-    assert.strictEqual(createSwitcher(h.deps).sharingEnabled(), false);
-
-    fs.writeFileSync(path.join(h.profileDir, 'Local Storage', 'leveldb.log'), 'only-for-b');
-    const result = createSwitcher(h.deps).switchTo('a-team.com');
-    assert.deepStrictEqual(result.sharedItems, []);
-    assert.strictEqual(fs.readFileSync(path.join(h.profileDir, 'Local Storage', 'leveldb.log'), 'utf8'), 'ls-SESSION-A');
-  } finally {
-    fs.rmSync(h.base, { recursive: true, force: true });
-  }
-});
-
-test('turning sharing on no longer leaks local storage between accounts', () => {
-  const h = switcherHarness();
-  try {
-    seedTwoAccounts(h);
-    const slotStore = path.join(h.base, 'sessions', 'a-team.com', 'desktop', 'Local Storage');
-    assert.ok(fs.existsSync(slotStore));
-
-    fs.writeFileSync(path.join(h.profileDir, 'Local Storage', 'leveldb.log'), 'leftover-from-b');
-    const result = createSwitcher(h.deps).setSharing(true);
-    assert.strictEqual(result.shareSession, true);
-    assert.deepStrictEqual(result.captured, []);
-    assert.ok(fs.existsSync(slotStore));
-
-    createSwitcher(h.deps).switchTo('a-team.com');
-    assert.strictEqual(fs.readFileSync(path.join(h.profileDir, 'Local Storage', 'leveldb.log'), 'utf8'), 'ls-SESSION-A');
-  } finally {
-    fs.rmSync(h.base, { recursive: true, force: true });
-  }
-});
-
-test('listSessions reports the sharing state and which items stay common', () => {
-  const h = switcherHarness();
-  try {
-    seedDesktop(h.profileDir, 'S');
-    accountBlobFile(h.profileDir, 'a@team.com', 'Person A');
-    fs.writeFileSync(h.credPath, JSON.stringify({ claudeAiOauth: { accessToken: 'c' } }));
-    createSwitcher(h.deps).sync();
-
-    const on = createSwitcher(h.deps).listSessions();
-    assert.strictEqual(on.shareSession, true);
-    assert.strictEqual(on.loginRouting, true, 'the panel learns whether sign in links are routed');
-    assert.deepStrictEqual(on.sharedItems, shared.SHARED_DESKTOP_ITEMS);
-    assert.deepStrictEqual(on.sharedCodeItems, shared.SHARED_CODE_ITEMS);
-
-    createSwitcher(h.deps).setSharing(false);
-    assert.strictEqual(createSwitcher(h.deps).listSessions().shareSession, false);
-  } finally {
-    fs.rmSync(h.base, { recursive: true, force: true });
-  }
-});
-
-test('the bare command shows help and account commands skip the web prefix', () => {
-  assert.deepStrictEqual(routeCommand([]), { kind: 'help', args: [] });
-  assert.deepStrictEqual(routeCommand(['help']), { kind: 'help', args: [] });
-  assert.deepStrictEqual(routeCommand(['-h']), { kind: 'help', args: [] });
-  assert.deepStrictEqual(routeCommand(['menu']), { kind: 'task', args: ['menu'] });
-  assert.deepStrictEqual(routeCommand(['switch', 'work']), { kind: 'web', args: ['switch', 'work'] });
-  assert.deepStrictEqual(routeCommand(['share', 'off']), { kind: 'web', args: ['share', 'off'] });
-  assert.deepStrictEqual(routeCommand(['web', 'list']), { kind: 'web', args: ['list'] });
-  assert.deepStrictEqual(routeCommand(['profiles']), { kind: 'web', args: [] });
-  assert.deepStrictEqual(routeCommand(['run']), { kind: 'task', args: ['run'] });
-  assert.deepStrictEqual(routeCommand(['status']), { kind: 'task', args: ['status'] });
-});
-
-test('every declared bin entry points at a real file', () => {
-  const root = path.join(__dirname, '..');
-  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as { bin: Record<string, string> };
-  assert.deepStrictEqual(Object.keys(pkg.bin).sort(), ['claudedeck']);
-  for (const target of Object.values(pkg.bin)) {
-    const file = path.join(root, target);
-    assert.ok(fs.existsSync(file), target + ' is missing');
-    assert.ok(fs.readFileSync(file, 'utf8').startsWith('#!/usr/bin/env node'), target + ' has no shebang');
-  }
+test('the engine entry the mod runs is a node script', () => {
+  const file = path.join(__dirname, '..', 'bin', 'claudedeck.js');
+  assert.ok(fs.existsSync(file), 'bin/claudedeck.js is missing');
+  assert.ok(fs.readFileSync(file, 'utf8').startsWith('#!/usr/bin/env node'), 'bin/claudedeck.js has no shebang');
 });
 
 test('CLAUDEDECK_HOME moves every ClaudeDeck file out of the roaming folder', () => {

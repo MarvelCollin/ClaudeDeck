@@ -11,12 +11,13 @@ const node_fs_1 = __importDefault(require("node:fs"));
 const node_path_1 = __importDefault(require("node:path"));
 const auto_rank_1 = require("../accounts/auto-rank");
 const auto_switch_1 = require("../accounts/auto-switch");
+const cswap_import_1 = require("../accounts/cswap-import");
 const live_usage_1 = require("../accounts/live-usage");
 const switcher_1 = require("../accounts/switcher");
 const json_1 = require("../core/fs/json");
 const paths_1 = require("../core/paths");
-const service_1 = require("../service/service");
-const usage_command_1 = require("./usage-command");
+const schedule_service_1 = require("../service/schedule-service");
+const live_refresh_1 = require("./live-refresh");
 function aliasOf(body, question) {
     if (typeof body.alias !== 'string' || !body.alias)
         throw new Error(question);
@@ -30,7 +31,7 @@ async function deckState(refresh) {
     const listing = switcher.listSessions();
     const code = switcher.currentCodeIdentity();
     const codeEmail = code?.email.toLowerCase() ?? null;
-    const fresh = refresh ? await (0, usage_command_1.refreshLiveUsage)(listing.sessions, true) : {};
+    const fresh = refresh ? await (0, live_refresh_1.refreshLiveUsage)(listing.sessions, true) : {};
     const live = {};
     for (const entry of listing.sessions) {
         live[entry.alias] = fresh[entry.alias.toLowerCase()] ?? (0, live_usage_1.cachedUsage)(entry.alias);
@@ -43,14 +44,12 @@ async function deckState(refresh) {
         code: code ? { email: code.email, name: code.name, alias: ranked.find(entry => entry.active)?.alias ?? null } : null,
         desktop: listing.current ? { email: listing.current.email, name: listing.current.name } : null,
         desktopRunning: listing.running,
-        shareSession: listing.shareSession,
         sessions: listing.sessions.map(entry => ({
             alias: entry.alias,
             email: entry.email,
             name: entry.name,
             desktopActive: entry.active,
             desktopCaptured: entry.desktopCaptured,
-            windowOpen: entry.instance.running,
             desktopUsage: entry.usage,
         })),
         live,
@@ -81,17 +80,17 @@ async function runApi(route, body = {}) {
         case 'state':
             return deckState(body.refresh === true);
         case 'schedule':
-            return (0, service_1.createService)().scheduleState();
+            return (0, schedule_service_1.createScheduleService)().scheduleState();
         case 'schedule/save':
-            return (0, service_1.createService)().saveSchedule(body);
+            return (0, schedule_service_1.createScheduleService)().saveSchedule(body);
         case 'schedule/start':
-            return (0, service_1.createService)().startBackground();
+            return (0, schedule_service_1.createScheduleService)().startBackground();
         case 'schedule/stop':
-            return (0, service_1.createService)().stopBackground();
+            return (0, schedule_service_1.createScheduleService)().stopBackground();
         case 'schedule/run':
-            return (0, service_1.createService)().runNow();
+            return (0, schedule_service_1.createScheduleService)().runNow();
         case 'schedule/log':
-            return (0, service_1.createService)().readLog(typeof body.limit === 'number' ? body.limit : 200);
+            return (0, schedule_service_1.createScheduleService)().readLog(typeof body.limit === 'number' ? body.limit : 200);
         case 'accounts/save':
             return (0, switcher_1.createSwitcher)().sync({
                 install: typeof body.install === 'string' ? body.install : undefined,
@@ -103,14 +102,8 @@ async function runApi(route, body = {}) {
                 : (0, switcher_1.createSwitcher)().switchTo(aliasOf(body, 'Which account should I switch to?'));
         case 'accounts/forget':
             return (0, switcher_1.createSwitcher)().forget(aliasOf(body, 'Which account should I forget?'));
-        case 'accounts/open':
-            return (0, switcher_1.createSwitcher)().openAccount(aliasOf(body, 'Which account should I open?'), { fresh: body.fresh === true });
-        case 'accounts/close':
-            return (0, switcher_1.createSwitcher)().closeAccount(aliasOf(body, 'Which account should I close?'));
-        case 'accounts/sharing':
-            if (typeof body.enabled !== 'boolean')
-                throw new Error('Should shared history be on or off?');
-            return (0, switcher_1.createSwitcher)().setSharing(body.enabled);
+        case 'accounts/import':
+            return (0, cswap_import_1.importEnvelope)((0, cswap_import_1.exportFromCswap)());
         case 'auto/next':
             return (0, auto_switch_1.setPreferredNext)(typeof body.alias === 'string' && body.alias ? body.alias : null, knownAliases());
         case 'auto/hold':
@@ -144,7 +137,7 @@ function readStdin() {
     }
 }
 async function runApiCommand(argv) {
-    const [, route = 'state', raw] = argv;
+    const [route = 'state', raw] = argv;
     try {
         const text = raw === '-' ? readStdin() : raw ?? '';
         const body = text.trim() ? JSON.parse(text) : {};

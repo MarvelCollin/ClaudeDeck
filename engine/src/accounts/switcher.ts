@@ -1,27 +1,20 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { handlerStatus } from './deeplink';
 import { launch, launchArgs, locateApp } from './desktop-app';
 import { readCodeAccount, readDesktopAccountUuid, readIdentity } from './identity';
-import { createInstances } from './instances';
 import { accountFileName, CODE_INSTALL, claudeInstalls, installFileName, PRIMARY_INSTALL_LABEL } from './installs';
 import {
   IAccountIdentity,
-  IAccountInstance,
-  IAccountUsage,
   IAutoSyncResult,
   IClaudeInstall,
   ICodeSwitchOptions,
   ICodeSwitchResult,
   IInstallState,
-  IOpenOptions,
-  IOpenResult,
   IRegistry,
   IRestoreResult,
   ISaveResult,
   ISavedSession,
   ISessionListing,
-  ISharingResult,
   ISwitchOptions,
   ISwitchResult,
   ISwitcher,
@@ -32,18 +25,15 @@ import {
 import {
   codeAccountPath,
   codeCredentialsPath,
-  DEFAULT_ALIAS,
   deriveAlias,
   desktopConfigPath,
   desktopProfileDir,
   sessionSlot,
-  sharedRoot,
 } from './paths';
-import { groupProcesses, killPids, listClaudeProcesses } from './processes';
+import { killPids, listClaudeProcesses } from './processes';
 import * as usage from './usage';
 import * as registry from './registry';
 import * as session from './session-store';
-import * as shared from './shared-store';
 
 export const DESKTOP_SUBDIR = 'desktop';
 export const CODE_FILE = 'code.json';
@@ -59,7 +49,6 @@ function defaultDeps(): ISwitcherDeps {
     credPath: codeCredentialsPath(),
     accountPath: codeAccountPath(),
     installs: claudeInstalls(),
-    sharedDir: sharedRoot(),
     slotOf: alias => sessionSlot(alias),
     registryFile: undefined,
     readIdentity,
@@ -67,7 +56,6 @@ function defaultDeps(): ISwitcherDeps {
     kill: killPids,
     launch,
     locate: locateApp,
-    loginRouting: () => handlerStatus().installed,
     now: () => new Date(),
   };
 }
@@ -75,7 +63,6 @@ function defaultDeps(): ISwitcherDeps {
 export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitcher {
   const deps: ISwitcherDeps = { ...defaultDeps(), ...overrides };
 
-  const instances = createInstances(deps.instances);
   const readRegistry = (): IRegistry => registry.read(deps.registryFile);
   const writeRegistry = (data: IRegistry): IRegistry => registry.write(data, deps.registryFile);
   const lookupSavedAccount = (uuid: string) => registry.sessionByUuid(readRegistry(), uuid);
@@ -122,20 +109,8 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
   }
 
   function desktopRunning(): number[] {
-    const profiles = [{ alias: DEFAULT_ALIAS, dir: deps.profileDir }];
-    return groupProcesses(deps.listProcesses(), profiles, deps.profileDir).get(DEFAULT_ALIAS) ?? [];
+    return deps.listProcesses().map(entry => entry.pid);
   }
-
-  function sharingEnabledIn(data: IRegistry): boolean {
-    return registry.settingsOf(data).shareSession;
-  }
-
-  function swappedDesktopItemsIn(data: IRegistry): string[] {
-    return shared.swappedItems(session.DESKTOP_ITEMS, shared.SHARED_DESKTOP_ITEMS, sharingEnabledIn(data));
-  }
-
-  const captureShared = (): string[] => shared.capture(deps.profileDir, deps.sharedDir);
-  const applyShared = (): string[] => shared.apply(deps.sharedDir, deps.profileDir);
 
   function emailOfAlias(alias: string, data: IRegistry): string | null {
     return registry.findSession(data, alias)?.email ?? null;
@@ -158,10 +133,10 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
     };
   }
 
-  function saveDesktopInto(alias: string, data: IRegistry): { desktopItems: string[]; configSaved: boolean } {
+  function saveDesktopInto(alias: string): { desktopItems: string[]; configSaved: boolean } {
     const slot = deps.slotOf(alias);
     return {
-      desktopItems: session.snapshotDesktop(deps.profileDir, path.join(slot, DESKTOP_SUBDIR), swappedDesktopItemsIn(data)),
+      desktopItems: session.snapshotDesktop(deps.profileDir, path.join(slot, DESKTOP_SUBDIR)),
       configSaved: session.snapshotConfig(desktopConfigPath(deps.profileDir), path.join(slot, CONFIG_FILE)),
     };
   }
@@ -172,7 +147,7 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
     install: IClaudeInstall = installFor(CODE_INSTALL),
     email: string | null = null
   ): ISaveResult {
-    const desktop = saveDesktopInto(alias, data);
+    const desktop = saveDesktopInto(alias);
     const code = saveCodeInto(alias, data, install, email);
     return {
       desktopItems: desktop.desktopItems,
@@ -205,14 +180,6 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
 
   function relaunchDesktop(): void {
     deps.launch(deps.locate(), launchArgs(deps.profileDir, true));
-  }
-
-  function setSharing(enabled: boolean): ISharingResult {
-    writeRegistry(registry.setSetting(readRegistry(), 'shareSession', Boolean(enabled)));
-    if (!enabled) return { shareSession: false, captured: [], pruned: [] };
-    const captured = captureShared();
-    const slots = (readRegistry().sessions ?? []).map(entry => path.join(deps.slotOf(entry.alias), DESKTOP_SUBDIR));
-    return { shareSession: true, captured, pruned: shared.clearFromSlots(slots) };
   }
 
   function syncCode(install: IClaudeInstall): ISyncResult {
@@ -254,7 +221,6 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
     const data = readRegistry();
     const stopped = options.stop === false ? 0 : stopDesktop();
     saveInto(alias, data, install, identity.email);
-    if (sharingEnabledIn(data)) captureShared();
     writeRegistry(
       registry.saveSession(
         data,
@@ -334,31 +300,18 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
     const activeAlias = (data.sessions ?? []).find(isActive)?.alias ?? null;
     data = rememberActiveOrg(data, activeAlias, liveOrg);
 
-    const sessionList = data.sessions ?? [];
-    const byAlias = new Map<string, IAccountInstance>(
-      instances.describe(sessionList).map(entry => [entry.alias, entry])
-    );
-
     return {
       running: desktopRunning().length > 0,
       current: identity,
       accountUuid: activeUuid,
       unknownAccount: Boolean(activeUuid && !identity),
-      shareSession: sharingEnabledIn(data),
-      loginRouting: deps.loginRouting(),
-      sharedItems: shared.SHARED_DESKTOP_ITEMS,
-      sharedCodeItems: shared.SHARED_CODE_ITEMS,
       installs: installStates(data),
-      sessions: sessionList.map(entry => {
-        const instance = byAlias.get(entry.alias) as IAccountInstance;
-        return {
-          ...entry,
-          active: isActive(entry),
-          desktopCaptured: desktopCaptured(entry.alias),
-          usage: instance.usage ?? usage.usageFor(samples, entry.orgUuid),
-          instance,
-        };
-      }),
+      sessions: (data.sessions ?? []).map(entry => ({
+        ...entry,
+        active: isActive(entry),
+        desktopCaptured: desktopCaptured(entry.alias),
+        usage: usage.usageFor(samples, entry.orgUuid),
+      })),
     };
   }
 
@@ -370,7 +323,7 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
       .filter(id => session.restoreCode(path.join(slot, installFileName(id)), installFor(id).credPath));
     for (const id of restoredInstalls) restoreAccountFor(slot, installFor(id), target);
     return {
-      desktopItems: session.restoreDesktop(path.join(slot, DESKTOP_SUBDIR), deps.profileDir, swappedDesktopItemsIn(data)),
+      desktopItems: session.restoreDesktop(path.join(slot, DESKTOP_SUBDIR), deps.profileDir),
       codeRestored: restoredInstalls.length > 0,
       configRestored: session.restoreConfig(path.join(slot, CONFIG_FILE), desktopConfigPath(deps.profileDir)),
     };
@@ -391,14 +344,13 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
 
     const identity = currentIdentity();
     const stopped = stopDesktop();
-    const sharing = sharingEnabledIn(data);
 
     const codeIdentity = currentCodeIdentity();
     const splitLogins = Boolean(codeIdentity && identity && !sameEmail(codeIdentity.email, identity.email));
     if (options.snapshotCurrent !== false && splitLogins) {
       const desktopKnown =
         identity && !sameEmail(identity.email, target.email) ? registry.sessionByEmail(data, identity.email) : null;
-      if (desktopKnown) saveDesktopInto(desktopKnown.alias, data);
+      if (desktopKnown) saveDesktopInto(desktopKnown.alias);
       const codeKnown =
         codeIdentity && !sameEmail(codeIdentity.email, target.email) ? registry.sessionByEmail(data, codeIdentity.email) : null;
       if (codeKnown) saveCodeInto(codeKnown.alias, data, installFor(CODE_INSTALL), codeKnown.email);
@@ -414,14 +366,12 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
       }
     }
 
-    if (sharing) captureShared();
     const restored = restoreFrom(alias, data, target);
-    const sharedItems = sharing ? applyShared() : [];
 
     const relaunched = options.relaunch !== false;
     if (relaunched) relaunchDesktop();
 
-    return { alias: target.alias, email: target.email, name: target.name, stopped, relaunched, sharedItems, ...restored };
+    return { alias: target.alias, email: target.email, name: target.name, stopped, relaunched, ...restored };
   }
 
   function switchCode(alias: string, options: ICodeSwitchOptions = {}): ICodeSwitchResult {
@@ -456,29 +406,12 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
     return { alias };
   }
 
-  function openAccount(alias: string, options: IOpenOptions = {}): IOpenResult {
-    const data = readRegistry();
-    if (!registry.findSession(data, alias)) throw new Error(`No saved session for "${alias}".`);
-    const result = instances.open(alias, data.sessions ?? [], options);
-    writeRegistry(registry.touch(data, alias));
-    return result;
-  }
-
-  function closeAccount(alias: string): { alias: string; stopped: number } {
-    return instances.stop(alias, readRegistry().sessions ?? []);
-  }
-
   return {
     autoSyncCode,
     currentAccountUuid,
     currentIdentity,
-    closeAccount,
-    openAccount,
     forget,
     listSessions,
-    setSharing,
-    sharingEnabled: () => sharingEnabledIn(readRegistry()),
-    swappedDesktopItems: () => swappedDesktopItemsIn(readRegistry()),
     switchTo,
     switchCode,
     currentCodeIdentity,

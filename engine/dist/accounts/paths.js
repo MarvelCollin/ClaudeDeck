@@ -3,16 +3,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.DEFAULT_ALIAS = void 0;
 exports.roamingDir = roamingDir;
 exports.localDir = localDir;
 exports.packagedProfileDirs = packagedProfileDirs;
 exports.desktopProfileDir = desktopProfileDir;
-exports.profilesRoot = profilesRoot;
 exports.registryPath = registryPath;
 exports.sessionsRoot = sessionsRoot;
-exports.sharedRoot = sharedRoot;
-exports.deeplinkStatePath = deeplinkStatePath;
 exports.liveUsagePath = liveUsagePath;
 exports.autoStatePath = autoStatePath;
 exports.sessionSlot = sessionSlot;
@@ -22,16 +18,13 @@ exports.codeAccountPath = codeAccountPath;
 exports.codeInsidersCredentialsPath = codeInsidersCredentialsPath;
 exports.codeInsidersAccountPath = codeInsidersAccountPath;
 exports.desktopConfigPath = desktopConfigPath;
-exports.isDefaultAlias = isDefaultAlias;
 exports.isValidAlias = isValidAlias;
 exports.assertValidAlias = assertValidAlias;
 exports.deriveAlias = deriveAlias;
-exports.profilePath = profilePath;
 const node_fs_1 = __importDefault(require("node:fs"));
 const node_os_1 = __importDefault(require("node:os"));
 const node_path_1 = __importDefault(require("node:path"));
 const paths_1 = require("../core/paths");
-exports.DEFAULT_ALIAS = 'default';
 const ALIAS_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,31}$/;
 const PACKAGED_FAMILY_PREFIX = 'Claude_';
 const PACKAGED_PROFILE_PARTS = ['LocalCache', 'Roaming', 'Claude'];
@@ -76,20 +69,11 @@ function deckDir(platform, env, ...parts) {
         return node_path_1.default.join(home, ...parts);
     return node_path_1.default.join(roamingDir(platform, env), 'ClaudeDeck', ...parts);
 }
-function profilesRoot(platform = process.platform, env = process.env) {
-    return deckDir(platform, env, 'profiles');
-}
 function registryPath(platform = process.platform, env = process.env) {
     return deckDir(platform, env, 'profiles.json');
 }
 function sessionsRoot(platform = process.platform, env = process.env) {
     return deckDir(platform, env, 'sessions');
-}
-function sharedRoot(platform = process.platform, env = process.env) {
-    return deckDir(platform, env, 'shared');
-}
-function deeplinkStatePath(platform = process.platform, env = process.env) {
-    return deckDir(platform, env, 'deeplink.json');
 }
 function liveUsagePath(platform = process.platform, env = process.env) {
     return deckDir(platform, env, 'usage-live.json');
@@ -119,9 +103,6 @@ function codeInsidersAccountPath(env = process.env) {
 function desktopConfigPath(profileDir) {
     return node_path_1.default.join(profileDir, 'config.json');
 }
-function isDefaultAlias(alias) {
-    return String(alias).toLowerCase() === exports.DEFAULT_ALIAS;
-}
 function isValidAlias(alias) {
     return typeof alias === 'string' && ALIAS_PATTERN.test(alias);
 }
@@ -144,10 +125,4 @@ function deriveAlias(label) {
     if (!alias)
         throw new Error(`Cannot build a folder name from "${label}". Use letters or digits.`);
     return alias;
-}
-function profilePath(alias, platform = process.platform, env = process.env) {
-    if (isDefaultAlias(alias))
-        return desktopProfileDir(platform, env);
-    assertValidAlias(alias);
-    return node_path_1.default.join(profilesRoot(platform, env), alias);
 }

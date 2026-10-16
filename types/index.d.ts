@@ -32,7 +32,6 @@ export type Session = {
   name: string
   desktopActive: boolean
   desktopCaptured: boolean
-  windowOpen: boolean
 }
 
 export type Decision = { at: string; action: 'stay' | 'switch'; target: string | null; reason: string }
@@ -51,7 +50,6 @@ export type DeckState = {
   code: { email: string; name: string; alias: string | null } | null
   desktop: { email: string; name: string } | null
   desktopRunning: boolean
-  shareSession: boolean
   sessions: Session[]
   live: Record<string, Live | null>
   ranked: Ranked[]

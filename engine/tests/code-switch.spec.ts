@@ -20,7 +20,6 @@ function harness() {
     profileDir,
     credPath,
     accountPath,
-    sharedDir: path.join(base, 'shared'),
     slotOf,
     registryFile,
     installs: [],
@@ -32,8 +31,6 @@ function harness() {
       return 1;
     },
     locate: () => 'C:/Claude.exe',
-    loginRouting: () => false,
-    instances: { remember: () => undefined, routeLogins: () => false },
     now: () => new Date('2026-10-16T00:00:00Z'),
   };
   const write = (file: string, value: unknown) => {

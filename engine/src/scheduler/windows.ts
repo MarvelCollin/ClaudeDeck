@@ -1,17 +1,16 @@
-import { runCapture, runInherited, succeeds } from '../core/exec';
-import { nextRunTime, scheduleSummary } from '../core/config/schedule';
+import { runCapture, succeeds } from '../core/exec';
 import { IConfigContext, IScheduler, ISchedulerSummary } from '../core/interfaces';
 import { logCounts } from '../core/logging/run-log';
 import { fromPackageRoot } from '../core/paths';
 
-const NOT_INSTALLED = 'Task is not installed.';
+const NOT_INSTALLED = 'Background task is not installed yet.';
 
 function exists(context: IConfigContext): boolean {
   return succeeds('schtasks.exe', ['/Query', '/TN', context.config.taskName]);
 }
 
 function install(context: IConfigContext): void {
-  runInherited('powershell.exe', [
+  runCapture('powershell.exe', [
     '-NoProfile',
     '-ExecutionPolicy',
     'Bypass',
@@ -56,34 +55,9 @@ function summary(context: IConfigContext): ISchedulerSummary {
   };
 }
 
-function status(context: IConfigContext): void {
-  const info = summary(context);
-  if (!info.installed) {
-    console.log(NOT_INSTALLED);
-    return;
-  }
-  console.log('');
-  console.log('Installed: Yes');
-  console.log(`Enabled: ${info.enabled}`);
-  console.log(`Current state: ${info.state}`);
-  console.log(`Last run: ${info.lastRun}`);
-  console.log(`Next run: ${info.nextRun}`);
-  console.log(`Config next run: ${nextRunTime(context.config)}`);
-  console.log(`Configured schedule: ${scheduleSummary(context.config)}`);
-  console.log(`Last result: ${info.lastResult}`);
-  console.log(`Run count: ${info.counts.runs}`);
-  console.log(`Success count: ${info.counts.success}`);
-  console.log(`Failed count: ${info.counts.failed}`);
-  console.log(`Incomplete count: ${info.counts.incomplete}`);
-  console.log(`Log: ${context.logPath}`);
-}
-
 function invokeWhenInstalled(context: IConfigContext, args: string[]): void {
-  if (!exists(context)) {
-    console.log(NOT_INSTALLED);
-    return;
-  }
-  runInherited('schtasks.exe', args);
+  if (!exists(context)) throw new Error(NOT_INSTALLED);
+  runCapture('schtasks.exe', args);
 }
 
 export const windowsScheduler: IScheduler = {
@@ -91,11 +65,8 @@ export const windowsScheduler: IScheduler = {
   exists,
   install,
   summary,
-  status,
   runNow: context => invokeWhenInstalled(context, ['/Run', '/TN', context.config.taskName]),
   stop: context => invokeWhenInstalled(context, ['/End', '/TN', context.config.taskName]),
   disable: context => invokeWhenInstalled(context, ['/Change', '/TN', context.config.taskName, '/DISABLE']),
   enable: context => invokeWhenInstalled(context, ['/Change', '/TN', context.config.taskName, '/ENABLE']),
-  deleteTask: context => invokeWhenInstalled(context, ['/Delete', '/TN', context.config.taskName, '/F']),
-  openLog: context => runInherited('notepad.exe', [context.logPath]),
 };

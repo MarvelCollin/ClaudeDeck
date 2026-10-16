@@ -8,7 +8,6 @@ exports.darwinCandidates = darwinCandidates;
 exports.locateApp = locateApp;
 exports.launchArgs = launchArgs;
 exports.launch = launch;
-exports.openUrl = openUrl;
 const node_fs_1 = __importDefault(require("node:fs"));
 const node_os_1 = __importDefault(require("node:os"));
 const node_path_1 = __importDefault(require("node:path"));
@@ -63,11 +62,4 @@ function launchArgs(profileDir, isDefault = false) {
 }
 function launch(exe, args) {
     return (0, exec_1.spawnDetached)(exe, args);
-}
-function openUrl(url, platform = process.platform) {
-    if (platform === 'win32') {
-        (0, exec_1.spawnDetached)('cmd.exe', ['/c', 'start', '', url]);
-        return;
-    }
-    (0, exec_1.spawnDetached)(platform === 'darwin' ? 'open' : 'xdg-open', [url]);
 }

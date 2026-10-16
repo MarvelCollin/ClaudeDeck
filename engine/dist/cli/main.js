@@ -1,23 +1,15 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.ENGINE_USAGE = void 0;
 exports.runCli = runCli;
-const loader_1 = require("../core/config/loader");
-const scheduler_1 = require("../scheduler");
-const accounts_command_1 = require("./accounts-command");
-const help_1 = require("./help");
-const task_actions_1 = require("./task-actions");
-const router_1 = require("./router");
+const api_command_1 = require("./api-command");
+const auto_loop_1 = require("./auto-loop");
+exports.ENGINE_USAGE = 'ClaudeDeck runs from its Claude mod. The engine only takes "api <route>" and "auto".';
 async function runCli(argv = process.argv.slice(2)) {
-    const route = (0, router_1.routeCommand)(argv);
-    if (route.kind === 'help') {
-        console.log(help_1.HELP);
-        return;
-    }
-    if (route.kind === 'web')
-        return (0, accounts_command_1.runAccountsCommand)(route.args);
-    const context = (0, loader_1.loadConfig)();
-    const scheduler = (0, scheduler_1.selectScheduler)();
-    const actions = (0, task_actions_1.createActions)(context, scheduler);
-    actions.syncInstalledTask();
-    return actions.execute(route.args[0]);
+    const [command, ...rest] = argv;
+    if (command === 'api')
+        return (0, api_command_1.runApiCommand)(rest);
+    if (command === 'auto')
+        return (0, auto_loop_1.runAutoLoop)();
+    throw new Error(exports.ENGINE_USAGE);
 }

@@ -55,11 +55,3 @@ export function launchArgs(profileDir: string, isDefault = false): string[] {
 export function launch(exe: string, args: string[]): number | undefined {
   return spawnDetached(exe, args);
 }
-
-export function openUrl(url: string, platform: NodeJS.Platform = process.platform): void {
-  if (platform === 'win32') {
-    spawnDetached('cmd.exe', ['/c', 'start', '', url]);
-    return;
-  }
-  spawnDetached(platform === 'darwin' ? 'open' : 'xdg-open', [url]);
-}

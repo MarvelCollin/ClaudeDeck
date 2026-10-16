@@ -34,7 +34,6 @@ function switcherHarness() {
     profileDir,
     credPath: path.join(base, '.credentials.json'),
     accountPath: path.join(base, '.claude.json'),
-    sharedDir: path.join(base, 'shared'),
     slotOf: alias => path.join(base, 'sessions', alias),
     registryFile: path.join(base, 'profiles.json'),
     installs: [],

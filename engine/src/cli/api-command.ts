@@ -11,14 +11,15 @@ import {
   setPreferredNext,
   updateAutoState,
 } from '../accounts/auto-switch';
+import { exportFromCswap, importEnvelope } from '../accounts/cswap-import';
 import { ILiveUsage } from '../accounts/interfaces';
 import { cachedUsage } from '../accounts/live-usage';
 import { createSwitcher } from '../accounts/switcher';
 import { errorMessage } from '../core/fs/json';
 import { userDataDir } from '../core/paths';
 import { IScheduleDraft } from '../service/interfaces';
-import { createService } from '../service/service';
-import { refreshLiveUsage } from './usage-command';
+import { createScheduleService } from '../service/schedule-service';
+import { refreshLiveUsage } from './live-refresh';
 
 type Body = Record<string, unknown>;
 
@@ -54,14 +55,12 @@ export async function deckState(refresh: boolean) {
     code: code ? { email: code.email, name: code.name, alias: ranked.find(entry => entry.active)?.alias ?? null } : null,
     desktop: listing.current ? { email: listing.current.email, name: listing.current.name } : null,
     desktopRunning: listing.running,
-    shareSession: listing.shareSession,
     sessions: listing.sessions.map(entry => ({
       alias: entry.alias,
       email: entry.email,
       name: entry.name,
       desktopActive: entry.active,
       desktopCaptured: entry.desktopCaptured,
-      windowOpen: entry.instance.running,
       desktopUsage: entry.usage,
     })),
     live,
@@ -94,17 +93,17 @@ export async function runApi(route: string, body: Body = {}): Promise<unknown> {
     case 'state':
       return deckState(body.refresh === true);
     case 'schedule':
-      return createService().scheduleState();
+      return createScheduleService().scheduleState();
     case 'schedule/save':
-      return createService().saveSchedule(body as IScheduleDraft);
+      return createScheduleService().saveSchedule(body as IScheduleDraft);
     case 'schedule/start':
-      return createService().startBackground();
+      return createScheduleService().startBackground();
     case 'schedule/stop':
-      return createService().stopBackground();
+      return createScheduleService().stopBackground();
     case 'schedule/run':
-      return createService().runNow();
+      return createScheduleService().runNow();
     case 'schedule/log':
-      return createService().readLog(typeof body.limit === 'number' ? body.limit : 200);
+      return createScheduleService().readLog(typeof body.limit === 'number' ? body.limit : 200);
     case 'accounts/save':
       return createSwitcher().sync({
         install: typeof body.install === 'string' ? body.install : undefined,
@@ -116,13 +115,8 @@ export async function runApi(route: string, body: Body = {}): Promise<unknown> {
         : createSwitcher().switchTo(aliasOf(body, 'Which account should I switch to?'));
     case 'accounts/forget':
       return createSwitcher().forget(aliasOf(body, 'Which account should I forget?'));
-    case 'accounts/open':
-      return createSwitcher().openAccount(aliasOf(body, 'Which account should I open?'), { fresh: body.fresh === true });
-    case 'accounts/close':
-      return createSwitcher().closeAccount(aliasOf(body, 'Which account should I close?'));
-    case 'accounts/sharing':
-      if (typeof body.enabled !== 'boolean') throw new Error('Should shared history be on or off?');
-      return createSwitcher().setSharing(body.enabled);
+    case 'accounts/import':
+      return importEnvelope(exportFromCswap());
     case 'auto/next':
       return setPreferredNext(typeof body.alias === 'string' && body.alias ? body.alias : null, knownAliases());
     case 'auto/hold':
@@ -159,7 +153,7 @@ function readStdin(): string {
 }
 
 export async function runApiCommand(argv: string[]): Promise<void> {
-  const [, route = 'state', raw] = argv;
+  const [route = 'state', raw] = argv;
   try {
     const text = raw === '-' ? readStdin() : raw ?? '';
     const body = text.trim() ? (JSON.parse(text) as Body) : {};
