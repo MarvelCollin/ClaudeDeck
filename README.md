@@ -271,6 +271,23 @@ For accounts that share the single swapped profile, samples are tagged by organi
 
 Claude Desktop only writes a sample while it is running, so the numbers stop moving once it is closed.
 
+### Live usage with reset times
+
+The Desktop history above has no reset times and goes stale for accounts you are not signed in to. `usage` asks Anthropic directly for every saved account, using the Claude Code login saved with it:
+
+```bash
+claudedeck usage
+claudedeck usage refresh
+claudedeck list --json --refresh
+```
+
+```text
+* kolin    5h 41% left, resets in 1h 36m  week 67% left, resets in 4d 4h
+  kowlin   5h 100% left  week 52% left, resets in 6h 40m
+```
+
+Each account is checked at most once a minute and the answers are kept in `usage-live.json` beside the registry. The account Claude Code is signed in to is read with its live token and never refreshed, because Claude Code owns that token. An idle account whose token has expired is refreshed and the rotated token is saved back to its slot. A login the server rejects shows as needing a new sign in.
+
 ## What is shared and what is swapped
 
 Switching swaps the login, not your work.

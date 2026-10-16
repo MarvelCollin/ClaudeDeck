@@ -65,6 +65,14 @@ export function deeplinkStatePath(platform: NodeJS.Platform = process.platform, 
   return deckDir(platform, env, 'deeplink.json');
 }
 
+export function liveUsagePath(platform: NodeJS.Platform = process.platform, env = process.env): string {
+  return deckDir(platform, env, 'usage-live.json');
+}
+
+export function autoStatePath(platform: NodeJS.Platform = process.platform, env = process.env): string {
+  return deckDir(platform, env, 'auto.json');
+}
+
 export function sessionSlot(alias: string, platform: NodeJS.Platform = process.platform, env = process.env): string {
   assertValidAlias(alias);
   return path.join(sessionsRoot(platform, env), alias);

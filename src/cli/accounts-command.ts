@@ -12,12 +12,15 @@ import {
 } from '../accounts/deeplink';
 import { openUrl } from '../accounts/desktop-app';
 import { startServer } from '../web/server';
+import { listJson, runUsageCommand } from './usage-command';
 
 export const USAGE = [
   'Usage: claudedeck web [command]',
   '',
   '  (no command)       open the control panel in your browser',
   '  list               show every saved account and which one is active',
+  '  list --json        the same as JSON, add --refresh to fetch live usage first',
+  '  usage [refresh]    live 5h and weekly usage with reset times for every account',
   '  save               save the account you are signed into now',
   '  open <alias>       open a second Claude Desktop window on that account',
   '  open <alias> fresh wipe that profile first and open a plain sign in screen',
@@ -148,7 +151,15 @@ export async function runAccountsCommand(argv: string[] = []): Promise<void> {
   if (!command) return openUi();
 
   if (command === 'list') {
+    if (argv.includes('--json')) {
+      console.log(await listJson(argv.includes('--refresh')));
+      return;
+    }
     printList();
+    return;
+  }
+  if (command === 'usage') {
+    await runUsageCommand(first === 'refresh');
     return;
   }
   if (command === 'save' || command === 'sync') {
