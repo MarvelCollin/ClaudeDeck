@@ -1037,3 +1037,13 @@ test('every declared bin entry points at a real file', () => {
     assert.ok(fs.readFileSync(file, 'utf8').startsWith('#!/usr/bin/env node'), target + ' has no shebang');
   }
 });
+
+test('CLAUDEDECK_HOME moves every ClaudeDeck file out of the roaming folder', () => {
+  const home = path.join(os.tmpdir(), 'cd-home', '.claudedeck');
+  const moved = { ...env, CLAUDEDECK_HOME: home };
+  assert.strictEqual(paths.registryPath('win32', moved), path.join(home, 'profiles.json'));
+  assert.strictEqual(paths.sessionSlot('work', 'win32', moved), path.join(home, 'sessions', 'work'));
+  assert.strictEqual(paths.liveUsagePath('win32', moved), path.join(home, 'usage-live.json'));
+  assert.strictEqual(appPaths.userDataDir('win32', moved), path.resolve(home));
+  assert.strictEqual(paths.registryPath('win32', env), path.join(env.APPDATA, 'ClaudeDeck', 'profiles.json'));
+});

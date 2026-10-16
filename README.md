@@ -78,6 +78,12 @@ macOS:
 ~/Library/Application Support/ClaudeDeck/claudedeck.config.json
 ```
 
+Set `CLAUDEDECK_HOME` to keep every ClaudeDeck file somewhere else. On Windows with the Store build of Claude Desktop this matters: anything started from inside Claude Desktop, such as the ClaudeDeck mod or a Claude Code shell, has its writes to `%APPDATA%` redirected into the app's package folder, so it would see a different ClaudeDeck than your terminal. A folder outside `AppData` avoids that:
+
+```bash
+setx CLAUDEDECK_HOME %USERPROFILE%\.claudedeck
+```
+
 Use `Configure Schedule` in the menu for the easiest setup. It opens the real JSON config file; save and close the editor, then choose whether to apply the updated background schedule.
 
 You can also edit the config file manually.

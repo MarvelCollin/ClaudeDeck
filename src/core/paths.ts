@@ -10,7 +10,10 @@ function roamingBase(env: NodeJS.ProcessEnv): string {
   return env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
 }
 
+export const HOME_ENV = 'CLAUDEDECK_HOME';
+
 export function userDataDir(platform: NodeJS.Platform = process.platform, env = process.env): string {
+  if (env[HOME_ENV]) return path.resolve(env[HOME_ENV] as string);
   if (platform === 'win32') return path.join(roamingBase(env), 'ClaudeDeck');
   if (platform === 'darwin') return path.join(os.homedir(), 'Library', 'Application Support', 'ClaudeDeck');
   return path.join(os.homedir(), '.config', 'claudedeck');

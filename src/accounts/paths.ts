@@ -42,6 +42,7 @@ export function desktopProfileDir(platform: NodeJS.Platform = process.platform, 
 }
 
 function deckDir(platform: NodeJS.Platform, env: NodeJS.ProcessEnv, ...parts: string[]): string {
+  if (env.CLAUDEDECK_HOME) return path.join(path.resolve(env.CLAUDEDECK_HOME), ...parts);
   return path.join(roamingDir(platform, env), 'ClaudeDeck', ...parts);
 }
 
