@@ -15,6 +15,7 @@ import {
   sortForPane,
   stripSvg,
   stripText,
+  paneWidth,
   until,
 } from './view'
 
@@ -141,7 +142,7 @@ async function relogin($: $, entry: Ranked) {
 
 async function openPane($: $) {
   await update($, paneOpenA, () => true)
-  return $.ui.open({ id: PANE, title: 'ClaudeDeck', columns: 46 })
+  return $.ui.open({ id: PANE, title: 'ClaudeDeck', columns: 84 })
 }
 
 async function closePane($: $) {
@@ -252,7 +253,6 @@ export const register: Register = on => {
     const els = $.ui.resolve(e)
     const { Box, Button, Text, Code } = els
     const Input = 'Input' in els ? els.Input : undefined
-    const Select = 'Select' in els ? els.Select : undefined
     const Svg = e.surface !== 'terminal' && 'Svg' in els ? els.Svg : undefined
     const deck = await read($, deckA)
     const tab = await read($, tabA)
@@ -428,13 +428,14 @@ export const register: Register = on => {
     const nowMs = Date.parse(deck.now)
     const nameOf = (alias: string | null) => displayName(deck, alias)
     const preferred = deck.auto.preferredNext?.toLowerCase() ?? null
+    const width = paneWidth(e.props.bodyColumns)
 
     return (
       <Box flexDirection="column" gap={1}>
         {tabs}
         {notice}
         {Svg ? (
-          <Svg source={headerSvg(deck, nameOf)} alt={headerAlt(deck, nameOf)} />
+          <Svg source={headerSvg(deck, nameOf, width)} alt={headerAlt(deck, nameOf)} />
         ) : (
           <Text weight="semibold">{headerAlt(deck, nameOf)}</Text>
         )}
@@ -449,20 +450,10 @@ export const register: Register = on => {
             session?.desktopActive ? 'Desktop' : '',
             !entry.active && entry.alias === deck.next ? (isPick ? 'Next, your pick' : 'Next') : '',
             !entry.active && isPick && entry.alias !== deck.next ? 'Your pick' : '',
-            session?.windowOpen ? 'Window open' : '',
           ].filter(Boolean)
           const pendingForget = confirm === `forget:${entry.alias}`
-          const moreOptions = [
-            session?.windowOpen ? { value: 'close', label: 'Close its Desktop window' } : { value: 'open', label: 'Open in its own Desktop window' },
-            ...(session?.desktopActive ? [] : [{ value: 'desktop', label: 'Switch Desktop too (restarts Desktop)' }]),
-            { value: 'forget', label: 'Forget this account' },
-          ]
-          const onMore = (value: string) => {
-            if (value === 'forget') return void update($, confirmA, () => `forget:${entry.alias}`)
-            if (value === 'open') return void act($, 'Opening a Desktop window', 'accounts/open', { alias: entry.alias }, 'Window opening')
-            if (value === 'close') return void act($, 'Closing its window', 'accounts/close', { alias: entry.alias }, 'Window closed')
-            if (value === 'desktop') return void act($, 'Switching Desktop, it restarts', 'accounts/switch', { alias: entry.alias }, 'Desktop is reopening')
-          }
+          const pendingDesktop = confirm === `desktop:${entry.alias}`
+          const canDesktop = !session?.desktopActive && Boolean(session?.desktopCaptured) && !needsLogin
           return (
             <Box
               key={`card-${entry.alias}`}
@@ -482,14 +473,33 @@ export const register: Register = on => {
                 {entry.email}
               </Text>
               {Svg ? (
-                <Svg source={metersSvg(entry, live, nowMs)} alt={metersAlt(entry)} />
+                <Svg source={metersSvg(entry, live, nowMs, width)} alt={metersAlt(entry)} />
               ) : (
                 <Text>{metersAlt(entry)}</Text>
               )}
               <Text dimColor={!needsLogin} color={needsLogin ? 'error' : undefined} size="footnote">
                 {reasonOf(entry, live, nowMs)}
               </Text>
-              {pendingForget ? (
+              {!session?.desktopActive && !session?.desktopCaptured && !needsLogin && (
+                <Text dimColor size="footnote">
+                  Desktop login not saved yet. Sign in to Desktop with it once, then run claudedeck save.
+                </Text>
+              )}
+              {pendingDesktop ? (
+                <Box flexDirection="row" gap={1} flexWrap="wrap" alignItems="center">
+                  <Text color="claude">Restart Claude Desktop on {nameOf(entry.alias)} now? Running chats stop for a moment.</Text>
+                  <Button
+                    key={`desktop-yes-${entry.alias}`}
+                    label="Restart Desktop"
+                    variant="primary"
+                    onPress={async () => {
+                      await update($, confirmA, () => null)
+                      await act($, `Switching Desktop to ${nameOf(entry.alias)}`, 'accounts/switch', { alias: entry.alias }, 'Desktop is reopening')
+                    }}
+                  />
+                  <Button key={`desktop-no-${entry.alias}`} label="Cancel" onPress={() => update($, confirmA, () => null)} />
+                </Box>
+              ) : pendingForget ? (
                 <Box flexDirection="row" gap={1}>
                   <Text color="error">Forget this account and its saved logins?</Text>
                   <Button
@@ -532,13 +542,10 @@ export const register: Register = on => {
                       }
                     />
                   )}
-                  {Select ? (
-                    <Select key={`more-${entry.alias}`} label="More" options={moreOptions} onSelect={(value: string) => onMore(value)} />
-                  ) : (
-                    moreOptions.map(option => (
-                      <Button key={`more-${option.value}-${entry.alias}`} label={option.label} onPress={() => onMore(option.value)} />
-                    ))
+                  {canDesktop && (
+                    <Button key={`desktop-${entry.alias}`} label="Use in Desktop" onPress={() => update($, confirmA, () => `desktop:${entry.alias}`)} />
                   )}
+                  <Button key={`forget-${entry.alias}`} label="Forget" dimColor onPress={() => update($, confirmA, () => `forget:${entry.alias}`)} />
                 </Box>
               )}
             </Box>

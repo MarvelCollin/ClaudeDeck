@@ -111,7 +111,7 @@ The run's exit code stays the main run's, so a failed warm shows in the log with
 
 A slim strip sits above the message box in every session and stays there: the account Claude Code is on, its session and weekly meters, the next account, and an **Open** button. **Open** brings up the full deck as a sidebar beside the chat and turns into **Close**. The deck has three tabs:
 
-- **Accounts**: one card per account with its live session and weekly usage, when each resets, and which account Claude Code and Desktop are on. **Use now** moves Claude Code without restarting Desktop, **Use next** picks the account auto switch moves to next, **Hold** keeps it out, **Sign in again** walks a dead login through a fresh sign in, and **More** opens it in its own Desktop window, switches Desktop too, or forgets it.
+- **Accounts**: one card per account with its live session and weekly usage, when each resets, and which account Claude Code and Desktop are on. **Use now** moves Claude Code without restarting Desktop, **Use next** picks the account auto switch moves to next, **Hold** keeps it out, **Sign in again** walks a dead login through a fresh sign in, **Use in Desktop** restarts this Claude Desktop on that account after asking first, and **Forget** removes it. Desktop has to restart because it locks its login files while running.
 - **Background runs**: turn the scheduled runs on or off, run once now, and edit the prompt and the times.
 - **Run log**: the last runs.
 

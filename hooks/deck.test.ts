@@ -2,7 +2,7 @@ import type { On } from 'claude-code'
 import { expect, test } from 'claude-code/testing'
 
 import type { DeckState } from '../types'
-import { blockText, level, parseBlock, reasonOf, sortForPane, stripSvg, stripText, until } from './view'
+import { blockText, level, metersSvg, paneWidth, parseBlock, reasonOf, sortForPane, stripSvg, stripText, until } from './view'
 
 const NOW = '2026-10-16T07:00:00.000Z'
 const NOW_MS = Date.parse(NOW)
@@ -200,4 +200,25 @@ test('the strip is always there and its button opens the sidebar', async ($, on)
   expect(opened).toEqual(['claudedeck'])
   expect((await ui.find({ key: 'deck-toggle' }))?.props?.label).toBe('Close')
   await ui.unmount()
+})
+
+test('Use in Desktop asks first, then switches this Desktop to the account', async ($, on) => {
+  const calls: { route: string; body: unknown }[] = []
+  fakeDeck(on, calls)
+  await $.command.run({ command: 'deck', args: 'refresh', ...CMD })
+  const ui = await $.ui.mount({ plugin: 'claudedeck', surface: 'desktop', component: 'Pane', requestId: 'claudedeck', props: PANE })
+  expect(await ui.find({ key: 'desktop-two' })).toBeUndefined()
+  await ui.press({ key: 'desktop-one' })
+  expect(calls.find(call => call.route === 'accounts/switch')).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /Restart Claude Desktop on One now/ })).toBeDefined()
+  await ui.press({ key: 'desktop-yes-one' })
+  expect(calls.find(call => call.route === 'accounts/switch')?.body).toEqual({ alias: 'one' })
+  await ui.unmount()
+})
+
+test('the sidebar meters grow with the sidebar width', () => {
+  expect(paneWidth(30)).toBe(300)
+  expect(paneWidth(84)).toBe(672)
+  expect(paneWidth(200)).toBe(760)
+  expect(metersSvg(DECK.ranked[0]!, null, NOW_MS, 672)).toContain('width="672"')
 })

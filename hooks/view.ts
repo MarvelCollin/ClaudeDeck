@@ -1,6 +1,11 @@
 import type { DeckState, Live, Ranked, ScheduleBlock, Session, Win } from '../types'
 
 export const WIDTH = 300
+export const MAX_WIDTH = 760
+
+export function paneWidth(bodyColumns: number | undefined): number {
+  return Math.max(WIDTH, Math.min(MAX_WIDTH, Math.round((bodyColumns ?? 46) * 8)))
+}
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 const PALETTE = [
@@ -54,12 +59,13 @@ function meter(x: number, width: number, label: string, win: Win | null, stale: 
   ].join('')
 }
 
-export function metersSvg(account: Ranked, live: Live | null, nowMs: number): string {
+export function metersSvg(account: Ranked, live: Live | null, nowMs: number, width: number = WIDTH): string {
   const stale = account.status !== 'ok'
   const fiveHour = account.fiveHour ?? live?.fiveHour ?? null
   const sevenDay = account.sevenDay ?? live?.sevenDay ?? null
-  const half = (WIDTH - 16) / 2
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="42" viewBox="0 0 ${WIDTH} 42"><style>${PALETTE}</style>${meter(0, half, 'Session', fiveHour, stale, nowMs)}${meter(half + 16, half, 'Week', sevenDay, stale, nowMs)}</svg>`
+  const gap = width >= 480 ? 28 : 16
+  const half = (width - gap) / 2
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="42" viewBox="0 0 ${width} 42"><style>${PALETTE}</style>${meter(0, half, 'Session', fiveHour, stale, nowMs)}${meter(half + gap, half, 'Week', sevenDay, stale, nowMs)}</svg>`
 }
 
 export function metersAlt(account: Ranked): string {
@@ -67,13 +73,13 @@ export function metersAlt(account: Ranked): string {
   return `Session ${pct(account.fiveHour)}, week ${pct(account.sevenDay)}`
 }
 
-export function headerSvg(deck: DeckState, nameOf: (alias: string | null) => string): string {
+export function headerSvg(deck: DeckState, nameOf: (alias: string | null) => string, width: number = WIDTH): string {
   const name = deck.code ? nameOf(deck.code.alias) || deck.code.name : 'Not signed in'
   const auto = deck.auto.running ? 'Auto switch on' : 'Auto switch off'
   const next = deck.next ? `next ${nameOf(deck.next)}` : 'no account with room'
   const status = `${auto}  ·  ${next}`
   return [
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="62" viewBox="0 0 ${WIDTH} 62"><style>${PALETTE}</style>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="62" viewBox="0 0 ${width} 62"><style>${PALETTE}</style>`,
     `<text class="label" x="0" y="12">CLAUDE CODE IS ON</text>`,
     `<text class="serif" x="0" y="36" font-size="21" font-weight="500">${esc(name)}</text>`,
     `<circle class="${deck.auto.running ? 'accent' : 'stale'}" cx="4" cy="53" r="3.5"/>`,
