@@ -1,7 +1,9 @@
 {
   "name": "claudedeck",
-  "version": "1.1.0",
-  "description": "ClaudeDeck inside Claude Desktop: accounts, live usage, auto switch, chosen next account and background runs",
-  "author": { "name": "Marvel Collin" },
+  "version": "1.2.0",
+  "description": "Switch Claude accounts from a sidebar in Claude Desktop and Claude Code: live usage per account, Claude Desktop switched in its own window, and auto switch that spends the weekly quota that runs out first",
+  "author": {
+    "name": "Marvel Collin"
+  },
   "types": "./types/index.d.ts"
 }

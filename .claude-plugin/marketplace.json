@@ -1,6 +1,6 @@
 {
   "name": "claudedeck",
-  "description": "ClaudeDeck, Claude account switching and usage inside Claude Desktop",
+  "description": "ClaudeDeck, a Claude mod for switching Claude accounts and keeping every weekly quota in use",
   "owner": {
     "name": "Marvel Collin"
   },
