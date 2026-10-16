@@ -149,3 +149,24 @@ export function restoreConfig(slotFile: string, configPath: string): boolean {
   fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
   return true;
 }
+
+export function clearDesktop(profileDir: string, items: readonly string[] = DESKTOP_ITEMS): string[] {
+  const cleared: string[] = [];
+  for (const item of items) {
+    const target = path.join(profileDir, item);
+    if (!fs.existsSync(target)) continue;
+    fs.rmSync(target, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+    cleared.push(item);
+  }
+  return cleared;
+}
+
+export function clearConfig(configPath: string): boolean {
+  const config = readJsonFile<Record<string, unknown>>(configPath);
+  if (!config) return false;
+  const keys = accountConfigKeys(config);
+  if (!keys.length) return false;
+  for (const key of keys) delete config[key];
+  fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+  return true;
+}

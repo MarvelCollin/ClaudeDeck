@@ -238,6 +238,19 @@ test('Save Desktop login stays away once the Desktop login is kept', async ($, o
   await ui.unmount()
 })
 
+test('Add Desktop account asks first, then opens a sign in screen without signing out', async ($, on) => {
+  const calls: { route: string; body: unknown }[] = []
+  fakeDeck(on, calls)
+  await $.command.run({ command: 'deck', args: 'refresh', ...CMD })
+  const ui = await $.ui.mount({ plugin: 'claudedeck', surface: 'desktop', component: 'Pane', requestId: 'claudedeck', props: PANE })
+  await ui.press({ key: 'desktop-add' })
+  expect(calls.find(call => call.route === 'accounts/add-desktop')).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /Save Two and open Claude Desktop on a sign in screen\? Nothing is signed out/ })).toBeDefined()
+  await ui.press({ key: 'desktop-add-yes' })
+  expect(calls.find(call => call.route === 'accounts/add-desktop')?.body).toEqual({})
+  await ui.unmount()
+})
+
 test('the sidebar meters grow with the sidebar width', () => {
   expect(paneWidth(30)).toBe(300)
   expect(paneWidth(84)).toBe(672)

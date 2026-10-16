@@ -3,7 +3,7 @@ import { createSwitcher } from '../accounts/switcher';
 import { runApiCommand } from './api-command';
 import { runAutoLoop } from './auto-loop';
 
-export const ENGINE_USAGE = 'ClaudeDeck runs from its Claude mod. The engine only takes "api <route>", "auto" and "desktop <switch|save>".';
+export const ENGINE_USAGE = 'ClaudeDeck runs from its Claude mod. The engine only takes "api <route>", "auto" and "desktop <switch|save|add>".';
 
 export async function runCli(argv: string[] = process.argv.slice(2)): Promise<void> {
   const [command, ...rest] = argv;

@@ -46,6 +46,7 @@ A slim strip sits above the message box in every session: the account Claude Cod
 | **Forget** | Deletes the saved account. It asks first. |
 | **Save signed-in account** | Saves the Claude Code login you are on now. |
 | **Save Desktop login** | Saves the login Claude Desktop is on now, so **Use in Desktop** can bring it back later. |
+| **Add Desktop account** | Saves the login Claude Desktop is on now and opens Claude Desktop on a clean sign in screen, without signing anything out. |
 | **Turn on auto switch** | Starts auto switch now and at every sign in (Windows). |
 
 **Background runs** sends a short prompt on a schedule so a 5 hour session is already running when you sit down. Turn it on or off, run it once, and edit the prompt and the times.
@@ -68,7 +69,10 @@ The same things work from the prompt:
 
 1. Sign in to Claude Code with the first account (`claude auth login`) and press **Save signed-in account**.
 2. If you also use Claude Desktop with it, press **Save Desktop login** while Claude Desktop is signed in to that account.
-3. Sign in with the next account and save it the same way.
+3. For the next Claude Code account, sign in with `claude auth login` and press **Save signed-in account** again.
+4. For the next Claude Desktop account, press **Add Desktop account**. Claude Desktop reopens on a sign in screen. Sign in with the other account, open the deck and press **Save Desktop login**.
+
+Do not use **Log out** in Claude Desktop to change accounts. Logging out ends that login on Anthropic's side too, so the copy ClaudeDeck saved stops working and switching back lands on a sign in screen.
 
 Already using claude-swap? `/deck import` copies each account's Claude Code login into ClaudeDeck. Stop `cswap auto` first, or it keeps rotating the tokens you just copied.
 

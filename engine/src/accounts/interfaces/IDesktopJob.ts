@@ -1,4 +1,4 @@
-export type DesktopJobAction = 'switch' | 'save';
+export type DesktopJobAction = 'switch' | 'save' | 'add';
 
 export interface IDesktopJob {
   action: DesktopJobAction;

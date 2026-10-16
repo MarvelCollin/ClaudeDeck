@@ -18,6 +18,8 @@ exports.accountConfigKeys = accountConfigKeys;
 exports.hasAccountConfig = hasAccountConfig;
 exports.snapshotConfig = snapshotConfig;
 exports.restoreConfig = restoreConfig;
+exports.clearDesktop = clearDesktop;
+exports.clearConfig = clearConfig;
 const node_fs_1 = __importDefault(require("node:fs"));
 const node_path_1 = __importDefault(require("node:path"));
 const json_1 = require("../core/fs/json");
@@ -158,6 +160,29 @@ function restoreConfig(slotFile, configPath) {
         delete config[key];
     Object.assign(config, picked);
     node_fs_1.default.mkdirSync(node_path_1.default.dirname(configPath), { recursive: true });
+    node_fs_1.default.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+    return true;
+}
+function clearDesktop(profileDir, items = exports.DESKTOP_ITEMS) {
+    const cleared = [];
+    for (const item of items) {
+        const target = node_path_1.default.join(profileDir, item);
+        if (!node_fs_1.default.existsSync(target))
+            continue;
+        node_fs_1.default.rmSync(target, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+        cleared.push(item);
+    }
+    return cleared;
+}
+function clearConfig(configPath) {
+    const config = (0, json_1.readJsonFile)(configPath);
+    if (!config)
+        return false;
+    const keys = accountConfigKeys(config);
+    if (!keys.length)
+        return false;
+    for (const key of keys)
+        delete config[key];
     node_fs_1.default.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
     return true;
 }

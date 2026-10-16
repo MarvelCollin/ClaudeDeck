@@ -112,6 +112,9 @@ export async function runApi(route: string, body: Body = {}): Promise<unknown> {
       }
       createSwitcher().checkDesktopSave();
       return startDesktopJob('save', null);
+    case 'accounts/add-desktop':
+      createSwitcher().checkDesktopAdd();
+      return startDesktopJob('add', null);
     case 'accounts/switch': {
       if (body.code === true) return createSwitcher().switchCode(aliasOf(body, 'Which account should Claude Code use?'));
       const target = createSwitcher().checkDesktopSwitch(aliasOf(body, 'Which account should I switch to?'));

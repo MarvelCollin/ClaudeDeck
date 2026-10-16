@@ -7,7 +7,7 @@ import { pauseSync } from './processes';
 
 export const JOB_FILE = 'desktop-job.json';
 export const JOB_DELAY_MS = 2000;
-export const JOB_ACTIONS: readonly DesktopJobAction[] = ['switch', 'save'];
+export const JOB_ACTIONS: readonly DesktopJobAction[] = ['switch', 'save', 'add'];
 
 export function defaultJobDeps(): IDesktopJobDeps {
   return {
@@ -64,6 +64,8 @@ export function runDesktopJob(
     if (action === 'switch') {
       if (!alias) throw new Error('Which account should Claude Desktop use?');
       job = { ...base, alias: switcher.switchTo(alias).alias, ok: true };
+    } else if (action === 'add') {
+      job = { ...base, alias: switcher.freshDesktop().alias, ok: true };
     } else {
       job = { ...base, alias: switcher.sync().alias, ok: true };
     }

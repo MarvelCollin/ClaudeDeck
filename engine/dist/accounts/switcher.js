@@ -196,6 +196,40 @@ function createSwitcher(overrides = {}) {
         }, deps.now()));
         return { alias, email: identity.email, name: known?.name ?? identity.name, accountUuid: identity.accountUuid, install: install.id, stopped: 0, relaunched: false };
     }
+    function captureDesktopAccount(identity, install) {
+        const data = readRegistry();
+        const alias = registry.sessionByEmail(data, identity.email)?.alias ?? (0, paths_1.deriveAlias)(identity.email);
+        const codeAccount = (0, identity_1.readCodeAccount)(install.accountPath);
+        const codeMatches = !codeAccount || sameEmail(codeAccount.email, identity.email);
+        const saved = saveDesktopInto(alias);
+        if (codeMatches)
+            saveCodeInto(alias, data, install, identity.email);
+        writeRegistry(registry.saveSession(data, {
+            alias,
+            email: identity.email,
+            name: identity.name,
+            accountUuid: identity.accountUuid,
+            orgUuid: activeOrgUuid() ?? registry.findSession(data, alias)?.orgUuid ?? null,
+            installs: codeMatches ? [install.id] : registry.findSession(data, alias)?.installs ?? [],
+        }, deps.now()));
+        return { alias, desktopItems: saved.desktopItems };
+    }
+    function freshDesktop() {
+        const identity = currentIdentity();
+        const stopped = stopDesktop();
+        try {
+            const captured = identity ? captureDesktopAccount(identity, installFor(installs_1.CODE_INSTALL)) : null;
+            if (captured && !captured.desktopItems.length)
+                throw new Error('Claude Desktop has no login files to save yet.');
+            const alias = captured?.alias ?? null;
+            const cleared = session.clearDesktop(deps.profileDir);
+            session.clearConfig((0, paths_1.desktopConfigPath)(deps.profileDir));
+            return { alias, email: identity?.email ?? null, name: identity?.name ?? null, cleared, stopped };
+        }
+        finally {
+            relaunchDesktop();
+        }
+    }
     function sync(options = {}) {
         const install = installFor(options.install);
         if (options.codeOnly)
@@ -206,24 +240,11 @@ function createSwitcher(overrides = {}) {
                 ? 'No Claude account detected. Sign in to Claude Desktop or Claude Code first, then save.'
                 : `No account signed in to ${install.label}. Sign in there first, then save.`);
         }
-        const data = readRegistry();
-        const alias = registry.sessionByEmail(data, identity.email)?.alias ?? (0, paths_1.deriveAlias)(identity.email);
-        const codeAccount = (0, identity_1.readCodeAccount)(install.accountPath);
-        const codeMatches = !codeAccount || sameEmail(codeAccount.email, identity.email);
         const stopped = options.stop === false ? 0 : stopDesktop();
         const relaunched = Boolean(stopped) && options.relaunch !== false;
+        let alias;
         try {
-            saveDesktopInto(alias);
-            if (codeMatches)
-                saveCodeInto(alias, data, install, identity.email);
-            writeRegistry(registry.saveSession(data, {
-                alias,
-                email: identity.email,
-                name: identity.name,
-                accountUuid: identity.accountUuid,
-                orgUuid: activeOrgUuid() ?? registry.findSession(data, alias)?.orgUuid ?? null,
-                installs: codeMatches ? [install.id] : registry.findSession(data, alias)?.installs ?? [],
-            }, deps.now()));
+            alias = captureDesktopAccount(identity, install).alias;
         }
         finally {
             if (relaunched)
@@ -256,6 +277,10 @@ function createSwitcher(overrides = {}) {
         }
         deps.locate();
         return target;
+    }
+    function checkDesktopAdd() {
+        deps.locate();
+        return currentIdentity();
     }
     function checkDesktopSave() {
         const identity = currentIdentity();
@@ -419,11 +444,13 @@ function createSwitcher(overrides = {}) {
     }
     return {
         autoSyncCode,
+        checkDesktopAdd,
         checkDesktopSave,
         checkDesktopSwitch,
         currentAccountUuid,
         currentIdentity,
         forget,
+        freshDesktop,
         listSessions,
         switchTo,
         switchCode,

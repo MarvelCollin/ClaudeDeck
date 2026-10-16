@@ -99,6 +99,9 @@ async function runApi(route, body = {}) {
             }
             (0, switcher_1.createSwitcher)().checkDesktopSave();
             return (0, desktop_job_1.startDesktopJob)('save', null);
+        case 'accounts/add-desktop':
+            (0, switcher_1.createSwitcher)().checkDesktopAdd();
+            return (0, desktop_job_1.startDesktopJob)('add', null);
         case 'accounts/switch': {
             if (body.code === true)
                 return (0, switcher_1.createSwitcher)().switchCode(aliasOf(body, 'Which account should Claude Code use?'));

@@ -77,11 +77,13 @@ async function refresh($: $, force = false): Promise<DeckState | null> {
     const job = deck.desktopJob
     if (job?.finishedAt && nowMs - Date.parse(job.finishedAt) < JOB_TOAST_MS) {
       const name = displayName(deck, job.alias)
-      const text = !job.ok
-        ? `Claude Desktop did not ${job.action === 'save' ? 'save its login' : 'switch'}: ${job.error ?? 'unknown error'}`
-        : job.action === 'save'
-          ? `Saved the Claude Desktop login of ${name}`
-          : `Claude Desktop is on ${name} now`
+      const failed = { save: 'save its login', add: 'open a sign in screen', switch: 'switch' }[job.action]
+      const done = {
+        save: `Saved the Claude Desktop login of ${name}`,
+        add: 'Claude Desktop is on a sign in screen. Sign in with the other account, then press Save Desktop login.',
+        switch: `Claude Desktop is on ${name} now`,
+      }[job.action]
+      const text = job.ok ? done : `Claude Desktop did not ${failed}: ${job.error ?? 'unknown error'}`
       await alertOnce($, `desktop:${job.finishedAt}`, text, alerted, fresh)
     }
     const active = deck.ranked.find(entry => entry.active)
@@ -498,7 +500,7 @@ export const register: Register = on => {
               </Text>
               {!session?.desktopActive && !session?.desktopCaptured && !needsLogin && (
                 <Text dimColor size="footnote">
-                  Desktop login not saved yet. Sign in to Claude Desktop with it, then press Save Desktop login.
+                  Desktop login not saved yet. Press Add Desktop account, sign in with it, then press Save Desktop login.
                 </Text>
               )}
               {pendingDesktop ? (
@@ -596,6 +598,23 @@ export const register: Register = on => {
             <Button key="desktop-save-no" label="Cancel" onPress={() => update($, confirmA, () => null)} />
           </Box>
         )}
+        {confirm === 'desktop-add' && (
+          <Box key="desktop-add-confirm" flexDirection="row" gap={1} flexWrap="wrap" alignItems="center">
+            <Text color="claude">
+              Save {deck.desktop?.name ?? 'the current login'} and open Claude Desktop on a sign in screen? Nothing is signed out, so you can switch back later.
+            </Text>
+            <Button
+              key="desktop-add-yes"
+              label="Open sign in"
+              variant="primary"
+              onPress={async () => {
+                await update($, confirmA, () => null)
+                await act($, 'Opening a Claude Desktop sign in screen', 'accounts/add-desktop', {}, 'Claude Desktop closes and opens on a sign in screen')
+              }}
+            />
+            <Button key="desktop-add-no" label="Cancel" onPress={() => update($, confirmA, () => null)} />
+          </Box>
+        )}
         <Box flexDirection="row" gap={1} flexWrap="wrap">
           {!deck.auto.running && (
             <Button key="auto-on" label="Turn on auto switch" variant="primary" onPress={() => void act($, 'Turning on auto switch', 'auto/install', {}, 'Auto switch is on')} />
@@ -604,6 +623,9 @@ export const register: Register = on => {
           <Button key="save" label="Save signed-in account" onPress={() => void act($, 'Saving the Claude Code login', 'accounts/save', { codeOnly: true }, 'Saved')} />
           {canSaveDesktop && confirm !== 'desktop-save' && (
             <Button key="desktop-save" label="Save Desktop login" onPress={() => update($, confirmA, () => 'desktop-save')} />
+          )}
+          {confirm !== 'desktop-add' && (
+            <Button key="desktop-add" label="Add Desktop account" onPress={() => update($, confirmA, () => 'desktop-add')} />
           )}
         </Box>
       </Box>

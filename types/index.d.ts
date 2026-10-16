@@ -35,7 +35,7 @@ export type Session = {
 }
 
 export type DesktopJob = {
-  action: 'switch' | 'save'
+  action: 'switch' | 'save' | 'add'
   alias: string | null
   startedAt: string
   finishedAt: string | null

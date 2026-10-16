@@ -16,7 +16,7 @@ const paths_1 = require("../core/paths");
 const processes_1 = require("./processes");
 exports.JOB_FILE = 'desktop-job.json';
 exports.JOB_DELAY_MS = 2000;
-exports.JOB_ACTIONS = ['switch', 'save'];
+exports.JOB_ACTIONS = ['switch', 'save', 'add'];
 function defaultJobDeps() {
     return {
         file: node_path_1.default.join((0, paths_1.userDataDir)(), exports.JOB_FILE),
@@ -60,6 +60,9 @@ function runDesktopJob(action, alias, switcher, overrides = {}) {
             if (!alias)
                 throw new Error('Which account should Claude Desktop use?');
             job = { ...base, alias: switcher.switchTo(alias).alias, ok: true };
+        }
+        else if (action === 'add') {
+            job = { ...base, alias: switcher.freshDesktop().alias, ok: true };
         }
         else {
             job = { ...base, alias: switcher.sync().alias, ok: true };

@@ -222,3 +222,70 @@ test('a Desktop job runs in a process of its own and records how it ended', () =
     fs.rmSync(base, { recursive: true, force: true });
   }
 });
+
+function seedConfig(profileDir: string) {
+  fs.writeFileSync(
+    path.join(profileDir, 'config.json'),
+    JSON.stringify({ 'oauth:tokenCache': 'token-b', lastKnownAccountUuid: 'uuid-b', windowSizeWasSignedIn: true })
+  );
+}
+
+test('adding a Desktop account saves the one on screen, then opens a clean sign in screen', () => {
+  const h = harness();
+  try {
+    seedConfig(h.deps.profileDir);
+    fs.writeFileSync(h.deps.accountPath, JSON.stringify({ oauthAccount: { emailAddress: 'a@team.com', displayName: 'A' } }));
+    fs.writeFileSync(h.deps.credPath, JSON.stringify({ claudeAiOauth: { accessToken: 'token-of-a' } }));
+    const result = createSwitcher(h.deps).freshDesktop();
+    assert.strictEqual(result.alias, 'b-team.com');
+    assert.deepStrictEqual(result.cleared, ['Network']);
+    const slot = h.deps.slotOf('b-team.com');
+    assert.strictEqual(fs.readFileSync(path.join(slot, 'desktop', 'Network', 'Cookies'), 'utf8'), 'LIVE');
+    assert.strictEqual(JSON.parse(fs.readFileSync(path.join(slot, 'config.json'), 'utf8'))['oauth:tokenCache'], 'token-b');
+    assert.strictEqual(fs.existsSync(path.join(slot, 'code.json')), false);
+    assert.strictEqual(fs.existsSync(path.join(h.deps.profileDir, 'Network')), false);
+    assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(h.deps.profileDir, 'config.json'), 'utf8')), { windowSizeWasSignedIn: true });
+    assert.deepStrictEqual(h.events.filter(event => !event.startsWith('pause')), ['killed', 'launched C:/Claude.exe']);
+  } finally {
+    h.cleanup();
+  }
+});
+
+test('a Desktop with no login is cleared without saving anything', () => {
+  const h = harness({ desktop: null });
+  try {
+    const result = createSwitcher(h.deps).freshDesktop();
+    assert.strictEqual(result.alias, null);
+    assert.deepStrictEqual(result.cleared, ['Network']);
+    assert.strictEqual(fs.existsSync(h.deps.slotOf('b-team.com')), false);
+  } finally {
+    h.cleanup();
+  }
+});
+
+test('nothing is cleared when the login on screen could not be saved', () => {
+  const h = harness();
+  try {
+    seedConfig(h.deps.profileDir);
+    fs.rmSync(path.join(h.deps.profileDir, 'Network'), { recursive: true, force: true });
+    assert.throws(() => createSwitcher(h.deps).freshDesktop(), /no login files to save/);
+    assert.strictEqual(JSON.parse(fs.readFileSync(path.join(h.deps.profileDir, 'config.json'), 'utf8'))['oauth:tokenCache'], 'token-b');
+    assert.ok(h.events.includes('launched C:/Claude.exe'));
+  } finally {
+    h.cleanup();
+  }
+});
+
+test('the add job runs the clean sign in screen and records the saved account', () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'cd-job-add-'));
+  try {
+    const deps = { file: path.join(base, 'desktop-job.json'), delayMs: 0, pause: () => undefined, now: () => new Date('2026-10-16T02:00:00Z') };
+    const switcher = { freshDesktop: () => ({ alias: 'b-team.com', email: 'b@team.com', name: 'B', cleared: [], stopped: 1 }) } as unknown as ISwitcher;
+    const job = runDesktopJob('add', null, switcher, deps);
+    assert.strictEqual(job.action, 'add');
+    assert.strictEqual(job.alias, 'b-team.com');
+    assert.strictEqual(job.ok, true);
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+});

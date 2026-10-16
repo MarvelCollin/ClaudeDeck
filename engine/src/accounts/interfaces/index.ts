@@ -15,6 +15,7 @@ export { ICswapImportDeps } from './ICswapImportDeps';
 export { ICswapImportResult } from './ICswapImportResult';
 export { DesktopJobAction, IDesktopJob } from './IDesktopJob';
 export { IDesktopJobDeps } from './IDesktopJobDeps';
+export { IFreshDesktopResult } from './IFreshDesktopResult';
 export { IIdentityLookupOptions } from './IIdentityLookupOptions';
 export { IInstallState } from './IInstallState';
 export { ILiveUsage, LiveUsageStatus } from './ILiveUsage';
