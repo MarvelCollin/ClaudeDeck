@@ -371,4 +371,4 @@ claude plugin validate .
 claude plugin test .  # the mod's hooks/*.test.ts
 ```
 
-Engine tests are named `*.spec.ts` because `claude plugin test` runs every `*.test.ts` in the repository. Every engine folder keeps its types in an `interfaces` directory, one `I{Name}.ts` file per interface, re-exported from `interfaces/index.ts`.
+`engine/dist` is committed, because an installed mod has no build step: run `npm run build` in `engine/` and commit the result with every engine change. Engine tests are named `*.spec.ts` because `claude plugin test` runs every `*.test.ts` in the repository. Every engine folder keeps its types in an `interfaces` directory, one `I{Name}.ts` file per interface, re-exported from `interfaces/index.ts`.
