@@ -16,6 +16,8 @@ import { allowedHost, buildRoutes, startServer } from '../src/web/server';
 import * as appPaths from '../src/core/paths';
 import { IPanelService } from '../src/web/interfaces';
 
+delete process.env.CLAUDEDECK_HOME;
+
 const env = { APPDATA: 'C:\\Users\\tester\\AppData\\Roaming', LOCALAPPDATA: 'C:\\Users\\tester\\AppData\\Local' };
 
 test('alias validation accepts safe names and rejects traversal', () => {

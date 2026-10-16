@@ -112,7 +112,7 @@ test('a busy usage endpoint backs off and keeps the last good numbers', async ()
   const dir = tempDir();
   try {
     const creds = path.join(dir, 'creds.json');
-    writeJson(creds, { claudeAiOauth: { accessToken: 'live', expiresAt: NOW.getTime() + 3_600_000 } });
+    writeJson(creds, { claudeAiOauth: { accessToken: 'live', expiresAt: Date.now() + 86_400_000 } });
     const cacheFile = path.join(dir, 'cache.json');
     const calls: string[] = [];
     const clock = new Date(Date.now() + 10_000);
@@ -137,7 +137,7 @@ test('refreshAll serves a recent check from the cache without calling the networ
   const dir = tempDir();
   try {
     const creds = path.join(dir, 'creds.json');
-    writeJson(creds, { claudeAiOauth: { accessToken: 'live', expiresAt: NOW.getTime() + 3_600_000 } });
+    writeJson(creds, { claudeAiOauth: { accessToken: 'live', expiresAt: Date.now() + 86_400_000 } });
     const cacheFile = path.join(dir, 'cache.json');
     const later = new Date(Date.now() + 10_000);
     writeJson(cacheFile, {
