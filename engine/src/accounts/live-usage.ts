@@ -14,6 +14,7 @@ export const MIN_INTERVAL_MS = 60 * 1000;
 export const BACKOFF_MS = 5 * 60 * 1000;
 export const RELOGIN_RETRY_MS = 10 * 60 * 1000;
 const TIMEOUT_MS = 8000;
+const LOCK_STALE_MS = 30_000;
 const USER_AGENT = 'claudedeck/1.0';
 
 type Cache = Record<string, ILiveUsage>;
@@ -118,6 +119,44 @@ function writeSlot(slotFile: string, block: IOAuthBlock): void {
   fs.writeFileSync(slotFile, `${JSON.stringify(block, null, 2)}\n`, 'utf8');
 }
 
+function lockSlot(slotFile: string): (() => void) | null {
+  const lock = `${slotFile}.lock`;
+  fs.mkdirSync(path.dirname(lock), { recursive: true });
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      fs.closeSync(fs.openSync(lock, 'wx'));
+      return () => fs.rmSync(lock, { force: true });
+    } catch {
+      try {
+        if (Date.now() - fs.statSync(lock).mtimeMs < LOCK_STALE_MS) return null;
+        fs.rmSync(lock, { force: true });
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
+export async function refreshSlot(
+  slotFile: string,
+  fetchImpl: typeof fetch,
+  now: Date
+): Promise<{ block: IOAuthBlock | null; dead: boolean; error: string | null; rotated: boolean }> {
+  const unlock = lockSlot(slotFile);
+  if (!unlock) return { block: null, dead: false, error: 'another refresh of this login is running', rotated: false };
+  try {
+    const block = readJsonFile<IOAuthBlock>(slotFile);
+    if (!block || typeof block !== 'object') return { block: null, dead: false, error: 'no saved Claude Code login', rotated: false };
+    if (!needsRefresh(block, now)) return { block, dead: false, error: null, rotated: false };
+    const refreshed = await refreshBlock(block, fetchImpl, now);
+    if (refreshed.block) writeSlot(slotFile, refreshed.block);
+    return { ...refreshed, rotated: Boolean(refreshed.block) };
+  } finally {
+    unlock();
+  }
+}
+
 export function targetsFor(
   aliases: readonly { alias: string; email: string }[],
   codeEmail: string | null,
@@ -153,11 +192,10 @@ export function createLiveUsage(overrides: Partial<ILiveUsageDeps> = {}) {
 
     if (needsRefresh(block, now)) {
       if (target.active) return keep({ error: 'Claude Code refreshes this login on its next message' });
-      const refreshed = await refreshBlock(block, deps.fetch, now);
+      const refreshed = await refreshSlot(target.slotFile, deps.fetch, now);
       if (refreshed.dead) return keep({ status: 'relogin', error: refreshed.error });
       if (!refreshed.block) return keep({ error: refreshed.error });
       block = refreshed.block;
-      writeSlot(target.slotFile, block);
     }
 
     try {

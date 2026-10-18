@@ -6,7 +6,7 @@ import { readAutoState } from '../accounts/auto-switch';
 import { readCodeAccount } from '../accounts/identity';
 import { ILiveUsage, IOAuthBlock } from '../accounts/interfaces';
 import { accountFileName, CODE_INSTALL, installFileName } from '../accounts/installs';
-import { createLiveUsage, needsRefresh, refreshBlock, targetsFor } from '../accounts/live-usage';
+import { createLiveUsage, needsRefresh, refreshSlot, targetsFor } from '../accounts/live-usage';
 import { codeAccountPath, codeCredentialsPath, sessionSlot } from '../accounts/paths';
 import * as registry from '../accounts/registry';
 import { ACCOUNT_KEY, CODE_KEY } from '../accounts/session-store';
@@ -73,12 +73,11 @@ export async function warmOne(account: IWarmAccount, deps: IWarmDeps): Promise<I
   let rotated = false;
 
   if (needsRefresh(block, deps.now())) {
-    const refreshed = await refreshBlock(block, deps.fetch, deps.now());
+    const refreshed = await refreshSlot(slotFile, deps.fetch, deps.now());
     if (refreshed.dead) return result('failed', 'login expired, sign in again');
     if (!refreshed.block) return result('failed', refreshed.error ?? 'token refresh failed');
     block = refreshed.block;
-    writeJsonFile(slotFile, block);
-    rotated = true;
+    rotated = refreshed.rotated;
   }
 
   const saved = readJsonFile<Record<string, unknown>>(path.join(slot, accountFileName(CODE_INSTALL)));

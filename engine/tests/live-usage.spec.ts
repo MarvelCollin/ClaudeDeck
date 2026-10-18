@@ -76,6 +76,37 @@ test('an idle account refreshes its token, saves the rotated one and reads usage
   }
 });
 
+test('two checks of one idle login at once spend its refresh token only once', async () => {
+  const dir = tempDir();
+  try {
+    const slot = path.join(dir, 'slot', 'code.json');
+    writeJson(slot, { accessToken: 'old', refreshToken: 'r1', expiresAt: NOW.getTime() - 1000 });
+    const calls: string[] = [];
+    let spent = 0;
+    const deps = {
+      now: () => NOW,
+      fetch: fakeFetch(
+        {
+          [TOKEN_URL]: () => (spent++ === 0 ? { status: 200, body: { access_token: 'new', expires_in: 3600, refresh_token: 'r2' } } : { status: 400, body: { error: 'invalid_grant' } }),
+          [USAGE_URL]: () => ({ status: 200, body: usageBody }),
+        },
+        calls
+      ),
+    };
+    const target = { alias: 'idle', active: false, credPath: path.join(dir, 'creds.json'), slotFile: slot };
+    const [first, second] = await Promise.all([
+      createLiveUsage({ ...deps, cacheFile: path.join(dir, 'a.json') }).fetchOne(target, null),
+      createLiveUsage({ ...deps, cacheFile: path.join(dir, 'b.json') }).fetchOne(target, null),
+    ]);
+    assert.strictEqual(calls.filter(url => url === TOKEN_URL).length, 1);
+    assert.ok([first, second].every(result => result.status !== 'relogin'));
+    assert.strictEqual(JSON.parse(fs.readFileSync(slot, 'utf8')).refreshToken, 'r2');
+    assert.ok(!fs.existsSync(`${slot}.lock`));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('the active account is never refreshed, Claude Code owns that token', async () => {
   const dir = tempDir();
   try {

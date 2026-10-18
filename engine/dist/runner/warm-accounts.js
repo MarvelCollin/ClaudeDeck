@@ -117,14 +117,13 @@ async function warmOne(account, deps) {
         return result('skipped', 'no saved Claude Code login');
     let rotated = false;
     if ((0, live_usage_1.needsRefresh)(block, deps.now())) {
-        const refreshed = await (0, live_usage_1.refreshBlock)(block, deps.fetch, deps.now());
+        const refreshed = await (0, live_usage_1.refreshSlot)(slotFile, deps.fetch, deps.now());
         if (refreshed.dead)
             return result('failed', 'login expired, sign in again');
         if (!refreshed.block)
             return result('failed', refreshed.error ?? 'token refresh failed');
         block = refreshed.block;
-        (0, json_1.writeJsonFile)(slotFile, block);
-        rotated = true;
+        rotated = refreshed.rotated;
     }
     const saved = (0, json_1.readJsonFile)(node_path_1.default.join(slot, (0, installs_1.accountFileName)(installs_1.CODE_INSTALL)));
     const oauthAccount = saved && typeof saved === 'object' ? saved : { emailAddress: account.email };

@@ -12,6 +12,7 @@ exports.readCache = readCache;
 exports.cachedUsage = cachedUsage;
 exports.refreshBlock = refreshBlock;
 exports.requestUsage = requestUsage;
+exports.refreshSlot = refreshSlot;
 exports.targetsFor = targetsFor;
 exports.defaultLiveDeps = defaultLiveDeps;
 exports.createLiveUsage = createLiveUsage;
@@ -29,6 +30,7 @@ exports.MIN_INTERVAL_MS = 60 * 1000;
 exports.BACKOFF_MS = 5 * 60 * 1000;
 exports.RELOGIN_RETRY_MS = 10 * 60 * 1000;
 const TIMEOUT_MS = 8000;
+const LOCK_STALE_MS = 30_000;
 const USER_AGENT = 'claudedeck/1.0';
 function toWindow(value) {
     const window = value;
@@ -120,6 +122,46 @@ function writeSlot(slotFile, block) {
     node_fs_1.default.mkdirSync(node_path_1.default.dirname(slotFile), { recursive: true });
     node_fs_1.default.writeFileSync(slotFile, `${JSON.stringify(block, null, 2)}\n`, 'utf8');
 }
+function lockSlot(slotFile) {
+    const lock = `${slotFile}.lock`;
+    node_fs_1.default.mkdirSync(node_path_1.default.dirname(lock), { recursive: true });
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+            node_fs_1.default.closeSync(node_fs_1.default.openSync(lock, 'wx'));
+            return () => node_fs_1.default.rmSync(lock, { force: true });
+        }
+        catch {
+            try {
+                if (Date.now() - node_fs_1.default.statSync(lock).mtimeMs < LOCK_STALE_MS)
+                    return null;
+                node_fs_1.default.rmSync(lock, { force: true });
+            }
+            catch {
+                return null;
+            }
+        }
+    }
+    return null;
+}
+async function refreshSlot(slotFile, fetchImpl, now) {
+    const unlock = lockSlot(slotFile);
+    if (!unlock)
+        return { block: null, dead: false, error: 'another refresh of this login is running', rotated: false };
+    try {
+        const block = (0, json_1.readJsonFile)(slotFile);
+        if (!block || typeof block !== 'object')
+            return { block: null, dead: false, error: 'no saved Claude Code login', rotated: false };
+        if (!needsRefresh(block, now))
+            return { block, dead: false, error: null, rotated: false };
+        const refreshed = await refreshBlock(block, fetchImpl, now);
+        if (refreshed.block)
+            writeSlot(slotFile, refreshed.block);
+        return { ...refreshed, rotated: Boolean(refreshed.block) };
+    }
+    finally {
+        unlock();
+    }
+}
 function targetsFor(aliases, codeEmail, credPath, slotFileOf) {
     const active = codeEmail ? codeEmail.toLowerCase() : null;
     return aliases.map(entry => ({
@@ -148,13 +190,12 @@ function createLiveUsage(overrides = {}) {
         if (needsRefresh(block, now)) {
             if (target.active)
                 return keep({ error: 'Claude Code refreshes this login on its next message' });
-            const refreshed = await refreshBlock(block, deps.fetch, now);
+            const refreshed = await refreshSlot(target.slotFile, deps.fetch, now);
             if (refreshed.dead)
                 return keep({ status: 'relogin', error: refreshed.error });
             if (!refreshed.block)
                 return keep({ error: refreshed.error });
             block = refreshed.block;
-            writeSlot(target.slotFile, block);
         }
         try {
             const { data, status } = await requestUsage(block.accessToken, deps.fetch);
