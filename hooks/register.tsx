@@ -15,6 +15,7 @@ import {
   sortForPane,
   stripSvg,
   stripText,
+  cardWidth,
   paneWidth,
   until,
 } from './view'
@@ -22,6 +23,7 @@ import {
 const PANE = 'claudedeck'
 const POLL_MS = 20_000
 const JOB_TOAST_MS = 120_000
+const STORE_DECK = 'deck'
 
 const deckA = atom({ plugin: 'claudedeck', key: 'deck' } as const, null)
 const scheduleA = atom({ plugin: 'claudedeck', key: 'schedule' } as const, null)
@@ -94,6 +96,7 @@ async function refresh($: $, force = false): Promise<DeckState | null> {
     await update($, lastCodeA, () => codeAlias)
     await update($, deckA, () => deck)
     await update($, errorA, () => null)
+    await $.store.set(STORE_DECK, deck).catch(() => undefined)
     $.ui.status(
       active ? `Code on ${displayName(deck, active.alias)} · session ${Math.round(active.fiveHour?.usedPercent ?? 0)}%` : undefined
     )
@@ -155,7 +158,7 @@ async function relogin($: $, entry: Ranked) {
 
 async function openPane($: $) {
   await update($, paneOpenA, () => true)
-  return $.ui.open({ id: PANE, title: 'ClaudeDeck', columns: 84 })
+  return $.ui.open({ id: PANE, title: 'ClaudeDeck', columns: 100 })
 }
 
 async function closePane($: $) {
@@ -191,6 +194,8 @@ const HELP = [
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
+    const cached = (await $.store.get(STORE_DECK).catch(() => undefined)) as DeckState | undefined
+    if (cached) await update($, deckA, current => current ?? cached)
     await $.command.register({
       name: 'deck',
       description: 'ClaudeDeck: accounts, live usage, auto switch, next account',
@@ -251,17 +256,27 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (e.props.hasSurvey) return next(e)
     const deck = await read($, deckA)
-    if (e.props.hasSurvey || !deck) return next(e)
     const els = $.ui.resolve(e)
     const { Box, Button, Text } = els
+    const open = await read($, paneOpenA)
+    const toggle = <Button key="deck-toggle" label={open ? 'Close' : 'Open'} onPress={() => void togglePane($)} />
+    if (!deck) {
+      const error = await read($, errorA)
+      return (
+        <Box flexDirection="row" gap={1} alignItems="center">
+          <Text dimColor>{error ? 'ClaudeDeck could not read your accounts' : 'ClaudeDeck is reading your accounts...'}</Text>
+          {toggle}
+        </Box>
+      )
+    }
     const Svg = e.surface !== 'terminal' && 'Svg' in els ? els.Svg : undefined
     const nameOf = (alias: string | null) => displayName(deck, alias)
-    const open = await read($, paneOpenA)
     return (
       <Box flexDirection="row" gap={1} alignItems="center">
         {Svg ? <Svg source={stripSvg(deck, nameOf)} alt={stripText(deck, nameOf)} /> : <Text>{stripText(deck, nameOf)}</Text>}
-        <Button key="deck-toggle" label={open ? 'Close' : 'Open'} onPress={() => void togglePane($)} />
+        {toggle}
       </Box>
     )
   })
@@ -491,7 +506,7 @@ export const register: Register = on => {
                 {entry.email}
               </Text>
               {Svg ? (
-                <Svg source={metersSvg(entry, live, nowMs, width)} alt={metersAlt(entry)} />
+                <Svg source={metersSvg(entry, live, nowMs, cardWidth(width))} alt={metersAlt(entry)} />
               ) : (
                 <Text>{metersAlt(entry)}</Text>
               )}

@@ -6,6 +6,9 @@ export const MAX_WIDTH = 760
 export function paneWidth(bodyColumns: number | undefined): number {
   return Math.max(WIDTH, Math.min(MAX_WIDTH, Math.round((bodyColumns ?? 46) * 8)))
 }
+export function cardWidth(width: number): number {
+  return Math.max(WIDTH - 40, width - 40)
+}
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 const PALETTE = [
@@ -44,8 +47,13 @@ export function level(used: number, stale: boolean): 'ok' | 'warm' | 'hot' | 'st
   return 'ok'
 }
 
+function lapsed(win: Win | null, nowMs: number): boolean {
+  const reset = win?.resetsAt ? Date.parse(win.resetsAt) : NaN
+  return Number.isFinite(reset) && reset <= nowMs
+}
+
 function meter(x: number, width: number, label: string, win: Win | null, stale: boolean, nowMs: number): string {
-  const used = Math.min(100, Math.max(0, win?.usedPercent ?? 0))
+  const used = lapsed(win, nowMs) ? 0 : Math.min(100, Math.max(0, win?.usedPercent ?? 0))
   const fill = Math.round((width * used) / 100)
   const value = win ? `${Math.round(used)}% used` : 'no data'
   const reset = win ? until(win.resetsAt, nowMs) : null
@@ -76,7 +84,7 @@ export function metersAlt(account: Ranked): string {
 export function headerSvg(deck: DeckState, nameOf: (alias: string | null) => string, width: number = WIDTH): string {
   const name = deck.code ? nameOf(deck.code.alias) || deck.code.name : 'Not signed in'
   const auto = deck.auto.running ? 'Auto switch on' : 'Auto switch off'
-  const next = deck.next ? `next ${nameOf(deck.next)}` : 'no account with room'
+  const next = deck.next ? `next ${nameOf(deck.next)}` : 'no other account ready'
   const status = `${auto}  ·  ${next}`
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="62" viewBox="0 0 ${width} 62"><style>${PALETTE}</style>`,
@@ -111,7 +119,7 @@ export function stripSvg(deck: DeckState, nameOf: (alias: string | null) => stri
   const name = deck.code ? nameOf(deck.code.alias) || deck.code.name : 'Not signed in'
   const short = name.length > 14 ? `${name.slice(0, 13)}…` : name
   const stale = !active || active.status !== 'ok'
-  const next = deck.next ? `next ${nameOf(deck.next)}` : 'no account with room'
+  const next = deck.next ? `next ${nameOf(deck.next)}` : 'no next'
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${STRIP_WIDTH}" height="24" viewBox="0 0 ${STRIP_WIDTH} 24"><style>${PALETTE}</style>`,
     `<circle class="${deck.auto.running ? 'accent' : 'stale'}" cx="5" cy="12" r="4"/>`,
@@ -127,7 +135,7 @@ export function stripText(deck: DeckState, nameOf: (alias: string | null) => str
   const active = deck.ranked.find(entry => entry.active) ?? null
   const pct = (win: Win | null | undefined) => (win ? `${Math.round(win.usedPercent)}%` : 'n/a')
   const name = deck.code ? nameOf(deck.code.alias) || deck.code.name : 'not signed in'
-  const next = deck.next ? `next ${nameOf(deck.next)}` : 'no account with room'
+  const next = deck.next ? `next ${nameOf(deck.next)}` : 'no other account ready'
   return `${deck.auto.running ? 'Auto' : 'Manual'} · ${name} · session ${pct(active?.fiveHour)} · week ${pct(active?.sevenDay)} · ${next}`
 }
 

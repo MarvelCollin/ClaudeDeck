@@ -1,5 +1,5 @@
 import type { On } from 'claude-code'
-import { expect, test } from 'claude-code/testing'
+import { expect, mock, test } from 'claude-code/testing'
 
 import type { DeckState } from '../types'
 import { blockText, level, metersSvg, paneWidth, parseBlock, reasonOf, sortForPane, stripSvg, stripText, until } from './view'
@@ -199,6 +199,26 @@ test('the strip is always there and its button opens the sidebar', async ($, on)
   await ui.press({ key: 'deck-toggle' })
   expect(opened).toEqual(['claudedeck'])
   expect((await ui.find({ key: 'deck-toggle' }))?.props?.label).toBe('Close')
+  await ui.unmount()
+})
+
+test('the strip shows before the first read and draws the last known deck at once', async ($, on) => {
+  on('process.run', () => new Promise(() => {}))
+  on('ui.panes', () => ({ value: [] }))
+  const empty = await $.ui.mount({ plugin: 'claudedeck', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+  expect(await empty.find({ type: 'Text', text: /reading your accounts/ })).toBeDefined()
+  expect((await empty.find({ key: 'deck-toggle' }))?.props?.label).toBe('Open')
+  await empty.unmount()
+})
+
+test('a later session starts from the stored deck', async ($, on) => {
+  mock.store(on, { deck: DECK })
+  on('process.run', () => new Promise(() => {}))
+  on('ui.panes', () => ({ value: [] }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: 'C:/deck', surface: 'desktop', isInteractive: true })
+  const ui = await $.ui.mount({ plugin: 'claudedeck', surface: 'terminal', component: 'AbovePrompt', props: BAND })
+  expect(await ui.find({ type: 'Text', text: /session 40%/ })).toBeDefined()
   await ui.unmount()
 })
 
