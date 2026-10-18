@@ -3,6 +3,7 @@ import { IAutoDecision, IAutoState, ILiveUsage, ILiveWindow, IRankedAccount, Ran
 export const AT_LIMIT = 99.5;
 export const EXPIRING_HOURS = 48;
 export const EXPIRY_GAP_HOURS = 12;
+export const DESKTOP_COOLDOWN_MS = 5 * 60 * 1000;
 export const NOT_STARTED_RANK = Number.MAX_SAFE_INTEGER;
 const HOUR_MS = 3_600_000;
 
@@ -160,4 +161,25 @@ export function decide(list: readonly IRankedAccount[], state: IAutoState, now: 
     );
   }
   return stay(`staying on ${active.alias}`);
+}
+
+export function decideDesktop(
+  list: readonly IRankedAccount[],
+  desktopAlias: string | null,
+  canDesktop: (alias: string) => boolean,
+  state: IAutoState,
+  now: Date
+): IAutoDecision {
+  const at = now.toISOString();
+  const current = list.find(entry => entry.alias === desktopAlias) ?? null;
+  const stay = (reason: string): IAutoDecision => ({ at, action: 'stay', from: desktopAlias, target: null, trigger: 'none', reason });
+  if (!current) return stay('Claude Desktop is on an account ClaudeDeck has not saved');
+  if (current.status !== 'ok') return stay('no fresh usage for the Claude Desktop account yet');
+  if (current.usedPercent < AT_LIMIT) return stay(`Claude Desktop stays on ${current.alias} until it hits its limit`);
+  const since = state.lastDesktopSwitchAt ? now.getTime() - Date.parse(state.lastDesktopSwitchAt) : Number.POSITIVE_INFINITY;
+  if (since < DESKTOP_COOLDOWN_MS) return stay('just moved Claude Desktop, waiting out the cooldown');
+  const ready = list.filter(entry => entry.alias !== current.alias && entry.hasRoom && canDesktop(entry.alias));
+  const target = order(ready.filter(entry => !entry.active), state.preferredNext)[0] ?? order(ready, state.preferredNext)[0];
+  if (!target) return stay(`${current.alias} hit its limit and no other account has a saved Desktop login with room`);
+  return { at, action: 'switch', from: current.alias, target: target.alias, trigger: 'at-limit', reason: `${current.alias} hit its limit in Claude Desktop` };
 }

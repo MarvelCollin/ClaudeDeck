@@ -2,8 +2,9 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { readJsonFile, writeJsonFile } from '../core/fs/json';
-import { decide, nextPick, toRanked } from './auto-rank';
+import { decide, decideDesktop, nextPick, toRanked } from './auto-rank';
 import { IAutoDecision, IAutoDeps, IAutoSettings, IAutoState, IAutoTick, ILiveUsage, ISwitcher } from './interfaces';
+import { readDesktopJob, startDesktopJob } from './desktop-job';
 import { cachedUsage, createLiveUsage, MIN_INTERVAL_MS, targetsFor } from './live-usage';
 import { autoStatePath, codeCredentialsPath, sessionSlot } from './paths';
 
@@ -30,7 +31,9 @@ export function normalizeAutoState(value: unknown): IAutoState {
     preferredNext: typeof source.preferredNext === 'string' && source.preferredNext ? source.preferredNext : null,
     held: Array.isArray(source.held) ? source.held.filter((alias): alias is string => typeof alias === 'string') : [],
     lastSwitchAt: typeof source.lastSwitchAt === 'string' ? source.lastSwitchAt : null,
+    lastDesktopSwitchAt: typeof source.lastDesktopSwitchAt === 'string' ? source.lastDesktopSwitchAt : null,
     lastDecision: (source.lastDecision as IAutoDecision | null) ?? null,
+    lastDesktopDecision: (source.lastDesktopDecision as IAutoDecision | null) ?? null,
     heartbeatAt: typeof source.heartbeatAt === 'string' ? source.heartbeatAt : null,
     pid: typeof source.pid === 'number' ? source.pid : null,
   };
@@ -85,6 +88,11 @@ export function defaultAutoDeps(switcher: ISwitcher, logFile?: string): IAutoDep
     credPath: codeCredentialsPath(),
     slotFile: alias => path.join(sessionSlot(alias), 'code.json'),
     now: () => new Date(),
+    startDesktop: alias => {
+      const job = readDesktopJob();
+      if (job && !job.finishedAt) return;
+      startDesktopJob('switch', alias);
+    },
     log: line => {
       try {
         if (fs.existsSync(file) && fs.statSync(file).size > LOG_LIMIT) fs.renameSync(file, `${file}.1`);
@@ -129,19 +137,30 @@ export function createAutoSwitch(deps: IAutoDeps) {
     }
 
     const after = switched ? accounts.map(entry => ({ ...entry, active: entry.alias === decision.target })) : accounts;
+    const desktopAlias = listing.sessions.find(entry => entry.active)?.alias ?? null;
+    const canDesktop = (alias: string) => Boolean(listing.sessions.find(entry => entry.alias === alias)?.desktopCaptured);
+    const desktopDecision = decideDesktop(after, desktopAlias, canDesktop, state, now);
+    let desktopSwitched = false;
+    if (desktopDecision.action === 'switch' && desktopDecision.target && !options.dryRun) {
+      deps.startDesktop(desktopDecision.target);
+      desktopSwitched = true;
+      deps.log(`desktop ${desktopDecision.from ?? '?'} -> ${desktopDecision.target}: ${desktopDecision.reason}`);
+    }
     const stored = updateAutoState(
       current => ({
         ...current,
         lastSwitchAt: switched ? now.toISOString() : current.lastSwitchAt,
+        lastDesktopSwitchAt: desktopSwitched ? now.toISOString() : current.lastDesktopSwitchAt,
         preferredNext:
           switched && current.preferredNext?.toLowerCase() === decision.target?.toLowerCase() ? null : current.preferredNext,
         lastDecision: decision,
+        lastDesktopDecision: desktopDecision,
         heartbeatAt: options.dryRun ? current.heartbeatAt : now.toISOString(),
         pid: options.dryRun ? current.pid : process.pid,
       }),
       deps.stateFile
     );
-    return { decision, accounts: after, next: nextPick(after, stored.preferredNext), switched };
+    return { decision, accounts: after, next: nextPick(after, stored.preferredNext), switched, desktopDecision, desktopSwitched };
   }
 
   async function run(onTick: (result: IAutoTick) => void, signal?: AbortSignal): Promise<void> {
@@ -201,4 +220,56 @@ export function removeAutoTask(): boolean {
     { encoding: 'utf8', windowsHide: true }
   );
   return run.status === 0;
+}
+
+function pluginVersion(binPath: string): number[] | null {
+  const manifest = readJsonFile<{ version?: unknown }>(path.join(path.dirname(binPath), '..', '..', '.claude-plugin', 'plugin.json'));
+  const version = typeof manifest?.version === 'string' ? manifest.version : null;
+  return version ? version.split('.').map(part => Number.parseInt(part, 10) || 0) : null;
+}
+
+function newer(left: number[] | null, right: number[] | null): boolean {
+  if (!left) return false;
+  if (!right) return true;
+  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
+    const diff = (left[index] ?? 0) - (right[index] ?? 0);
+    if (diff !== 0) return diff > 0;
+  }
+  return false;
+}
+
+export function launcherBin(script: string): string | null {
+  return /""([^"]+claudedeck\.js)""/.exec(script)?.[1] ?? null;
+}
+
+export function launcherIsStale(script: string, binPath: string, exists: (file: string) => boolean = fs.existsSync): boolean {
+  const current = launcherBin(script);
+  if (!current || path.resolve(current) === path.resolve(binPath)) return false;
+  return !exists(current) || newer(pluginVersion(binPath), pluginVersion(current));
+}
+
+export function syncAutoLauncher(dataDir: string, binPath: string, nodePath: string = process.execPath, stateFile?: string): boolean {
+  const script = path.join(dataDir, 'auto-switch.vbs');
+  let text: string;
+  try {
+    text = fs.readFileSync(script, 'utf8');
+  } catch {
+    return false;
+  }
+  if (!launcherIsStale(text, binPath)) return false;
+  try {
+    fs.writeFileSync(script, launcherScript(nodePath, binPath), 'utf8');
+  } catch {
+    return false;
+  }
+  const state = readAutoState(stateFile);
+  if (state.pid && isRunning(state, new Date())) {
+    try {
+      process.kill(state.pid);
+    } catch {
+      return true;
+    }
+  }
+  if (process.platform === 'win32') spawnSync('schtasks.exe', ['/Run', '/TN', TASK_NAME], { windowsHide: true });
+  return true;
 }

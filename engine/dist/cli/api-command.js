@@ -64,6 +64,7 @@ async function deckState(refresh) {
             held: auto.held,
             lastDecision: auto.lastDecision,
             lastSwitchAt: auto.lastSwitchAt,
+            lastDesktopDecision: auto.lastDesktopDecision,
         },
     };
 }
@@ -80,6 +81,7 @@ function startAuto() {
 async function runApi(route, body = {}) {
     switch (route) {
         case 'state':
+            (0, auto_switch_1.syncAutoLauncher)((0, paths_1.userDataDir)(), binPath());
             return deckState(body.refresh === true);
         case 'schedule':
             return (0, schedule_service_1.createScheduleService)().scheduleState();

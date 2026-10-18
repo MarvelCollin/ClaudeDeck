@@ -4,9 +4,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { decide, nextPick, order, rankOf, toRanked } from '../src/accounts/auto-rank';
+import { decide, decideDesktop, nextPick, order, rankOf, toRanked } from '../src/accounts/auto-rank';
 import {
   createAutoSwitch,
+  launcherBin,
+  launcherIsStale,
   launcherScript,
   normalizeAutoState,
   readAutoState,
@@ -14,6 +16,7 @@ import {
   setPreferredNext,
 } from '../src/accounts/auto-switch';
 import { IAutoState, ILiveUsage, ISwitcher } from '../src/accounts/interfaces';
+import { writeJsonFile } from '../src/core/fs/json';
 
 const NOW = new Date('2026-10-16T06:00:00Z');
 const at = (hours: number) => new Date(NOW.getTime() + hours * 3_600_000).toISOString();
@@ -189,6 +192,7 @@ test('a tick switches Claude Code only and clears a chosen next once it is used'
       slotFile: alias => alias,
       now: () => NOW,
       log: line => lines.push(line),
+      startDesktop: () => assert.fail('Claude Desktop is not on a saved account here'),
     });
 
     const result = await auto.tick();
@@ -203,6 +207,79 @@ test('a tick switches Claude Code only and clears a chosen next once it is used'
     const dry = await auto.tick({ dryRun: true });
     assert.strictEqual(switched.length, 1);
     assert.strictEqual(dry.switched, false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('Claude Desktop moves only once its account hits the limit, to an account with a saved Desktop login', () => {
+  const captured = (alias: string) => alias !== 'three';
+  const calm = toRanked(entries('one'), { ...fleet, two: usage(90, 1, 75, 68) }, state(), NOW.getTime());
+  assert.strictEqual(decideDesktop(calm, 'two', captured, state(), NOW).action, 'stay');
+
+  const hit = toRanked(entries('one'), { ...fleet, two: usage(100, 1, 75, 68) }, state(), NOW.getTime());
+  const go = decideDesktop(hit, 'two', captured, state(), NOW);
+  assert.strictEqual(go.action, 'switch');
+  assert.strictEqual(go.target, 'four');
+
+  const cooling = state({ lastDesktopSwitchAt: new Date(NOW.getTime() - 60_000).toISOString() });
+  assert.strictEqual(decideDesktop(hit, 'two', captured, cooling, NOW).action, 'stay');
+  assert.strictEqual(decideDesktop(hit, 'two', () => false, state(), NOW).action, 'stay');
+});
+
+test('a tick moves Claude Desktop when its account is out, without touching Claude Code', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cd-auto-'));
+  try {
+    const stateFile = path.join(dir, 'auto.json');
+    const moved: string[] = [];
+    const switcher = {
+      listSessions: () => ({
+        sessions: entries('one').map(entry => ({ alias: entry.alias, email: entry.email, active: entry.alias === 'two', desktopCaptured: true })),
+      }),
+      currentCodeIdentity: () => ({ email: 'one@x.com', name: 'one', accountUuid: null }),
+      switchCode: () => assert.fail('Claude Code has room'),
+    } as unknown as ISwitcher;
+    const out = { ...fleet, one: usage(10, 1, 20, 100), two: usage(100, 1.6, 75, 68) };
+    const auto = createAutoSwitch({
+      switcher,
+      refresh: async targets => Object.fromEntries(targets.map(target => [target.alias.toLowerCase(), out[target.alias as keyof typeof out] as ILiveUsage])),
+      stateFile,
+      credPath: '',
+      slotFile: alias => alias,
+      now: () => NOW,
+      log: () => undefined,
+      startDesktop: alias => moved.push(alias),
+    });
+    const result = await auto.tick();
+    assert.ok(result.desktopSwitched);
+    assert.strictEqual(moved.length, 1);
+    assert.notStrictEqual(moved[0], 'two');
+    assert.strictEqual(readAutoState(stateFile).lastDesktopSwitchAt, NOW.toISOString());
+    await auto.tick();
+    assert.strictEqual(moved.length, 1);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a launcher left on an older or removed copy of ClaudeDeck is stale, a newer or equal one is kept', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cd-launch-'));
+  try {
+    const copy = (version: string) => {
+      const root = path.join(dir, version);
+      writeJsonFile(path.join(root, '.claude-plugin', 'plugin.json'), { version });
+      fs.mkdirSync(path.join(root, 'engine', 'bin'), { recursive: true });
+      const bin = path.join(root, 'engine', 'bin', 'claudedeck.js');
+      fs.writeFileSync(bin, '');
+      return bin;
+    };
+    const old = copy('1.3.0');
+    const fresh = copy('1.4.0');
+    assert.strictEqual(launcherBin(launcherScript('node.exe', old)), old);
+    assert.ok(launcherIsStale(launcherScript('node.exe', old), fresh));
+    assert.ok(!launcherIsStale(launcherScript('node.exe', fresh), old));
+    assert.ok(!launcherIsStale(launcherScript('node.exe', fresh), fresh));
+    assert.ok(launcherIsStale(launcherScript('node.exe', path.join(dir, 'gone', 'claudedeck.js')), old));
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

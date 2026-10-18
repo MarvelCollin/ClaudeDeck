@@ -6,4 +6,6 @@ export interface IAutoTick {
   accounts: IRankedAccount[];
   next: IRankedAccount | null;
   switched: boolean;
+  desktopDecision: IAutoDecision;
+  desktopSwitched: boolean;
 }

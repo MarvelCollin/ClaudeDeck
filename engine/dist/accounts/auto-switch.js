@@ -15,11 +15,15 @@ exports.createAutoSwitch = createAutoSwitch;
 exports.launcherScript = launcherScript;
 exports.installAutoTask = installAutoTask;
 exports.removeAutoTask = removeAutoTask;
+exports.launcherBin = launcherBin;
+exports.launcherIsStale = launcherIsStale;
+exports.syncAutoLauncher = syncAutoLauncher;
 const node_child_process_1 = require("node:child_process");
 const node_fs_1 = __importDefault(require("node:fs"));
 const node_path_1 = __importDefault(require("node:path"));
 const json_1 = require("../core/fs/json");
 const auto_rank_1 = require("./auto-rank");
+const desktop_job_1 = require("./desktop-job");
 const live_usage_1 = require("./live-usage");
 const paths_1 = require("./paths");
 exports.DEFAULT_AUTO_SETTINGS = { threshold: 95, landing: 85, cooldownSeconds: 60, intervalSeconds: 20 };
@@ -43,7 +47,9 @@ function normalizeAutoState(value) {
         preferredNext: typeof source.preferredNext === 'string' && source.preferredNext ? source.preferredNext : null,
         held: Array.isArray(source.held) ? source.held.filter((alias) => typeof alias === 'string') : [],
         lastSwitchAt: typeof source.lastSwitchAt === 'string' ? source.lastSwitchAt : null,
+        lastDesktopSwitchAt: typeof source.lastDesktopSwitchAt === 'string' ? source.lastDesktopSwitchAt : null,
         lastDecision: source.lastDecision ?? null,
+        lastDesktopDecision: source.lastDesktopDecision ?? null,
         heartbeatAt: typeof source.heartbeatAt === 'string' ? source.heartbeatAt : null,
         pid: typeof source.pid === 'number' ? source.pid : null,
     };
@@ -97,6 +103,12 @@ function defaultAutoDeps(switcher, logFile) {
         credPath: (0, paths_1.codeCredentialsPath)(),
         slotFile: alias => node_path_1.default.join((0, paths_1.sessionSlot)(alias), 'code.json'),
         now: () => new Date(),
+        startDesktop: alias => {
+            const job = (0, desktop_job_1.readDesktopJob)();
+            if (job && !job.finishedAt)
+                return;
+            (0, desktop_job_1.startDesktopJob)('switch', alias);
+        },
         log: line => {
             try {
                 if (node_fs_1.default.existsSync(file) && node_fs_1.default.statSync(file).size > LOG_LIMIT)
@@ -138,15 +150,26 @@ function createAutoSwitch(deps) {
             deps.log(`switch ${decision.from ?? '?'} -> ${decision.target} (${decision.trigger}): ${decision.reason}`);
         }
         const after = switched ? accounts.map(entry => ({ ...entry, active: entry.alias === decision.target })) : accounts;
+        const desktopAlias = listing.sessions.find(entry => entry.active)?.alias ?? null;
+        const canDesktop = (alias) => Boolean(listing.sessions.find(entry => entry.alias === alias)?.desktopCaptured);
+        const desktopDecision = (0, auto_rank_1.decideDesktop)(after, desktopAlias, canDesktop, state, now);
+        let desktopSwitched = false;
+        if (desktopDecision.action === 'switch' && desktopDecision.target && !options.dryRun) {
+            deps.startDesktop(desktopDecision.target);
+            desktopSwitched = true;
+            deps.log(`desktop ${desktopDecision.from ?? '?'} -> ${desktopDecision.target}: ${desktopDecision.reason}`);
+        }
         const stored = updateAutoState(current => ({
             ...current,
             lastSwitchAt: switched ? now.toISOString() : current.lastSwitchAt,
+            lastDesktopSwitchAt: desktopSwitched ? now.toISOString() : current.lastDesktopSwitchAt,
             preferredNext: switched && current.preferredNext?.toLowerCase() === decision.target?.toLowerCase() ? null : current.preferredNext,
             lastDecision: decision,
+            lastDesktopDecision: desktopDecision,
             heartbeatAt: options.dryRun ? current.heartbeatAt : now.toISOString(),
             pid: options.dryRun ? current.pid : process.pid,
         }), deps.stateFile);
-        return { decision, accounts: after, next: (0, auto_rank_1.nextPick)(after, stored.preferredNext), switched };
+        return { decision, accounts: after, next: (0, auto_rank_1.nextPick)(after, stored.preferredNext), switched, desktopDecision, desktopSwitched };
     }
     async function run(onTick, signal) {
         const start = readAutoState(deps.stateFile);
@@ -202,4 +225,60 @@ function removeAutoTask() {
         return false;
     const run = (0, node_child_process_1.spawnSync)('powershell.exe', ['-NoProfile', '-Command', `Unregister-ScheduledTask -TaskName '${exports.TASK_NAME}' -Confirm:$false -ErrorAction SilentlyContinue`], { encoding: 'utf8', windowsHide: true });
     return run.status === 0;
+}
+function pluginVersion(binPath) {
+    const manifest = (0, json_1.readJsonFile)(node_path_1.default.join(node_path_1.default.dirname(binPath), '..', '..', '.claude-plugin', 'plugin.json'));
+    const version = typeof manifest?.version === 'string' ? manifest.version : null;
+    return version ? version.split('.').map(part => Number.parseInt(part, 10) || 0) : null;
+}
+function newer(left, right) {
+    if (!left)
+        return false;
+    if (!right)
+        return true;
+    for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
+        const diff = (left[index] ?? 0) - (right[index] ?? 0);
+        if (diff !== 0)
+            return diff > 0;
+    }
+    return false;
+}
+function launcherBin(script) {
+    return /""([^"]+claudedeck\.js)""/.exec(script)?.[1] ?? null;
+}
+function launcherIsStale(script, binPath, exists = node_fs_1.default.existsSync) {
+    const current = launcherBin(script);
+    if (!current || node_path_1.default.resolve(current) === node_path_1.default.resolve(binPath))
+        return false;
+    return !exists(current) || newer(pluginVersion(binPath), pluginVersion(current));
+}
+function syncAutoLauncher(dataDir, binPath, nodePath = process.execPath, stateFile) {
+    const script = node_path_1.default.join(dataDir, 'auto-switch.vbs');
+    let text;
+    try {
+        text = node_fs_1.default.readFileSync(script, 'utf8');
+    }
+    catch {
+        return false;
+    }
+    if (!launcherIsStale(text, binPath))
+        return false;
+    try {
+        node_fs_1.default.writeFileSync(script, launcherScript(nodePath, binPath), 'utf8');
+    }
+    catch {
+        return false;
+    }
+    const state = readAutoState(stateFile);
+    if (state.pid && isRunning(state, new Date())) {
+        try {
+            process.kill(state.pid);
+        }
+        catch {
+            return true;
+        }
+    }
+    if (process.platform === 'win32')
+        (0, node_child_process_1.spawnSync)('schtasks.exe', ['/Run', '/TN', exports.TASK_NAME], { windowsHide: true });
+    return true;
 }

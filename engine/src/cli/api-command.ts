@@ -9,6 +9,7 @@ import {
   removeAutoTask,
   setHeld,
   setPreferredNext,
+  syncAutoLauncher,
   updateAutoState,
 } from '../accounts/auto-switch';
 import { exportFromCswap, importEnvelope } from '../accounts/cswap-import';
@@ -75,6 +76,7 @@ export async function deckState(refresh: boolean) {
       held: auto.held,
       lastDecision: auto.lastDecision,
       lastSwitchAt: auto.lastSwitchAt,
+      lastDesktopDecision: auto.lastDesktopDecision,
     },
   };
 }
@@ -93,6 +95,7 @@ function startAuto(): { started: boolean } {
 export async function runApi(route: string, body: Body = {}): Promise<unknown> {
   switch (route) {
     case 'state':
+      syncAutoLauncher(userDataDir(), binPath());
       return deckState(body.refresh === true);
     case 'schedule':
       return createScheduleService().scheduleState();

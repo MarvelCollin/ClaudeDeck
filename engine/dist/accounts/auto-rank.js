@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.NOT_STARTED_RANK = exports.EXPIRY_GAP_HOURS = exports.EXPIRING_HOURS = exports.AT_LIMIT = void 0;
+exports.NOT_STARTED_RANK = exports.DESKTOP_COOLDOWN_MS = exports.EXPIRY_GAP_HOURS = exports.EXPIRING_HOURS = exports.AT_LIMIT = void 0;
 exports.weekHoursLeft = weekHoursLeft;
 exports.rankOf = rankOf;
 exports.usedOf = usedOf;
@@ -10,9 +10,11 @@ exports.nextPick = nextPick;
 exports.hoursText = hoursText;
 exports.expiringPick = expiringPick;
 exports.decide = decide;
+exports.decideDesktop = decideDesktop;
 exports.AT_LIMIT = 99.5;
 exports.EXPIRING_HOURS = 48;
 exports.EXPIRY_GAP_HOURS = 12;
+exports.DESKTOP_COOLDOWN_MS = 5 * 60 * 1000;
 exports.NOT_STARTED_RANK = Number.MAX_SAFE_INTEGER;
 const HOUR_MS = 3_600_000;
 function resetMs(window) {
@@ -141,4 +143,23 @@ function decide(list, state, now) {
         return go(expiring, 'expiring', `${expiring.alias} has ${Math.round(weekLeft(expiring))}% of its week left and it resets in ${hoursText(expiring.rank)}, so it is spent before that quota is lost`);
     }
     return stay(`staying on ${active.alias}`);
+}
+function decideDesktop(list, desktopAlias, canDesktop, state, now) {
+    const at = now.toISOString();
+    const current = list.find(entry => entry.alias === desktopAlias) ?? null;
+    const stay = (reason) => ({ at, action: 'stay', from: desktopAlias, target: null, trigger: 'none', reason });
+    if (!current)
+        return stay('Claude Desktop is on an account ClaudeDeck has not saved');
+    if (current.status !== 'ok')
+        return stay('no fresh usage for the Claude Desktop account yet');
+    if (current.usedPercent < exports.AT_LIMIT)
+        return stay(`Claude Desktop stays on ${current.alias} until it hits its limit`);
+    const since = state.lastDesktopSwitchAt ? now.getTime() - Date.parse(state.lastDesktopSwitchAt) : Number.POSITIVE_INFINITY;
+    if (since < exports.DESKTOP_COOLDOWN_MS)
+        return stay('just moved Claude Desktop, waiting out the cooldown');
+    const ready = list.filter(entry => entry.alias !== current.alias && entry.hasRoom && canDesktop(entry.alias));
+    const target = order(ready.filter(entry => !entry.active), state.preferredNext)[0] ?? order(ready, state.preferredNext)[0];
+    if (!target)
+        return stay(`${current.alias} hit its limit and no other account has a saved Desktop login with room`);
+    return { at, action: 'switch', from: current.alias, target: target.alias, trigger: 'at-limit', reason: `${current.alias} hit its limit in Claude Desktop` };
 }

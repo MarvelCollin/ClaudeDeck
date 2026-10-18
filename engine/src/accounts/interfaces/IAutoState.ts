@@ -6,7 +6,9 @@ export interface IAutoState {
   preferredNext: string | null;
   held: string[];
   lastSwitchAt: string | null;
+  lastDesktopSwitchAt: string | null;
   lastDecision: IAutoDecision | null;
+  lastDesktopDecision: IAutoDecision | null;
   heartbeatAt: string | null;
   pid: number | null;
 }
