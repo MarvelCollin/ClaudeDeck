@@ -38,7 +38,7 @@ export async function deckState(refresh: boolean) {
   const listing = switcher.listSessions();
   const code = switcher.currentCodeIdentity();
   const codeEmail = code?.email.toLowerCase() ?? null;
-  const fresh = refresh ? await refreshLiveUsage(listing.sessions, true) : {};
+  const fresh = await refreshLiveUsage(listing.sessions, refresh);
   const live: Record<string, ILiveUsage | null> = {};
   for (const entry of listing.sessions) {
     live[entry.alias] = fresh[entry.alias.toLowerCase()] ?? cachedUsage(entry.alias);

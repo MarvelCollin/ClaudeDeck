@@ -58,6 +58,14 @@ test('the account whose week resets soonest is spent first, with a running sessi
   assert.strictEqual(rankOf(null, null, NOW.getTime()).tier, 'unknown');
 });
 
+test('a window whose reset has passed counts as unused', () => {
+  const lapsed = { one: usage(53, -2, 55, -1) };
+  const [entry] = toRanked(entries('one').slice(0, 1), lapsed, state(), NOW.getTime());
+  assert.strictEqual(entry.fiveHour?.usedPercent, 0);
+  assert.strictEqual(entry.sevenDay?.usedPercent, 0);
+  assert.strictEqual(entry.usedPercent, 0);
+});
+
 test('within the same hour a running session goes first, then the most quota left', () => {
   const tied: Record<string, ILiveUsage> = {
     one: usage(0, null, 50, 10.2),

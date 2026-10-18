@@ -39,6 +39,10 @@ function rankOf(fiveHour, sevenDay, nowMs) {
         return { tier: 'idle', rank: hours ?? exports.NOT_STARTED_RANK };
     return { tier: 'unknown', rank: Number.POSITIVE_INFINITY };
 }
+function current(window, nowMs) {
+    const reset = resetMs(window);
+    return window && reset !== null && reset <= nowMs ? { ...window, usedPercent: 0 } : window;
+}
 function usedOf(fiveHour, sevenDay) {
     return Math.max(fiveHour?.usedPercent ?? 0, sevenDay?.usedPercent ?? 0);
 }
@@ -47,8 +51,8 @@ function toRanked(entries, live, state, nowMs) {
     return entries.map(entry => {
         const usage = live[entry.alias.toLowerCase()] ?? null;
         const ok = usage?.status === 'ok' || Boolean(usage?.fetchedAt && usage.status === 'error');
-        const fiveHour = ok ? usage?.fiveHour ?? null : null;
-        const sevenDay = ok ? usage?.sevenDay ?? null : null;
+        const fiveHour = ok ? current(usage?.fiveHour ?? null, nowMs) : null;
+        const sevenDay = ok ? current(usage?.sevenDay ?? null, nowMs) : null;
         const usedPercent = usedOf(fiveHour, sevenDay);
         const { tier, rank } = rankOf(fiveHour, sevenDay, nowMs);
         const isHeld = held.has(entry.alias.toLowerCase());

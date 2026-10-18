@@ -32,7 +32,7 @@ async function deckState(refresh) {
     const listing = switcher.listSessions();
     const code = switcher.currentCodeIdentity();
     const codeEmail = code?.email.toLowerCase() ?? null;
-    const fresh = refresh ? await (0, live_refresh_1.refreshLiveUsage)(listing.sessions, true) : {};
+    const fresh = await (0, live_refresh_1.refreshLiveUsage)(listing.sessions, refresh);
     const live = {};
     for (const entry of listing.sessions) {
         live[entry.alias] = fresh[entry.alias.toLowerCase()] ?? (0, live_usage_1.cachedUsage)(entry.alias);
