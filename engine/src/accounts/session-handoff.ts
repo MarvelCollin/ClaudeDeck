@@ -1,5 +1,6 @@
 import path from 'node:path';
-import { spawnDetached } from '../core/exec';
+import { newConsoleLaunch } from '../core/console';
+import { runCapture } from '../core/exec';
 import { packageRoot } from '../core/paths';
 import { IHandoffResult, ISwitcher } from './interfaces';
 import { packagedProfileDirs, roamingDir } from './paths';
@@ -32,10 +33,10 @@ export function handoffLaunch(
   script: string = handoffScriptPath()
 ): { command: string; args: string[] } {
   if (platform === 'win32') {
-    const args = ['-NoExit', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, '-SessionId', sessionId, '-Name', name];
+    const args = ['powershell.exe', '-NoExit', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, '-SessionId', sessionId, '-Name', name];
     if (folders[0]) args.push('-Folder', folders[0]);
     if (folders[1]) args.push('-AltFolder', folders[1]);
-    return { command: 'powershell.exe', args: ['-NoProfile', '-Command', `Start-Process powershell.exe -ArgumentList ${args.map(quoted).join(',')}`] };
+    return newConsoleLaunch(args);
   }
   if (platform === 'darwin') {
     const folder = (folders[0] ?? '').replace(/'/g, "'\\''");
@@ -50,7 +51,7 @@ export function startHandoff(
   alias: string,
   sessionId: string,
   cwd: string,
-  spawn: (command: string, args: string[]) => number | undefined = spawnDetached
+  run: (command: string, args: string[]) => unknown = (command, args) => runCapture(command, args, { windowsHide: true })
 ): IHandoffResult {
   if (!SESSION_ID.test(sessionId)) throw new Error('This session has no id ClaudeDeck can continue.');
   const listed = switcher.listSessions().sessions.find(entry => entry.alias.toLowerCase() === alias.toLowerCase());
@@ -60,6 +61,6 @@ export function startHandoff(
   if (movedCode) switcher.switchCode(listed.alias);
   const folders = handoffFolders(cwd);
   const target = handoffLaunch(sessionId, folders, listed.name);
-  spawn(target.command, target.args);
+  run(target.command, target.args);
   return { alias: listed.alias, name: listed.name, sessionId, folders, movedCode };
 }

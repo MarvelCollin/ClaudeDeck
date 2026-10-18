@@ -167,16 +167,8 @@ async function handoff($: $, deck: DeckState | null, alias: string) {
   return act($, `Moving this session to ${name}`, 'session/handoff', { alias, sessionId, cwd }, `This session continues on ${name} in a new terminal window`)
 }
 
-async function relogin($: $, entry: Ranked) {
-  const script = `${$.plugin.root.replace(/\\/g, '/')}/scripts/relogin.ps1`
-  const args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, '-Email', entry.email, '-Deck', deckBin($)]
-  const list = args.map(value => `'${value.replace(/'/g, "''")}'`).join(',')
-  await $.process.run(['powershell.exe', '-NoProfile', '-Command', `Start-Process powershell.exe -ArgumentList ${list}`], {
-    timeoutMs: 20_000,
-  })
-  const text = 'Sign in opened in a new window. Follow its steps.'
-  $.ui.toast(text, { timeoutMs: 8000 })
-  return text
+function relogin($: $, entry: Ranked) {
+  return act($, `Opening a sign in window for ${entry.email}`, 'accounts/relogin', { email: entry.email }, 'Sign in opened in a new window. Follow its steps.')
 }
 
 async function openPane($: $) {

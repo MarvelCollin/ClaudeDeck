@@ -1,6 +1,6 @@
 {
   "name": "claudedeck",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Switch Claude accounts from a sidebar in Claude Desktop and Claude Code: live usage per account, a Claude Desktop window per account that never restarts, and auto switch that spends the weekly quota that runs out first",
   "author": {
     "name": "Marvel Collin"

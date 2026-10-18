@@ -21,8 +21,9 @@ import { cachedUsage } from '../accounts/live-usage';
 import { startHandoff } from '../accounts/session-handoff';
 import { isValidAlias } from '../accounts/paths';
 import { createSwitcher } from '../accounts/switcher';
+import { openConsole } from '../core/console';
 import { errorMessage } from '../core/fs/json';
-import { userDataDir } from '../core/paths';
+import { packageRoot, userDataDir } from '../core/paths';
 import { IScheduleDraft } from '../service/interfaces';
 import { createScheduleService } from '../service/schedule-service';
 import { refreshLiveUsage } from './live-refresh';
@@ -123,6 +124,17 @@ function knownAliases(): string[] {
   return createSwitcher().listSessions().sessions.map(entry => entry.alias);
 }
 
+function startRelogin(email: string): { email: string } {
+  if (process.platform !== 'win32') throw new Error('Signing in again from the deck runs on Windows so far. Run "claude auth login" yourself.');
+  const known = createSwitcher()
+    .listSessions()
+    .sessions.find(entry => entry.email.toLowerCase() === email.toLowerCase());
+  if (!known) throw new Error(`No saved account for ${email}.`);
+  const script = path.join(packageRoot, '..', 'scripts', 'relogin.ps1');
+  openConsole(['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, '-Email', known.email, '-Deck', binPath()]);
+  return { email: known.email };
+}
+
 function forgetAccount(alias: string): { alias: string } {
   const windows = createDesktopWindows();
   const open = windows.list().find(entry => entry.alias?.toLowerCase() === alias.toLowerCase());
@@ -186,6 +198,8 @@ export async function runApi(route: string, body: Body = {}): Promise<unknown> {
       if (handed.movedCode) markManualSwitch();
       return handed;
     }
+    case 'accounts/relogin':
+      return startRelogin(textOf(body, 'email', 'Which account should sign in again?'));
     case 'accounts/forget':
       return forgetAccount(aliasOf(body, 'Which account should I forget?'));
     case 'accounts/import':

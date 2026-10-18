@@ -20,6 +20,7 @@ const live_usage_1 = require("../accounts/live-usage");
 const session_handoff_1 = require("../accounts/session-handoff");
 const paths_1 = require("../accounts/paths");
 const switcher_1 = require("../accounts/switcher");
+const console_1 = require("../core/console");
 const json_1 = require("../core/fs/json");
 const paths_2 = require("../core/paths");
 const schedule_service_1 = require("../service/schedule-service");
@@ -105,6 +106,18 @@ async function deckState(refresh) {
 function knownAliases() {
     return (0, switcher_1.createSwitcher)().listSessions().sessions.map(entry => entry.alias);
 }
+function startRelogin(email) {
+    if (process.platform !== 'win32')
+        throw new Error('Signing in again from the deck runs on Windows so far. Run "claude auth login" yourself.');
+    const known = (0, switcher_1.createSwitcher)()
+        .listSessions()
+        .sessions.find(entry => entry.email.toLowerCase() === email.toLowerCase());
+    if (!known)
+        throw new Error(`No saved account for ${email}.`);
+    const script = node_path_1.default.join(paths_2.packageRoot, '..', 'scripts', 'relogin.ps1');
+    (0, console_1.openConsole)(['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, '-Email', known.email, '-Deck', binPath()]);
+    return { email: known.email };
+}
 function forgetAccount(alias) {
     const windows = (0, desktop_windows_1.createDesktopWindows)();
     const open = windows.list().find(entry => entry.alias?.toLowerCase() === alias.toLowerCase());
@@ -165,6 +178,8 @@ async function runApi(route, body = {}) {
                 (0, auto_switch_1.markManualSwitch)();
             return handed;
         }
+        case 'accounts/relogin':
+            return startRelogin(textOf(body, 'email', 'Which account should sign in again?'));
         case 'accounts/forget':
             return forgetAccount(aliasOf(body, 'Which account should I forget?'));
         case 'accounts/import':

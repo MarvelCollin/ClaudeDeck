@@ -139,6 +139,16 @@ test('every account gets a card with the right actions on desktop and terminal',
   }
 })
 
+test('Sign in again asks the engine to open the sign in window', async ($, on) => {
+  const calls: { route: string; body: unknown }[] = []
+  fakeDeck(on, calls)
+  await $.command.run({ command: 'deck', args: 'refresh', ...CMD })
+  const ui = await $.ui.mount({ plugin: 'claudedeck', surface: 'desktop', component: 'Pane', requestId: 'claudedeck', props: PANE })
+  await ui.press({ key: 'login-three' })
+  expect(calls.find(call => call.route === 'accounts/relogin')?.body).toEqual({ email: 'three@x.com' })
+  await ui.unmount()
+})
+
 test('Use now moves only Claude Code and Use next saves the pick', async ($, on) => {
   const calls: { route: string; body: unknown }[] = []
   fakeDeck(on, calls)

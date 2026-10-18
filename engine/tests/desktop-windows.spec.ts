@@ -13,6 +13,7 @@ import * as registry from '../src/accounts/registry';
 import { handoffFolders, handoffLaunch, startHandoff } from '../src/accounts/session-handoff';
 import * as session from '../src/accounts/session-store';
 import { desktopNudge, desktopSeat } from '../src/cli/api-command';
+import { consoleCommandLine, newConsoleLaunch } from '../src/core/console';
 import { writeJsonFile } from '../src/core/fs/json';
 
 const EXE = 'C:\\Program Files\\WindowsApps\\Claude_2.42304.0.0_x64__pzs8sxrjxfjjc\\app\\Claude.exe';
@@ -173,13 +174,18 @@ test('the terminal handoff resumes a copy of the session in its folder', () => {
   const win = handoffLaunch(SESSION, ['C:\\code\\app', 'D:\\alt'], 'work', 'win32', 'C:\\deck\\scripts\\handoff.ps1');
   assert.strictEqual(win.command, 'powershell.exe');
   const script = win.args.at(-1) ?? '';
-  assert.match(script, /^Start-Process powershell\.exe -ArgumentList /);
-  for (const part of ['-NoExit', 'C:\\deck\\scripts\\handoff.ps1', SESSION, '-Folder', 'C:\\code\\app', '-AltFolder', 'D:\\alt']) {
-    assert.ok(script.includes(`'"${part}"'`), part);
-  }
+  assert.match(script, /^Start-Process conhost\.exe -ArgumentList '/);
+  assert.ok(script.includes(`powershell.exe -NoExit -NoProfile -ExecutionPolicy Bypass -File C:\\deck\\scripts\\handoff.ps1 -SessionId ${SESSION} -Name work -Folder C:\\code\\app -AltFolder D:\\alt`));
   const mac = handoffLaunch(SESSION, ["/Users/me/it's"], 'work', 'darwin');
   assert.strictEqual(mac.command, 'osascript');
   assert.match(mac.args[1] ?? '', /claude --resume 0b027735-10d8-4834-855a-c5955e955568 --fork-session/);
+});
+
+test('a new console window gets one quoted command line, so it opens visible through conhost', () => {
+  assert.strictEqual(consoleCommandLine(['powershell.exe', '-File', 'C:\\With Space\\a.ps1', '-Name', '', 'say "hi"']), 'powershell.exe -File "C:\\With Space\\a.ps1" -Name "" "say \\"hi\\""');
+  const launch = newConsoleLaunch(['powershell.exe', '-Name', "it's"]);
+  assert.deepStrictEqual(launch.args.slice(0, 2), ['-NoProfile', '-Command']);
+  assert.strictEqual(launch.args[2], "Start-Process conhost.exe -ArgumentList 'powershell.exe -Name it''s'");
 });
 
 test('a handoff moves the terminal Claude Code to the account first, then opens the terminal', () => {
