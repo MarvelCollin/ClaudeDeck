@@ -4,7 +4,6 @@ import path from 'node:path';
 import { readJsonFile, writeJsonFile } from '../core/fs/json';
 import { decide, decideDesktop, nextPick, toRanked } from './auto-rank';
 import { IAutoDecision, IAutoDeps, IAutoSettings, IAutoState, IAutoTick, ILiveUsage, ISwitcher } from './interfaces';
-import { readDesktopJob, startDesktopJob } from './desktop-job';
 import { cachedUsage, createLiveUsage, MIN_INTERVAL_MS, targetsFor } from './live-usage';
 import { autoStatePath, codeCredentialsPath, sessionSlot } from './paths';
 
@@ -88,11 +87,6 @@ export function defaultAutoDeps(switcher: ISwitcher, logFile?: string): IAutoDep
     credPath: codeCredentialsPath(),
     slotFile: alias => path.join(sessionSlot(alias), 'code.json'),
     now: () => new Date(),
-    startDesktop: alias => {
-      const job = readDesktopJob();
-      if (job && !job.finishedAt) return;
-      startDesktopJob('switch', alias);
-    },
     log: line => {
       try {
         if (fs.existsSync(file) && fs.statSync(file).size > LOG_LIMIT) fs.renameSync(file, `${file}.1`);
@@ -140,17 +134,10 @@ export function createAutoSwitch(deps: IAutoDeps) {
     const desktopAlias = listing.sessions.find(entry => entry.active)?.alias ?? null;
     const canDesktop = (alias: string) => Boolean(listing.sessions.find(entry => entry.alias === alias)?.desktopCaptured);
     const desktopDecision = decideDesktop(after, desktopAlias, canDesktop, state, now);
-    let desktopSwitched = false;
-    if (desktopDecision.action === 'switch' && desktopDecision.target && !options.dryRun) {
-      deps.startDesktop(desktopDecision.target);
-      desktopSwitched = true;
-      deps.log(`desktop ${desktopDecision.from ?? '?'} -> ${desktopDecision.target}: ${desktopDecision.reason}`);
-    }
     const stored = updateAutoState(
       current => ({
         ...current,
         lastSwitchAt: switched ? now.toISOString() : current.lastSwitchAt,
-        lastDesktopSwitchAt: desktopSwitched ? now.toISOString() : current.lastDesktopSwitchAt,
         preferredNext:
           switched && current.preferredNext?.toLowerCase() === decision.target?.toLowerCase() ? null : current.preferredNext,
         lastDecision: decision,
@@ -160,7 +147,7 @@ export function createAutoSwitch(deps: IAutoDeps) {
       }),
       deps.stateFile
     );
-    return { decision, accounts: after, next: nextPick(after, stored.preferredNext), switched, desktopDecision, desktopSwitched };
+    return { decision, accounts: after, next: nextPick(after, stored.preferredNext), switched, desktopDecision };
   }
 
   async function run(onTick: (result: IAutoTick) => void, signal?: AbortSignal): Promise<void> {

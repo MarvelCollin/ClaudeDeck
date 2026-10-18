@@ -181,5 +181,5 @@ export function decideDesktop(
   const ready = list.filter(entry => entry.alias !== current.alias && entry.hasRoom && canDesktop(entry.alias));
   const target = order(ready.filter(entry => !entry.active), state.preferredNext)[0] ?? order(ready, state.preferredNext)[0];
   if (!target) return stay(`${current.alias} hit its limit and no other account has a saved Desktop login with room`);
-  return { at, action: 'switch', from: current.alias, target: target.alias, trigger: 'at-limit', reason: `${current.alias} hit its limit in Claude Desktop` };
+  return { at, action: 'switch', from: current.alias, target: target.alias, trigger: 'at-limit', reason: `${current.alias} hit its limit in Claude Desktop, ${target.alias} is ready in its own window` };
 }

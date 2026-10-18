@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ACCOUNT_KEY = exports.CONFIG_PREFIXES = exports.CONFIG_KEYS = exports.CONFIG_FILE = exports.CODE_KEY = exports.DESKTOP_ITEMS = void 0;
+exports.ACCOUNT_KEY = exports.CONFIG_PREFIXES = exports.CONFIG_KEYS = exports.WINDOW_MARKER = exports.SLOT_DESKTOP_DIR = exports.CONFIG_FILE = exports.CODE_KEY = exports.DESKTOP_ITEMS = void 0;
 exports.copyItem = copyItem;
 exports.snapshotDesktop = snapshotDesktop;
 exports.restoreDesktop = restoreDesktop;
@@ -20,6 +20,8 @@ exports.snapshotConfig = snapshotConfig;
 exports.restoreConfig = restoreConfig;
 exports.clearDesktop = clearDesktop;
 exports.clearConfig = clearConfig;
+exports.readWindowMarker = readWindowMarker;
+exports.writeWindowMarker = writeWindowMarker;
 const node_fs_1 = __importDefault(require("node:fs"));
 const node_path_1 = __importDefault(require("node:path"));
 const json_1 = require("../core/fs/json");
@@ -34,6 +36,8 @@ exports.DESKTOP_ITEMS = [
 ];
 exports.CODE_KEY = 'claudeAiOauth';
 exports.CONFIG_FILE = 'config.json';
+exports.SLOT_DESKTOP_DIR = 'desktop';
+exports.WINDOW_MARKER = 'window.json';
 exports.CONFIG_KEYS = ['lastKnownAccountUuid'];
 exports.CONFIG_PREFIXES = ['oauth:'];
 const BUSY_CODES = new Set(['EBUSY', 'EPERM', 'EPIPE', 'EACCES']);
@@ -185,4 +189,13 @@ function clearConfig(configPath) {
         delete config[key];
     node_fs_1.default.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
     return true;
+}
+function readWindowMarker(slotDir) {
+    const marker = (0, json_1.readJsonFile)(node_path_1.default.join(slotDir, exports.WINDOW_MARKER));
+    if (!marker || typeof marker.profileDir !== 'string' || !marker.profileDir)
+        return null;
+    return { profileDir: marker.profileDir, movedAt: typeof marker.movedAt === 'string' ? marker.movedAt : '' };
+}
+function writeWindowMarker(slotDir, marker) {
+    (0, json_1.writeJsonFile)(node_path_1.default.join(slotDir, exports.WINDOW_MARKER), marker);
 }

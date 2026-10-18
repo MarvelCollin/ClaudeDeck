@@ -10,5 +10,4 @@ export interface IAutoDeps {
   slotFile: (alias: string) => string;
   now: () => Date;
   log: (line: string) => void;
-  startDesktop: (alias: string) => void;
 }

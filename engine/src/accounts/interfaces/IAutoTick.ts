@@ -7,5 +7,4 @@ export interface IAutoTick {
   next: IRankedAccount | null;
   switched: boolean;
   desktopDecision: IAutoDecision;
-  desktopSwitched: boolean;
 }

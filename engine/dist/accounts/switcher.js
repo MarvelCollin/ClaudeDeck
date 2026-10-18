@@ -272,6 +272,9 @@ function createSwitcher(overrides = {}) {
         const target = registry.findSession(readRegistry(), alias);
         if (!target)
             throw new Error(`No saved session for "${alias}".`);
+        if (session.readWindowMarker(deps.slotOf(target.alias))) {
+            throw new Error(`${target.name} has its own Claude Desktop window now. Press Open in Desktop instead.`);
+        }
         if (!desktopCaptured(target.alias)) {
             throw new Error(`${target.name} has no saved Claude Desktop login yet. Sign in to Claude Desktop with it once and save it.`);
         }

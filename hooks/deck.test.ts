@@ -36,6 +36,8 @@ const DECK: DeckState = {
     name: alias[0]!.toUpperCase() + alias.slice(1),
     desktopActive: alias === 'two',
     desktopCaptured: true,
+    windowOpen: alias === 'two' || alias === 'four',
+    windowReady: alias !== 'three',
   })),
   live: {},
   ranked: [
@@ -45,6 +47,7 @@ const DECK: DeckState = {
     ranked('four', { active: true, fiveHour: win(40, 1.7), sevenDay: win(27, 100), usedPercent: 40, tier: 'live', rank: 1.7 }),
   ] as DeckState['ranked'],
   next: 'two',
+  desktopNudge: null,
   auto: {
     running: true,
     settings: { threshold: 95, landing: 85, cooldownSeconds: 60, intervalSeconds: 20 },
@@ -233,17 +236,64 @@ test('a later session starts from the stored deck', async ($, on) => {
   await ui.unmount()
 })
 
-test('Use in Desktop asks first, then switches this Desktop to the account', async ($, on) => {
+test('Open in Desktop starts or shows the account window at once, without closing this one', async ($, on) => {
   const calls: { route: string; body: unknown }[] = []
   fakeDeck(on, calls)
   await $.command.run({ command: 'deck', args: 'refresh', ...CMD })
   const ui = await $.ui.mount({ plugin: 'claudedeck', surface: 'desktop', component: 'Pane', requestId: 'claudedeck', props: PANE })
   expect(await ui.find({ key: 'desktop-two' })).toBeUndefined()
+  expect(await ui.find({ key: 'desktop-three' })).toBeUndefined()
+  expect((await ui.find({ key: 'desktop-one' }))?.props?.label).toBe('Open in Desktop')
+  expect((await ui.find({ key: 'desktop-four' }))?.props?.label).toBe('Show Desktop window')
   await ui.press({ key: 'desktop-one' })
+  expect(calls.find(call => call.route === 'accounts/window')?.body).toEqual({ alias: 'one' })
   expect(calls.find(call => call.route === 'accounts/switch')).toBeUndefined()
-  expect(await ui.find({ type: 'Text', text: /Switch Claude Desktop to One\? It closes and opens again on that account in the same place/ })).toBeDefined()
-  await ui.press({ key: 'desktop-yes-one' })
-  expect(calls.find(call => call.route === 'accounts/switch')?.body).toEqual({ alias: 'one' })
+  await ui.unmount()
+})
+
+test('Continue in terminal hands this session to the account, only inside Claude Desktop', async ($, on) => {
+  const calls: { route: string; body: unknown }[] = []
+  fakeDeck(on, calls)
+  on('session.id', () => ({ value: '0b027735-10d8-4834-855a-c5955e955568' }))
+  on('session.cwd', () => ({ value: 'C:/work/app' }))
+  await $.command.run({ command: 'deck', args: 'refresh', ...CMD })
+  const terminal = await $.ui.mount({ plugin: 'claudedeck', surface: 'terminal', component: 'Pane', requestId: 'claudedeck', props: PANE })
+  expect(await terminal.find({ key: 'handoff-one' })).toBeUndefined()
+  await terminal.unmount()
+  const ui = await $.ui.mount({ plugin: 'claudedeck', surface: 'desktop', component: 'Pane', requestId: 'claudedeck', props: PANE })
+  expect(await ui.find({ key: 'handoff-two' })).toBeUndefined()
+  expect(await ui.find({ key: 'handoff-three' })).toBeUndefined()
+  await ui.press({ key: 'handoff-one' })
+  expect(calls.find(call => call.route === 'session/handoff')?.body).toEqual({
+    alias: 'one',
+    sessionId: '0b027735-10d8-4834-855a-c5955e955568',
+    cwd: 'C:/work/app',
+  })
+  await ui.unmount()
+})
+
+test('the strip in Claude Desktop offers the next window once its account is out', async ($, on) => {
+  const calls: { route: string; body: unknown }[] = []
+  const out = { ...DECK, desktopNudge: { from: 'two', target: 'one', reason: 'two hit its limit in Claude Desktop' } }
+  fakeDeck(on, calls, out)
+  on('ui.panes', () => ({ value: [] }))
+  await $.command.run({ command: 'deck', args: 'refresh', ...CMD })
+  const terminal = await $.ui.mount({ plugin: 'claudedeck', surface: 'terminal', component: 'AbovePrompt', props: BAND })
+  expect(await terminal.find({ key: 'nudge-open' })).toBeUndefined()
+  await terminal.unmount()
+  const ui = await $.ui.mount({ plugin: 'claudedeck', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+  expect((await ui.find({ key: 'nudge-open' }))?.props?.label).toBe('Open One')
+  await ui.press({ key: 'nudge-open' })
+  expect(calls.find(call => call.route === 'accounts/window')?.body).toEqual({ alias: 'one' })
+  await ui.unmount()
+})
+
+test('the strip stays plain while the Desktop account has room', async ($, on) => {
+  fakeDeck(on, [])
+  on('ui.panes', () => ({ value: [] }))
+  await $.command.run({ command: 'deck', args: 'refresh', ...CMD })
+  const ui = await $.ui.mount({ plugin: 'claudedeck', surface: 'desktop', component: 'AbovePrompt', props: BAND })
+  expect(await ui.find({ key: 'nudge-open' })).toBeUndefined()
   await ui.unmount()
 })
 

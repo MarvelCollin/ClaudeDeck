@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { errorCode, readJsonFile } from '../core/fs/json';
+import { errorCode, readJsonFile, writeJsonFile } from '../core/fs/json';
+import { IWindowMarker } from './interfaces';
 
 export const DESKTOP_ITEMS = [
   'Local State',
@@ -13,6 +14,8 @@ export const DESKTOP_ITEMS = [
 ] as const;
 export const CODE_KEY = 'claudeAiOauth';
 export const CONFIG_FILE = 'config.json';
+export const SLOT_DESKTOP_DIR = 'desktop';
+export const WINDOW_MARKER = 'window.json';
 export const CONFIG_KEYS = ['lastKnownAccountUuid'] as const;
 export const CONFIG_PREFIXES = ['oauth:'] as const;
 
@@ -169,4 +172,14 @@ export function clearConfig(configPath: string): boolean {
   for (const key of keys) delete config[key];
   fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
   return true;
+}
+
+export function readWindowMarker(slotDir: string): IWindowMarker | null {
+  const marker = readJsonFile<Partial<IWindowMarker>>(path.join(slotDir, WINDOW_MARKER));
+  if (!marker || typeof marker.profileDir !== 'string' || !marker.profileDir) return null;
+  return { profileDir: marker.profileDir, movedAt: typeof marker.movedAt === 'string' ? marker.movedAt : '' };
+}
+
+export function writeWindowMarker(slotDir: string, marker: IWindowMarker): void {
+  writeJsonFile(path.join(slotDir, WINDOW_MARKER), marker);
 }

@@ -192,7 +192,6 @@ test('a tick switches Claude Code only and clears a chosen next once it is used'
       slotFile: alias => alias,
       now: () => NOW,
       log: line => lines.push(line),
-      startDesktop: () => assert.fail('Claude Desktop is not on a saved account here'),
     });
 
     const result = await auto.tick();
@@ -227,11 +226,10 @@ test('Claude Desktop moves only once its account hits the limit, to an account w
   assert.strictEqual(decideDesktop(hit, 'two', () => false, state(), NOW).action, 'stay');
 });
 
-test('a tick moves Claude Desktop when its account is out, without touching Claude Code', async () => {
+test('a tick only points Claude Desktop at another window when its account is out, and never restarts it', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cd-auto-'));
   try {
     const stateFile = path.join(dir, 'auto.json');
-    const moved: string[] = [];
     const switcher = {
       listSessions: () => ({
         sessions: entries('one').map(entry => ({ alias: entry.alias, email: entry.email, active: entry.alias === 'two', desktopCaptured: true })),
@@ -248,15 +246,12 @@ test('a tick moves Claude Desktop when its account is out, without touching Clau
       slotFile: alias => alias,
       now: () => NOW,
       log: () => undefined,
-      startDesktop: alias => moved.push(alias),
     });
     const result = await auto.tick();
-    assert.ok(result.desktopSwitched);
-    assert.strictEqual(moved.length, 1);
-    assert.notStrictEqual(moved[0], 'two');
-    assert.strictEqual(readAutoState(stateFile).lastDesktopSwitchAt, NOW.toISOString());
-    await auto.tick();
-    assert.strictEqual(moved.length, 1);
+    assert.strictEqual(result.desktopDecision.action, 'switch');
+    assert.notStrictEqual(result.desktopDecision.target, 'two');
+    assert.match(result.desktopDecision.reason, /ready in its own window/);
+    assert.strictEqual(readAutoState(stateFile).lastDesktopSwitchAt, null);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

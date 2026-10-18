@@ -86,6 +86,27 @@ export function launchTarget(exe: string, readFile?: (file: string) => string): 
   return { command: exe, args: [] };
 }
 
+export function storeAliasPath(env = process.env): string {
+  return path.join(env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), 'Microsoft', 'WindowsApps', 'claude-desktop.exe');
+}
+
+export function profileLaunchTarget(
+  exe: string,
+  platform: NodeJS.Platform = process.platform,
+  exists: (file: string) => boolean = fs.existsSync,
+  env = process.env
+): { command: string; args: string[] } {
+  if (platform === 'darwin') {
+    const app = exe.replace(/\/Contents\/MacOS\/Claude$/, '');
+    return { command: 'open', args: ['-n', '-a', app, '--args'] };
+  }
+  if (platform === 'win32' && exe.split(/[\\/]+/).some(part => part.toLowerCase() === PACKAGE_ROOT)) {
+    const alias = storeAliasPath(env);
+    if (exists(alias)) return { command: alias, args: [] };
+  }
+  return { command: exe, args: [] };
+}
+
 export function launch(exe: string, args: string[]): number | undefined {
   return spawnDetached(exe, args);
 }

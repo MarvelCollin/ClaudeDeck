@@ -10,6 +10,7 @@ exports.desktopProfileDir = desktopProfileDir;
 exports.registryPath = registryPath;
 exports.sessionsRoot = sessionsRoot;
 exports.liveUsagePath = liveUsagePath;
+exports.desktopProfilesRoot = desktopProfilesRoot;
 exports.autoStatePath = autoStatePath;
 exports.sessionSlot = sessionSlot;
 exports.homeDir = homeDir;
@@ -77,6 +78,9 @@ function sessionsRoot(platform = process.platform, env = process.env) {
 }
 function liveUsagePath(platform = process.platform, env = process.env) {
     return deckDir(platform, env, 'usage-live.json');
+}
+function desktopProfilesRoot(platform = process.platform, env = process.env) {
+    return deckDir(platform, env, 'desktop-profiles');
 }
 function autoStatePath(platform = process.platform, env = process.env) {
     return deckDir(platform, env, 'auto.json');

@@ -8,6 +8,8 @@ exports.darwinCandidates = darwinCandidates;
 exports.locateApp = locateApp;
 exports.packagedAppId = packagedAppId;
 exports.launchTarget = launchTarget;
+exports.storeAliasPath = storeAliasPath;
+exports.profileLaunchTarget = profileLaunchTarget;
 exports.launch = launch;
 const node_fs_1 = __importDefault(require("node:fs"));
 const node_os_1 = __importDefault(require("node:os"));
@@ -94,6 +96,21 @@ function launchTarget(exe, readFile) {
     const appId = packagedAppId(exe, readFile);
     if (appId)
         return { command: 'explorer.exe', args: [`shell:AppsFolder${node_path_1.default.win32.sep}${appId}`] };
+    return { command: exe, args: [] };
+}
+function storeAliasPath(env = process.env) {
+    return node_path_1.default.join(env.LOCALAPPDATA || node_path_1.default.join(node_os_1.default.homedir(), 'AppData', 'Local'), 'Microsoft', 'WindowsApps', 'claude-desktop.exe');
+}
+function profileLaunchTarget(exe, platform = process.platform, exists = node_fs_1.default.existsSync, env = process.env) {
+    if (platform === 'darwin') {
+        const app = exe.replace(/\/Contents\/MacOS\/Claude$/, '');
+        return { command: 'open', args: ['-n', '-a', app, '--args'] };
+    }
+    if (platform === 'win32' && exe.split(/[\\/]+/).some(part => part.toLowerCase() === PACKAGE_ROOT)) {
+        const alias = storeAliasPath(env);
+        if (exists(alias))
+            return { command: alias, args: [] };
+    }
     return { command: exe, args: [] };
 }
 function launch(exe, args) {

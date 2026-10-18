@@ -3,6 +3,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.desktopSeat = desktopSeat;
+exports.desktopNudge = desktopNudge;
 exports.deckState = deckState;
 exports.runApi = runApi;
 exports.runApiCommand = runApiCommand;
@@ -13,7 +15,9 @@ const auto_rank_1 = require("../accounts/auto-rank");
 const auto_switch_1 = require("../accounts/auto-switch");
 const cswap_import_1 = require("../accounts/cswap-import");
 const desktop_job_1 = require("../accounts/desktop-job");
+const desktop_windows_1 = require("../accounts/desktop-windows");
 const live_usage_1 = require("../accounts/live-usage");
+const session_handoff_1 = require("../accounts/session-handoff");
 const switcher_1 = require("../accounts/switcher");
 const json_1 = require("../core/fs/json");
 const paths_1 = require("../core/paths");
@@ -24,12 +28,37 @@ function aliasOf(body, question) {
         throw new Error(question);
     return body.alias;
 }
+function textOf(body, key, question) {
+    const value = body[key];
+    if (typeof value !== 'string' || !value)
+        throw new Error(question);
+    return value;
+}
+function desktopSeat(sessions, env = process.env) {
+    if (env.CLAUDE_CODE_ENTRYPOINT !== 'claude-desktop')
+        return null;
+    const uuid = env.CLAUDE_CODE_ACCOUNT_UUID || null;
+    const email = env.CLAUDE_CODE_USER_EMAIL?.toLowerCase() || null;
+    return sessions.find(entry => (uuid && entry.accountUuid === uuid) || (email && entry.email.toLowerCase() === email)) ?? null;
+}
+function desktopNudge(ranked, seatAlias, ready, auto, now) {
+    if (!seatAlias)
+        return null;
+    const decision = (0, auto_rank_1.decideDesktop)(ranked, seatAlias, ready, { ...auto, lastDesktopSwitchAt: null }, now);
+    if (decision.action !== 'switch' || !decision.target)
+        return null;
+    return { from: seatAlias, target: decision.target, reason: decision.reason };
+}
 function binPath() {
     return node_path_1.default.resolve(__dirname, '..', '..', 'bin', 'claudedeck.js');
 }
 async function deckState(refresh) {
     const switcher = (0, switcher_1.createSwitcher)();
     const listing = switcher.listSessions();
+    const windows = (0, desktop_windows_1.createDesktopWindows)();
+    const open = windows.list();
+    const seat = desktopSeat(listing.sessions);
+    const ready = (alias) => windows.ready(alias);
     const code = switcher.currentCodeIdentity();
     const codeEmail = code?.email.toLowerCase() ?? null;
     const fresh = await (0, live_refresh_1.refreshLiveUsage)(listing.sessions, refresh);
@@ -43,20 +72,23 @@ async function deckState(refresh) {
     return {
         now: now.toISOString(),
         code: code ? { email: code.email, name: code.name, alias: ranked.find(entry => entry.active)?.alias ?? null } : null,
-        desktop: listing.current ? { email: listing.current.email, name: listing.current.name } : null,
+        desktop: seat ? { email: seat.email, name: seat.name } : listing.current ? { email: listing.current.email, name: listing.current.name } : null,
         desktopRunning: listing.running,
         desktopJob: (0, desktop_job_1.readDesktopJob)(),
         sessions: listing.sessions.map(entry => ({
             alias: entry.alias,
             email: entry.email,
             name: entry.name,
-            desktopActive: entry.active,
+            desktopActive: seat ? entry.alias === seat.alias : entry.active,
             desktopCaptured: entry.desktopCaptured,
+            windowOpen: open.some(window => window.alias?.toLowerCase() === entry.alias.toLowerCase()),
+            windowReady: ready(entry.alias),
             desktopUsage: entry.usage,
         })),
         live,
         ranked,
         next: (0, auto_rank_1.nextPick)(ranked, auto.preferredNext)?.alias ?? null,
+        desktopNudge: desktopNudge(ranked, seat?.alias ?? null, ready, auto, now),
         auto: {
             running: (0, auto_switch_1.isRunning)(auto, now),
             settings: auto.settings,
@@ -110,6 +142,10 @@ async function runApi(route, body = {}) {
             const target = (0, switcher_1.createSwitcher)().checkDesktopSwitch(aliasOf(body, 'Which account should I switch to?'));
             return (0, desktop_job_1.startDesktopJob)('switch', target.alias);
         }
+        case 'accounts/window':
+            return (0, desktop_windows_1.createDesktopWindows)().open(aliasOf(body, 'Which account should get a Claude Desktop window?'));
+        case 'session/handoff':
+            return (0, session_handoff_1.startHandoff)((0, switcher_1.createSwitcher)(), aliasOf(body, 'Which account should continue this session?'), textOf(body, 'sessionId', 'Which session should continue?'), textOf(body, 'cwd', 'Which folder is the session in?'));
         case 'accounts/forget':
             return (0, switcher_1.createSwitcher)().forget(aliasOf(body, 'Which account should I forget?'));
         case 'accounts/import':
@@ -149,7 +185,7 @@ function readStdin() {
 async function runApiCommand(argv) {
     const [route = 'state', raw] = argv;
     try {
-        const text = raw === '-' ? readStdin() : raw ?? '';
+        const text = (raw === '-' ? readStdin() : raw ?? '').replace(/^﻿/, '');
         const body = text.trim() ? JSON.parse(text) : {};
         const data = await runApi(route, body);
         process.stdout.write(`${JSON.stringify({ ok: true, data })}\n`);

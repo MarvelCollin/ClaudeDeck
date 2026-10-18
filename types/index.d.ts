@@ -32,7 +32,11 @@ export type Session = {
   name: string
   desktopActive: boolean
   desktopCaptured: boolean
+  windowOpen: boolean
+  windowReady: boolean
 }
+
+export type DesktopNudge = { from: string; target: string; reason: string }
 
 export type DesktopJob = {
   action: 'switch' | 'save' | 'add'
@@ -65,6 +69,7 @@ export type DeckState = {
   live: Record<string, Live | null>
   ranked: Ranked[]
   next: string | null
+  desktopNudge: DesktopNudge | null
   auto: AutoInfo
 }
 

@@ -58,6 +58,10 @@ export function liveUsagePath(platform: NodeJS.Platform = process.platform, env 
   return deckDir(platform, env, 'usage-live.json');
 }
 
+export function desktopProfilesRoot(platform: NodeJS.Platform = process.platform, env = process.env): string {
+  return deckDir(platform, env, 'desktop-profiles');
+}
+
 export function autoStatePath(platform: NodeJS.Platform = process.platform, env = process.env): string {
   return deckDir(platform, env, 'auto.json');
 }

@@ -1,6 +1,6 @@
 # ClaudeDeck
 
-A Claude mod that keeps several Claude accounts working for you. It shows live usage for every saved account, moves Claude Code to another account without a restart, switches Claude Desktop to another account in its own window, and auto switches to the account whose weekly quota runs out first.
+A Claude mod that keeps several Claude accounts working for you. It shows live usage for every saved account, moves Claude Code to another account without a restart, gives every account its own Claude Desktop window so nothing ever closes, and auto switches to the account whose weekly quota runs out first.
 
 Everything lives in a sidebar beside the chat in Claude Desktop, and in any Claude Code session.
 
@@ -41,11 +41,12 @@ A slim strip sits above the message box in every session: the account Claude Cod
 | **Use now** | Moves Claude Code to this account. Nothing restarts, a running session picks up the new login on its next message. |
 | **Use next** | Makes this account the next one auto switch moves to. **Clear next** goes back to the ranking. |
 | **Hold** | Keeps the account out of auto switch. **Release** brings it back. |
-| **Use in Desktop** | Switches Claude Desktop to this account, in its own window. It asks first. |
+| **Open in Desktop** | Opens this account in its own Claude Desktop window, next to the one you are in. Nothing closes. **Show Desktop window** brings it forward once it is open. |
+| **Continue in terminal** | Inside Claude Desktop: moves the terminal Claude Code to this account and continues a copy of this session there, in a new terminal window. |
 | **Sign in again** | Walks an expired login through a fresh sign in. |
 | **Forget** | Deletes the saved account. It asks first. |
 | **Save signed-in account** | Saves the Claude Code login you are on now. |
-| **Save Desktop login** | Saves the login Claude Desktop is on now, so **Use in Desktop** can bring it back later. |
+| **Save Desktop login** | Saves the login Claude Desktop is on now, so **Open in Desktop** can give it its own window. |
 | **Add Desktop account** | Saves the login Claude Desktop is on now and opens Claude Desktop on a clean sign in screen, without signing anything out. |
 | **Turn on auto switch** | Starts auto switch now and at every sign in (Windows). |
 
@@ -58,6 +59,8 @@ The same things work from the prompt:
 ```
 /deck                 open or close the sidebar
 /deck use <name>      move Claude Code to that account now
+/deck desktop <name>  open that account in its own Claude Desktop window
+/deck continue <name> continue this session on that account in a terminal
 /deck next <name>     use that account next, /deck next clear to undo
 /deck hold <name>     keep an account out of auto switch, /deck release <name>
 /deck auto on         start auto switch now and at every sign in
@@ -76,20 +79,23 @@ Do not use **Log out** in Claude Desktop to change accounts. Logging out ends th
 
 Already using claude-swap? `/deck import` copies each account's Claude Code login into ClaudeDeck. Stop `cswap auto` first, or it keeps rotating the tokens you just copied.
 
-## Switching Claude Desktop
+## Claude Desktop, one window per account
 
-Claude Desktop holds its login in memory and keeps its session files locked while it runs, so no tool can swap the account under a running window. **Use in Desktop** does the closest thing:
+Claude Desktop holds its login in memory, so no tool can swap the account under a running window, and closing it stops every reply that is running. ClaudeDeck never does that. Each account gets a Claude Desktop window of its own instead:
 
-1. A small ClaudeDeck process of its own takes over, so the switch finishes even though the deck runs inside Claude Desktop.
-2. It closes only Claude Desktop. Claude Code in a terminal, in VS Code, or anywhere else keeps running.
-3. Once Claude Desktop has fully closed, it saves the login you are leaving and puts the chosen one in place.
-4. It opens Claude Desktop again, through the Store app entry when you have the Store build, so it comes back in the same place with your window size and layout, now on the other account.
+1. **Open in Desktop** copies the saved Desktop login of that account once into its own profile folder, `desktop-profiles/<account>` in the ClaudeDeck folder, and starts Claude Desktop on it with `--user-data-dir`. From then on the login lives only there, so two windows never spend the same login.
+2. The window you were in keeps running, with its sessions. Every account can have its window open at the same time.
+3. Pressing it again, or **Show Desktop window**, brings that window forward. Your first Claude Desktop stays the window of the account it was signed in with.
 
-It takes a few seconds. When the deck loads again it tells you which account Claude Desktop is on, or what went wrong. Claude Code moves to the same account when that account has a saved Claude Code login. Your chats live on claude.ai and follow the account.
+When the account of the window you are in runs out, the strip above the prompt says **Out of usage** and offers **Open <next account>**, picked the same way auto switch picks.
+
+A session in Claude Desktop belongs to the window it runs in. **Continue in terminal** carries it to another account anyway: it moves the terminal Claude Code to that account and runs `claude --resume <session> --fork-session` in a new terminal window, in the session's folder. That is a copy of the conversation, so the Desktop session stays as it was.
+
+Adding a new account still goes through the window you are in: **Add Desktop account** opens it on a sign in screen, and **Save Desktop login** keeps the login. Both close and reopen that one window, once. After that, **Open in Desktop** gives the account its own window.
 
 ## How auto switch picks the account
 
-Auto switch moves Claude Code only, so Claude Desktop never restarts. It checks every 20 seconds and writes every move to `auto.log`.
+Auto switch moves Claude Code only, so Claude Desktop never restarts. For Claude Desktop it only works out which window to offer once the current one runs out. It checks every 20 seconds and writes every move to `auto.log`.
 
 The weekly quota is the part that is lost when it is not used, so the ranking spends first the account whose week resets soonest:
 
@@ -150,7 +156,7 @@ Claude Code on macOS keeps its login in the Keychain, so warming other accounts 
 ~/Library/Application Support/ClaudeDeck           macOS
 ```
 
-`CLAUDEDECK_HOME` points it anywhere else. Inside are the saved accounts (`profiles.json` and one folder per account under `sessions`), the live usage cache, the auto switch state and log, the schedule config and the run log.
+`CLAUDEDECK_HOME` points it anywhere else. Inside are the saved accounts (`profiles.json` and one folder per account under `sessions`), the Claude Desktop window of each account under `desktop-profiles`, the live usage cache, the auto switch state and log, the schedule config and the run log.
 
 ## What is swapped and what is not
 

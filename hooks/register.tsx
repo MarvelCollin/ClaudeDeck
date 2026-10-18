@@ -89,6 +89,11 @@ async function refresh($: $, force = false): Promise<DeckState | null> {
       const text = job.ok ? done : `Claude Desktop did not ${failed}: ${job.error ?? 'unknown error'}`
       await alertOnce($, `desktop:${job.finishedAt}`, text, alerted, fresh)
     }
+    const nudge = deck.desktopNudge
+    if (nudge) {
+      const text = `${displayName(deck, nudge.from)} is out of usage. ${displayName(deck, nudge.target)} is ready in its own Claude Desktop window.`
+      await alertOnce($, `nudge:${nudge.from}:${nudge.target}`, text, alerted, fresh)
+    }
     const active = deck.ranked.find(entry => entry.active)
     if (active && active.usedPercent >= 90 && !deck.next) {
       await alertOnce($, `full:${Math.floor(nowMs / 3_600_000)}`, 'Every account is close to its limit', alerted, fresh)
@@ -126,15 +131,16 @@ async function loadLog($: $) {
   }
 }
 
-async function act($: $, busy: string, route: string, body: Record<string, unknown>, done: string) {
+async function act<T = unknown>($: $, busy: string, route: string, body: Record<string, unknown>, done: string | ((data: T) => string)) {
   await update($, busyA, () => busy)
   await update($, errorA, () => null)
   try {
-    const data = await api<unknown>($, route, body)
+    const data = await api<T>($, route, body)
     if (route.startsWith('schedule/')) await update($, scheduleA, () => data as Schedule)
     await refresh($)
-    $.ui.toast(done)
-    return done
+    const text = typeof done === 'string' ? done : done(data)
+    $.ui.toast(text)
+    return text
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     await update($, errorA, () => message)
@@ -143,6 +149,22 @@ async function act($: $, busy: string, route: string, body: Record<string, unkno
   } finally {
     await update($, busyA, () => null)
   }
+}
+
+type WindowOpened = { name: string; action: 'focused' | 'opened' | 'prepared' }
+
+function openWindow($: $, deck: DeckState | null, alias: string) {
+  const name = displayName(deck, alias)
+  return act<WindowOpened>($, `Opening ${name} in Claude Desktop`, 'accounts/window', { alias }, data =>
+    data.action === 'focused' ? `The Claude Desktop window of ${data.name} is in front` : `${data.name} opens in its own Claude Desktop window`
+  )
+}
+
+async function handoff($: $, deck: DeckState | null, alias: string) {
+  const name = displayName(deck, alias)
+  const sessionId = await $.session.id()
+  const cwd = await $.session.cwd()
+  return act($, `Moving this session to ${name}`, 'session/handoff', { alias, sessionId, cwd }, `This session continues on ${name} in a new terminal window`)
 }
 
 async function relogin($: $, entry: Ranked) {
@@ -186,6 +208,8 @@ function findAlias(deck: DeckState | null, text: string): string | null {
 const HELP = [
   '/deck                 open or close the ClaudeDeck sidebar',
   '/deck use <name>      move Claude Code to that account now',
+  '/deck desktop <name>  open that account in its own Claude Desktop window',
+  '/deck continue <name> continue this session on that account in a terminal',
   '/deck next <name>     use that account next, /deck next clear to undo',
   '/deck hold <name>     keep an account out of auto switch, /deck release <name>',
   '/deck auto on         start auto switch now and at every sign in',
@@ -238,10 +262,12 @@ export const register: Register = on => {
     if (verb === 'next' && arg === 'clear') {
       return { text: await act($, 'Clearing your pick', 'auto/next', { alias: null }, 'The ranking picks the next account again') }
     }
-    if (['use', 'next', 'hold', 'release'].includes(verb)) {
+    if (['use', 'next', 'hold', 'release', 'desktop', 'continue'].includes(verb)) {
       const alias = findAlias(deck, arg)
       if (!alias) return { text: `No saved account matches "${arg}".` }
       const name = displayName(deck, alias)
+      if (verb === 'desktop') return { text: await openWindow($, deck, alias) }
+      if (verb === 'continue') return { text: await handoff($, deck, alias) }
       if (verb === 'use') return { text: await act($, `Moving Claude Code to ${name}`, 'accounts/switch', { alias, code: true }, `Claude Code is on ${name}`) }
       if (verb === 'next') return { text: await act($, `Setting ${name} as next`, 'auto/next', { alias }, `${name} goes next`) }
       return {
@@ -275,10 +301,13 @@ export const register: Register = on => {
     const Svg = e.surface !== 'terminal' && 'Svg' in els ? els.Svg : undefined
     const nameOf = (alias: string | null) => displayName(deck, alias)
     const seat = seatOf(deck, e.surface)
+    const nudge = seat === 'desktop' ? deck.desktopNudge : null
     return (
-      <Box flexDirection="row" gap={1} alignItems="center">
+      <Box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
         {Svg ? <Svg source={stripSvg(deck, nameOf, seat)} alt={stripText(deck, nameOf, seat)} /> : <Text>{stripText(deck, nameOf, seat)}</Text>}
         {toggle}
+        {nudge && <Text key="nudge-text" color="error">Out of usage</Text>}
+        {nudge && <Button key="nudge-open" label={`Open ${nameOf(nudge.target)}`} variant="primary" onPress={() => void openWindow($, deck, nudge.target)} />}
       </Box>
     )
   })
@@ -484,13 +513,14 @@ export const register: Register = on => {
           const usable = !entry.active && entry.status === 'ok' && !entry.held
           const tags = [
             entry.active ? (seat === 'desktop' ? 'Terminal' : 'Claude Code') : '',
-            session?.desktopActive ? 'Desktop' : '',
+            session?.desktopActive ? (seat === 'desktop' ? 'This window' : 'Desktop') : '',
+            !session?.desktopActive && session?.windowOpen ? 'Window open' : '',
             !entry.active && entry.alias === deck.next ? (isPick ? 'Next, your pick' : 'Next') : '',
             !entry.active && isPick && entry.alias !== deck.next ? 'Your pick' : '',
           ].filter(Boolean)
           const pendingForget = confirm === `forget:${entry.alias}`
-          const pendingDesktop = confirm === `desktop:${entry.alias}`
-          const canDesktop = !session?.desktopActive && Boolean(session?.desktopCaptured) && !needsLogin
+          const canWindow = !session?.desktopActive && Boolean(session?.windowReady) && !needsLogin
+          const canHandoff = seat === 'desktop' && !session?.desktopActive && entry.status === 'ok' && !entry.held && entry.hasRoom
           return (
             <Box
               key={`card-${entry.alias}`}
@@ -522,29 +552,13 @@ export const register: Register = on => {
                 <Text dimColor={!needsLogin} color={needsLogin ? 'error' : undefined} size="footnote" wrap="wrap">
                   {reasonOf(entry, live, nowMs)}
                 </Text>
-                {!session?.desktopActive && !session?.desktopCaptured && !needsLogin && (
+                {!session?.desktopActive && !session?.windowReady && !needsLogin && (
                   <Text dimColor size="footnote" wrap="wrap">
                     Desktop login not saved yet. Press Add Desktop account, sign in with it, then press Save Desktop login.
                   </Text>
                 )}
               </Box>
-              {pendingDesktop ? (
-                <Box flexDirection="row" gap={1} flexWrap="wrap" alignItems="center">
-                  <Text color="claude">
-                    Switch Claude Desktop to {nameOf(entry.alias)}? It closes and opens again on that account in the same place, so replies that are running stop.
-                  </Text>
-                  <Button
-                    key={`desktop-yes-${entry.alias}`}
-                    label="Switch Desktop"
-                    variant="primary"
-                    onPress={async () => {
-                      await update($, confirmA, () => null)
-                      await act($, `Switching Claude Desktop to ${nameOf(entry.alias)}`, 'accounts/switch', { alias: entry.alias }, 'Claude Desktop closes and opens again in a moment')
-                    }}
-                  />
-                  <Button key={`desktop-no-${entry.alias}`} label="Cancel" onPress={() => update($, confirmA, () => null)} />
-                </Box>
-              ) : pendingForget ? (
+              {pendingForget ? (
                 <Box flexDirection="row" gap={1}>
                   <Text color="error">Forget this account and its saved logins?</Text>
                   <Button
@@ -587,8 +601,15 @@ export const register: Register = on => {
                       }
                     />
                   )}
-                  {canDesktop && (
-                    <Button key={`desktop-${entry.alias}`} label="Use in Desktop" onPress={() => update($, confirmA, () => `desktop:${entry.alias}`)} />
+                  {canWindow && (
+                    <Button
+                      key={`desktop-${entry.alias}`}
+                      label={session?.windowOpen ? 'Show Desktop window' : 'Open in Desktop'}
+                      onPress={() => void openWindow($, deck, entry.alias)}
+                    />
+                  )}
+                  {canHandoff && (
+                    <Button key={`handoff-${entry.alias}`} label="Continue in terminal" onPress={() => void handoff($, deck, entry.alias)} />
                   )}
                   <Button key={`forget-${entry.alias}`} label="Forget" dimColor onPress={() => update($, confirmA, () => `forget:${entry.alias}`)} />
                 </Box>
@@ -599,8 +620,8 @@ export const register: Register = on => {
         <Box flexDirection="column">
           <Text dimColor size="footnote" wrap="wrap">
             {deck.auto.running
-              ? `Auto switch checks every ${deck.auto.settings.intervalSeconds}s, spends the account whose week resets soonest first, moves the terminal Claude Code at ${deck.auto.settings.threshold}% and moves Claude Desktop once its account hits its limit.`
-              : 'Auto switch is off, so Claude Desktop and the terminal Claude Code stay on their accounts until you move them.'}
+              ? `Auto switch checks every ${deck.auto.settings.intervalSeconds}s, spends the account whose week resets soonest first and moves the terminal Claude Code at ${deck.auto.settings.threshold}%. Claude Desktop never restarts: each account has its own window, and the strip offers the next one when this one runs out.`
+              : 'Auto switch is off, so the terminal Claude Code stays on its account until you move it. Each account keeps its own Claude Desktop window.'}
             {seat === 'desktop' && deck.auto.lastDesktopDecision
               ? ` Last check ${Math.max(0, Math.round((nowMs - Date.parse(deck.auto.lastDesktopDecision.at)) / 1000))}s ago: ${deck.auto.lastDesktopDecision.reason}.`
               : deck.auto.lastDecision
