@@ -2,7 +2,7 @@ import type { On } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 
 import type { DeckState } from '../types'
-import { blockText, level, cardWidth, metersSvg, paneWidth, parseBlock, reasonOf, sortForPane, stripSvg, stripText, until } from './view'
+import { blockText, cardWidth, headerSvg, level, metersSvg, paneWidth, parseBlock, reasonOf, seatOf, sortForPane, stripSvg, stripText, until } from './view'
 
 const NOW = '2026-10-16T07:00:00.000Z'
 const NOW_MS = Date.parse(NOW)
@@ -177,6 +177,17 @@ test('the strip above the prompt sums up the active account in one line', () => 
   const svg = stripSvg(DECK, alias => DECK.sessions.find(entry => entry.alias === alias)?.name ?? '')
   expect(svg.startsWith('<svg')).toBe(true)
   expect(svg).toContain('next Two')
+})
+
+test('inside Claude Desktop the deck shows the account Desktop spends, not the terminal one', () => {
+  const nameOf = (alias: string | null) => DECK.sessions.find(entry => entry.alias === alias)?.name ?? ''
+  expect(seatOf(DECK, 'desktop')).toBe('desktop')
+  expect(seatOf(DECK, 'terminal')).toBe('code')
+  expect(seatOf({ ...DECK, desktop: null }, 'desktop')).toBe('code')
+  expect(stripText(DECK, nameOf, 'desktop')).toContain('Two · session 38%')
+  expect(stripText(DECK, nameOf, 'code')).toContain('Four · session 40%')
+  expect(headerSvg(DECK, nameOf, 400, 'desktop')).toContain('CLAUDE DESKTOP IS ON')
+  expect(sortForPane(DECK, 'desktop')[0]?.alias).toBe('two')
 })
 
 test('the strip is always there and its button opens the sidebar', async ($, on) => {

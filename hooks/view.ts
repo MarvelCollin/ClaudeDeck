@@ -83,14 +83,34 @@ export function metersAlt(account: Ranked): string {
   return `Session ${pct(account.fiveHour)}, week ${pct(account.sevenDay)}`
 }
 
-export function headerSvg(deck: DeckState, nameOf: (alias: string | null) => string, width: number = WIDTH): string {
-  const name = deck.code ? nameOf(deck.code.alias) || deck.code.name : 'Not signed in'
+export type Seat = 'code' | 'desktop'
+
+export function seatOf(deck: DeckState, surface: string): Seat {
+  return surface !== 'terminal' && deck.desktop ? 'desktop' : 'code'
+}
+
+export function seatAlias(deck: DeckState, seat: Seat): string | null {
+  return seat === 'desktop' ? deck.sessions.find(entry => entry.desktopActive)?.alias ?? null : deck.code?.alias ?? null
+}
+
+function seatName(deck: DeckState, seat: Seat, nameOf: (alias: string | null) => string): string {
+  if (seat === 'desktop') return nameOf(seatAlias(deck, seat)) || deck.desktop?.name || 'Not signed in'
+  return deck.code ? nameOf(deck.code.alias) || deck.code.name : 'Not signed in'
+}
+
+function seatEntry(deck: DeckState, seat: Seat): Ranked | null {
+  const alias = seatAlias(deck, seat)
+  return deck.ranked.find(entry => entry.alias === alias) ?? null
+}
+
+export function headerSvg(deck: DeckState, nameOf: (alias: string | null) => string, width: number = WIDTH, seat: Seat = 'code'): string {
+  const name = seatName(deck, seat, nameOf)
   const auto = deck.auto.running ? 'Auto switch on' : 'Auto switch off'
   const next = deck.next ? `next ${nameOf(deck.next)}` : 'no other account ready'
   const status = `${auto}  ·  ${next}`
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="62" viewBox="0 0 ${width} 62"><style>${PALETTE}</style>`,
-    `<text class="label" x="0" y="12">CLAUDE CODE IS ON</text>`,
+    `<text class="label" x="0" y="12">${seat === 'desktop' ? 'CLAUDE DESKTOP IS ON' : 'CLAUDE CODE IS ON'}</text>`,
     `<text class="serif" x="0" y="36" font-size="21" font-weight="500">${esc(name)}</text>`,
     `<circle class="${deck.auto.running ? 'accent' : 'stale'}" cx="4" cy="53" r="3.5"/>`,
     `<text class="muted" x="13" y="57" font-size="11.5">${esc(status)}</text>`,
@@ -98,8 +118,8 @@ export function headerSvg(deck: DeckState, nameOf: (alias: string | null) => str
   ].join('')
 }
 
-export function headerAlt(deck: DeckState, nameOf: (alias: string | null) => string): string {
-  return `Claude Code is on ${deck.code ? nameOf(deck.code.alias) || deck.code.name : 'no account'}. Auto switch is ${deck.auto.running ? 'on' : 'off'}.`
+export function headerAlt(deck: DeckState, nameOf: (alias: string | null) => string, seat: Seat = 'code'): string {
+  return `${seat === 'desktop' ? 'Claude Desktop' : 'Claude Code'} is on ${seatName(deck, seat, nameOf)}. Auto switch is ${deck.auto.running ? 'on' : 'off'}.`
 }
 
 export const STRIP_WIDTH = 470
@@ -116,9 +136,9 @@ function mini(x: number, width: number, label: string, win: Win | null, stale: b
   ].join('')
 }
 
-export function stripSvg(deck: DeckState, nameOf: (alias: string | null) => string): string {
-  const active = deck.ranked.find(entry => entry.active) ?? null
-  const name = deck.code ? nameOf(deck.code.alias) || deck.code.name : 'Not signed in'
+export function stripSvg(deck: DeckState, nameOf: (alias: string | null) => string, seat: Seat = 'code'): string {
+  const active = seatEntry(deck, seat)
+  const name = seatName(deck, seat, nameOf)
   const short = name.length > 14 ? `${name.slice(0, 13)}…` : name
   const stale = !active || active.status !== 'ok'
   const next = deck.next ? `next ${nameOf(deck.next)}` : 'no next'
@@ -133,10 +153,10 @@ export function stripSvg(deck: DeckState, nameOf: (alias: string | null) => stri
   ].join('')
 }
 
-export function stripText(deck: DeckState, nameOf: (alias: string | null) => string): string {
-  const active = deck.ranked.find(entry => entry.active) ?? null
+export function stripText(deck: DeckState, nameOf: (alias: string | null) => string, seat: Seat = 'code'): string {
+  const active = seatEntry(deck, seat)
   const pct = (win: Win | null | undefined) => (win ? `${Math.round(win.usedPercent)}%` : 'n/a')
-  const name = deck.code ? nameOf(deck.code.alias) || deck.code.name : 'not signed in'
+  const name = seatName(deck, seat, nameOf)
   const next = deck.next ? `next ${nameOf(deck.next)}` : 'no other account ready'
   return `${deck.auto.running ? 'Auto' : 'Manual'} · ${name} · session ${pct(active?.fiveHour)} · week ${pct(active?.sevenDay)} · ${next}`
 }
@@ -160,10 +180,11 @@ export function reasonOf(account: Ranked, live: Live | null, nowMs: number): str
   return 'No usage data yet.'
 }
 
-export function sortForPane(deck: DeckState): Ranked[] {
+export function sortForPane(deck: DeckState, seat: Seat = 'code'): Ranked[] {
   const preferred = deck.auto.preferredNext?.toLowerCase() ?? null
+  const first = seatAlias(deck, seat)
   const weight = (entry: Ranked) =>
-    entry.active ? 0 : entry.alias === deck.next ? 1 : entry.alias.toLowerCase() === preferred ? 2 : entry.status === 'relogin' ? 4 : 3
+    entry.alias === first ? 0 : entry.alias === deck.next ? 1 : entry.alias.toLowerCase() === preferred ? 2 : entry.status === 'relogin' ? 4 : 3
   return [...deck.ranked].sort(
     (left, right) => weight(left) - weight(right) || (left.rank ?? Infinity) - (right.rank ?? Infinity) || left.alias.localeCompare(right.alias)
   )

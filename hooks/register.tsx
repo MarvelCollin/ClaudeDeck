@@ -12,6 +12,7 @@ import {
   parseBlock,
   reasonOf,
   sessionOf,
+  seatOf,
   sortForPane,
   stripSvg,
   stripText,
@@ -273,9 +274,10 @@ export const register: Register = on => {
     }
     const Svg = e.surface !== 'terminal' && 'Svg' in els ? els.Svg : undefined
     const nameOf = (alias: string | null) => displayName(deck, alias)
+    const seat = seatOf(deck, e.surface)
     return (
       <Box flexDirection="row" gap={1} alignItems="center">
-        {Svg ? <Svg source={stripSvg(deck, nameOf)} alt={stripText(deck, nameOf)} /> : <Text>{stripText(deck, nameOf)}</Text>}
+        {Svg ? <Svg source={stripSvg(deck, nameOf, seat)} alt={stripText(deck, nameOf, seat)} /> : <Text>{stripText(deck, nameOf, seat)}</Text>}
         {toggle}
       </Box>
     )
@@ -462,6 +464,7 @@ export const register: Register = on => {
     const preferred = deck.auto.preferredNext?.toLowerCase() ?? null
     const width = paneWidth(e.props.bodyColumns)
     const roomy = e.surface !== 'terminal'
+    const seat = seatOf(deck, e.surface)
     const canSaveDesktop = Boolean(deck.desktop) && !deck.sessions.some(entry => entry.desktopActive && entry.desktopCaptured)
 
     return (
@@ -469,18 +472,18 @@ export const register: Register = on => {
         {tabs}
         {notice}
         {Svg ? (
-          <Svg source={headerSvg(deck, nameOf, width)} alt={headerAlt(deck, nameOf)} />
+          <Svg source={headerSvg(deck, nameOf, width, seat)} alt={headerAlt(deck, nameOf, seat)} />
         ) : (
-          <Text weight="semibold">{headerAlt(deck, nameOf)}</Text>
+          <Text weight="semibold">{headerAlt(deck, nameOf, seat)}</Text>
         )}
-        {sortForPane(deck).map(entry => {
+        {sortForPane(deck, seat).map(entry => {
           const session = sessionOf(deck, entry.alias)
           const live = deck.live[entry.alias] ?? null
           const isPick = entry.alias.toLowerCase() === preferred
           const needsLogin = entry.status === 'relogin' || live?.status === 'relogin'
           const usable = !entry.active && entry.status === 'ok' && !entry.held
           const tags = [
-            entry.active ? 'Claude Code' : '',
+            entry.active ? (seat === 'desktop' ? 'Terminal' : 'Claude Code') : '',
             session?.desktopActive ? 'Desktop' : '',
             !entry.active && entry.alias === deck.next ? (isPick ? 'Next, your pick' : 'Next') : '',
             !entry.active && isPick && entry.alias !== deck.next ? 'Your pick' : '',
@@ -560,7 +563,7 @@ export const register: Register = on => {
                   {usable && (
                     <Button
                       key={`use-${entry.alias}`}
-                      label="Use now"
+                      label={seat === 'desktop' ? 'Use in terminal' : 'Use now'}
                       onPress={() =>
                         void act($, `Moving Claude Code to ${nameOf(entry.alias)}`, 'accounts/switch', { alias: entry.alias, code: true }, `Claude Code is on ${nameOf(entry.alias)}`)
                       }
@@ -596,11 +599,13 @@ export const register: Register = on => {
         <Box flexDirection="column">
           <Text dimColor size="footnote" wrap="wrap">
             {deck.auto.running
-              ? `Auto switch checks every ${deck.auto.settings.intervalSeconds}s, spends the account whose week resets soonest first and moves Claude Code at ${deck.auto.settings.threshold}%.`
-              : 'Auto switch is off, so Claude Code stays on its account until you move it.'}
-            {deck.auto.lastDecision
-              ? ` Last check ${Math.max(0, Math.round((nowMs - Date.parse(deck.auto.lastDecision.at)) / 1000))}s ago: ${deck.auto.lastDecision.reason}.`
-              : ''}
+              ? `Auto switch checks every ${deck.auto.settings.intervalSeconds}s, spends the account whose week resets soonest first, moves the terminal Claude Code at ${deck.auto.settings.threshold}% and moves Claude Desktop once its account hits its limit.`
+              : 'Auto switch is off, so Claude Desktop and the terminal Claude Code stay on their accounts until you move them.'}
+            {seat === 'desktop' && deck.auto.lastDesktopDecision
+              ? ` Last check ${Math.max(0, Math.round((nowMs - Date.parse(deck.auto.lastDesktopDecision.at)) / 1000))}s ago: ${deck.auto.lastDesktopDecision.reason}.`
+              : deck.auto.lastDecision
+                ? ` Last check ${Math.max(0, Math.round((nowMs - Date.parse(deck.auto.lastDecision.at)) / 1000))}s ago: ${deck.auto.lastDecision.reason}.`
+                : ''}
           </Text>
         </Box>
         {canSaveDesktop && confirm === 'desktop-save' && (

@@ -51,6 +51,7 @@ export type AutoInfo = {
   preferredNext: string | null
   held: string[]
   lastDecision: Decision | null
+  lastDesktopDecision?: Decision | null
   lastSwitchAt: string | null
 }
 
