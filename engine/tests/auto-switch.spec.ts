@@ -93,6 +93,20 @@ test('below the threshold it moves early only to a week that resets well before 
   assert.strictEqual(decide(calm, state(), NOW).action, 'stay');
 });
 
+test('an account you moved Claude Code to yourself is kept until it nears its limit', () => {
+  const ranked = toRanked(entries('four'), fleet, state(), NOW.getTime());
+  const picked = state({ lastManualSwitchAt: new Date(NOW.getTime() - 30 * 60_000).toISOString() });
+  const kept = decide(ranked, picked, NOW);
+  assert.strictEqual(kept.action, 'stay');
+  assert.match(kept.reason, /you moved Claude Code to four/);
+
+  const old = state({ lastManualSwitchAt: new Date(NOW.getTime() - 3 * 3_600_000).toISOString() });
+  assert.strictEqual(decide(ranked, old, NOW).trigger, 'expiring');
+
+  const full = toRanked(entries('four'), { ...fleet, four: usage(97, 1.7, 27, 100) }, state(), NOW.getTime());
+  assert.strictEqual(decide(full, picked, NOW).action, 'switch');
+});
+
 test('at the threshold it moves to the best account with room, and a chosen next wins', () => {
   const hot = { ...fleet, two: usage(96, 1.6, 75, 68) };
   const ranked = toRanked(entries('two'), hot, state(), NOW.getTime());

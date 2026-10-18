@@ -4,6 +4,7 @@ export const AT_LIMIT = 99.5;
 export const EXPIRING_HOURS = 48;
 export const EXPIRY_GAP_HOURS = 12;
 export const DESKTOP_COOLDOWN_MS = 5 * 60 * 1000;
+export const MANUAL_HOLD_MS = 2 * 60 * 60 * 1000;
 export const NOT_STARTED_RANK = Number.MAX_SAFE_INTEGER;
 const HOUR_MS = 3_600_000;
 
@@ -151,6 +152,9 @@ export function decide(list: readonly IRankedAccount[], state: IAutoState, now: 
 
   const sinceSwitch = state.lastSwitchAt ? now.getTime() - Date.parse(state.lastSwitchAt) : Number.POSITIVE_INFINITY;
   if (sinceSwitch < cooldownSeconds * 1000) return stay('just switched, waiting out the cooldown');
+
+  const sinceManual = state.lastManualSwitchAt ? now.getTime() - Date.parse(state.lastManualSwitchAt) : Number.POSITIVE_INFINITY;
+  if (sinceManual < MANUAL_HOLD_MS) return stay(`you moved Claude Code to ${active.alias}, so it stays there until it nears its limit`);
 
   const expiring = expiringPick(list, active, state.preferredNext);
   if (expiring) {

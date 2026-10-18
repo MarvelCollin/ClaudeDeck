@@ -5,6 +5,7 @@ import { decideDesktop, nextPick, toRanked } from '../accounts/auto-rank';
 import {
   installAutoTask,
   isRunning,
+  markManualSwitch,
   readAutoState,
   removeAutoTask,
   setHeld,
@@ -18,6 +19,7 @@ import { createDesktopWindows } from '../accounts/desktop-windows';
 import { IAutoState, IDesktopNudge, ILiveUsage, IRankedAccount, ISessionListEntry } from '../accounts/interfaces';
 import { cachedUsage } from '../accounts/live-usage';
 import { startHandoff } from '../accounts/session-handoff';
+import { isValidAlias } from '../accounts/paths';
 import { createSwitcher } from '../accounts/switcher';
 import { errorMessage } from '../core/fs/json';
 import { userDataDir } from '../core/paths';
@@ -89,6 +91,7 @@ export async function deckState(refresh: boolean) {
     code: code ? { email: code.email, name: code.name, alias: ranked.find(entry => entry.active)?.alias ?? null } : null,
     desktop: seat ? { email: seat.email, name: seat.name } : listing.current ? { email: listing.current.email, name: listing.current.name } : null,
     desktopRunning: listing.running,
+    desktopHome: !seat || seat.alias === windows.defaultAlias(),
     desktopJob: readDesktopJob(),
     sessions: listing.sessions.map(entry => ({
       alias: entry.alias,
@@ -118,6 +121,15 @@ export async function deckState(refresh: boolean) {
 
 function knownAliases(): string[] {
   return createSwitcher().listSessions().sessions.map(entry => entry.alias);
+}
+
+function forgetAccount(alias: string): { alias: string } {
+  const windows = createDesktopWindows();
+  const open = windows.list().find(entry => entry.alias?.toLowerCase() === alias.toLowerCase());
+  if (open && !open.isDefault) throw new Error('Close the Claude Desktop window of this account first, then forget it.');
+  const forgotten = createSwitcher().forget(alias);
+  if (isValidAlias(forgotten.alias)) fs.rmSync(windows.profileDirOf(forgotten.alias), { recursive: true, force: true });
+  return forgotten;
 }
 
 function startAuto(): { started: boolean } {
@@ -154,21 +166,28 @@ export async function runApi(route: string, body: Body = {}): Promise<unknown> {
       createSwitcher().checkDesktopAdd();
       return startDesktopJob('add', null);
     case 'accounts/switch': {
-      if (body.code === true) return createSwitcher().switchCode(aliasOf(body, 'Which account should Claude Code use?'));
+      if (body.code === true) {
+        const moved = createSwitcher().switchCode(aliasOf(body, 'Which account should Claude Code use?'));
+        markManualSwitch();
+        return moved;
+      }
       const target = createSwitcher().checkDesktopSwitch(aliasOf(body, 'Which account should I switch to?'));
       return startDesktopJob('switch', target.alias);
     }
     case 'accounts/window':
       return createDesktopWindows().open(aliasOf(body, 'Which account should get a Claude Desktop window?'));
-    case 'session/handoff':
-      return startHandoff(
+    case 'session/handoff': {
+      const handed = startHandoff(
         createSwitcher(),
         aliasOf(body, 'Which account should continue this session?'),
         textOf(body, 'sessionId', 'Which session should continue?'),
         textOf(body, 'cwd', 'Which folder is the session in?')
       );
+      if (handed.movedCode) markManualSwitch();
+      return handed;
+    }
     case 'accounts/forget':
-      return createSwitcher().forget(aliasOf(body, 'Which account should I forget?'));
+      return forgetAccount(aliasOf(body, 'Which account should I forget?'));
     case 'accounts/import':
       return importEnvelope(exportFromCswap());
     case 'auto/next':

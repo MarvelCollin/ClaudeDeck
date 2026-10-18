@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.NOT_STARTED_RANK = exports.DESKTOP_COOLDOWN_MS = exports.EXPIRY_GAP_HOURS = exports.EXPIRING_HOURS = exports.AT_LIMIT = void 0;
+exports.NOT_STARTED_RANK = exports.MANUAL_HOLD_MS = exports.DESKTOP_COOLDOWN_MS = exports.EXPIRY_GAP_HOURS = exports.EXPIRING_HOURS = exports.AT_LIMIT = void 0;
 exports.weekHoursLeft = weekHoursLeft;
 exports.rankOf = rankOf;
 exports.usedOf = usedOf;
@@ -15,6 +15,7 @@ exports.AT_LIMIT = 99.5;
 exports.EXPIRING_HOURS = 48;
 exports.EXPIRY_GAP_HOURS = 12;
 exports.DESKTOP_COOLDOWN_MS = 5 * 60 * 1000;
+exports.MANUAL_HOLD_MS = 2 * 60 * 60 * 1000;
 exports.NOT_STARTED_RANK = Number.MAX_SAFE_INTEGER;
 const HOUR_MS = 3_600_000;
 function resetMs(window) {
@@ -138,6 +139,9 @@ function decide(list, state, now) {
     const sinceSwitch = state.lastSwitchAt ? now.getTime() - Date.parse(state.lastSwitchAt) : Number.POSITIVE_INFINITY;
     if (sinceSwitch < cooldownSeconds * 1000)
         return stay('just switched, waiting out the cooldown');
+    const sinceManual = state.lastManualSwitchAt ? now.getTime() - Date.parse(state.lastManualSwitchAt) : Number.POSITIVE_INFINITY;
+    if (sinceManual < exports.MANUAL_HOLD_MS)
+        return stay(`you moved Claude Code to ${active.alias}, so it stays there until it nears its limit`);
     const expiring = expiringPick(list, active, state.preferredNext);
     if (expiring) {
         return go(expiring, 'expiring', `${expiring.alias} has ${Math.round(weekLeft(expiring))}% of its week left and it resets in ${hoursText(expiring.rank)}, so it is spent before that quota is lost`);

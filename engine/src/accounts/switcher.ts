@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { launch, launchTarget, locateApp } from './desktop-app';
+import { userDataDirOf } from './desktop-windows';
 import { readCodeAccount, readDesktopAccountUuid, readIdentity } from './identity';
 import { accountFileName, CODE_INSTALL, claudeInstalls, installFileName, PRIMARY_INSTALL_LABEL } from './installs';
 import {
@@ -113,8 +114,16 @@ export function createSwitcher(overrides: Partial<ISwitcherDeps> = {}): ISwitche
     return readDesktopAccountUuid(deps.profileDir);
   }
 
+  function inDefaultProfile(commandLine: string): boolean {
+    const dir = userDataDirOf(commandLine);
+    return !dir || path.resolve(dir).toLowerCase() === path.resolve(deps.profileDir).toLowerCase();
+  }
+
   function desktopRunning(): number[] {
-    return deps.listProcesses().map(entry => entry.pid);
+    return deps
+      .listProcesses()
+      .filter(entry => inDefaultProfile(entry.commandLine))
+      .map(entry => entry.pid);
   }
 
   function emailOfAlias(alias: string, data: IRegistry): string | null {

@@ -494,7 +494,7 @@ export const register: Register = on => {
     const width = paneWidth(e.props.bodyColumns)
     const roomy = e.surface !== 'terminal'
     const seat = seatOf(deck, e.surface)
-    const canSaveDesktop = Boolean(deck.desktop) && !deck.sessions.some(entry => entry.desktopActive && entry.desktopCaptured)
+    const home = seat !== 'desktop' || deck.desktopHome
 
     return (
       <Box flexDirection="column" gap={1}>
@@ -554,7 +554,7 @@ export const register: Register = on => {
                 </Text>
                 {!session?.desktopActive && !session?.windowReady && !needsLogin && (
                   <Text dimColor size="footnote" wrap="wrap">
-                    Desktop login not saved yet. Press Add Desktop account, sign in with it, then press Save Desktop login.
+                    No Claude Desktop window yet. Press Add Desktop account in your first Claude Desktop window and sign in with it.
                   </Text>
                 )}
               </Box>
@@ -629,27 +629,10 @@ export const register: Register = on => {
                 : ''}
           </Text>
         </Box>
-        {canSaveDesktop && confirm === 'desktop-save' && (
-          <Box key="desktop-save-confirm" flexDirection="row" gap={1} flexWrap="wrap" alignItems="center">
-            <Text color="claude">
-              Save the Claude Desktop login of {deck.desktop?.name}? Claude Desktop closes and opens again to copy it.
-            </Text>
-            <Button
-              key="desktop-save-yes"
-              label="Save and reopen"
-              variant="primary"
-              onPress={async () => {
-                await update($, confirmA, () => null)
-                await act($, 'Saving the Claude Desktop login', 'accounts/save', {}, 'Claude Desktop closes and opens again in a moment')
-              }}
-            />
-            <Button key="desktop-save-no" label="Cancel" onPress={() => update($, confirmA, () => null)} />
-          </Box>
-        )}
         {confirm === 'desktop-add' && (
           <Box key="desktop-add-confirm" flexDirection="row" gap={1} flexWrap="wrap" alignItems="center">
             <Text color="claude">
-              Save {deck.desktop?.name ?? 'the current login'} and open Claude Desktop on a sign in screen? Nothing is signed out, so you can switch back later.
+              Save {deck.desktop?.name ?? 'the current login'} and open this window on a sign in screen? Only this window closes and opens again, the windows of other accounts keep running. Nothing is signed out.
             </Text>
             <Button
               key="desktop-add-yes"
@@ -669,13 +652,15 @@ export const register: Register = on => {
           )}
           <Button key="refresh" label="Refresh usage" onPress={() => void refresh($, true)} />
           <Button key="save" label="Save signed-in account" onPress={() => void act($, 'Saving the Claude Code login', 'accounts/save', { codeOnly: true }, 'Saved')} />
-          {canSaveDesktop && confirm !== 'desktop-save' && (
-            <Button key="desktop-save" label="Save Desktop login" onPress={() => update($, confirmA, () => 'desktop-save')} />
-          )}
-          {confirm !== 'desktop-add' && (
+          {home && confirm !== 'desktop-add' && (
             <Button key="desktop-add" label="Add Desktop account" onPress={() => update($, confirmA, () => 'desktop-add')} />
           )}
         </Box>
+        {!home && (
+          <Text key="desktop-add-note" dimColor size="footnote" wrap="wrap">
+            To add another Claude Desktop account, press Add Desktop account in your first Claude Desktop window.
+          </Text>
+        )}
       </Box>
     )
   })

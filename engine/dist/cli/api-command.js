@@ -18,9 +18,10 @@ const desktop_job_1 = require("../accounts/desktop-job");
 const desktop_windows_1 = require("../accounts/desktop-windows");
 const live_usage_1 = require("../accounts/live-usage");
 const session_handoff_1 = require("../accounts/session-handoff");
+const paths_1 = require("../accounts/paths");
 const switcher_1 = require("../accounts/switcher");
 const json_1 = require("../core/fs/json");
-const paths_1 = require("../core/paths");
+const paths_2 = require("../core/paths");
 const schedule_service_1 = require("../service/schedule-service");
 const live_refresh_1 = require("./live-refresh");
 function aliasOf(body, question) {
@@ -74,6 +75,7 @@ async function deckState(refresh) {
         code: code ? { email: code.email, name: code.name, alias: ranked.find(entry => entry.active)?.alias ?? null } : null,
         desktop: seat ? { email: seat.email, name: seat.name } : listing.current ? { email: listing.current.email, name: listing.current.name } : null,
         desktopRunning: listing.running,
+        desktopHome: !seat || seat.alias === windows.defaultAlias(),
         desktopJob: (0, desktop_job_1.readDesktopJob)(),
         sessions: listing.sessions.map(entry => ({
             alias: entry.alias,
@@ -103,6 +105,16 @@ async function deckState(refresh) {
 function knownAliases() {
     return (0, switcher_1.createSwitcher)().listSessions().sessions.map(entry => entry.alias);
 }
+function forgetAccount(alias) {
+    const windows = (0, desktop_windows_1.createDesktopWindows)();
+    const open = windows.list().find(entry => entry.alias?.toLowerCase() === alias.toLowerCase());
+    if (open && !open.isDefault)
+        throw new Error('Close the Claude Desktop window of this account first, then forget it.');
+    const forgotten = (0, switcher_1.createSwitcher)().forget(alias);
+    if ((0, paths_1.isValidAlias)(forgotten.alias))
+        node_fs_1.default.rmSync(windows.profileDirOf(forgotten.alias), { recursive: true, force: true });
+    return forgotten;
+}
 function startAuto() {
     if ((0, auto_switch_1.isRunning)((0, auto_switch_1.readAutoState)(), new Date()))
         return { started: false };
@@ -113,7 +125,7 @@ function startAuto() {
 async function runApi(route, body = {}) {
     switch (route) {
         case 'state':
-            (0, auto_switch_1.syncAutoLauncher)((0, paths_1.userDataDir)(), binPath());
+            (0, auto_switch_1.syncAutoLauncher)((0, paths_2.userDataDir)(), binPath());
             return deckState(body.refresh === true);
         case 'schedule':
             return (0, schedule_service_1.createScheduleService)().scheduleState();
@@ -137,17 +149,24 @@ async function runApi(route, body = {}) {
             (0, switcher_1.createSwitcher)().checkDesktopAdd();
             return (0, desktop_job_1.startDesktopJob)('add', null);
         case 'accounts/switch': {
-            if (body.code === true)
-                return (0, switcher_1.createSwitcher)().switchCode(aliasOf(body, 'Which account should Claude Code use?'));
+            if (body.code === true) {
+                const moved = (0, switcher_1.createSwitcher)().switchCode(aliasOf(body, 'Which account should Claude Code use?'));
+                (0, auto_switch_1.markManualSwitch)();
+                return moved;
+            }
             const target = (0, switcher_1.createSwitcher)().checkDesktopSwitch(aliasOf(body, 'Which account should I switch to?'));
             return (0, desktop_job_1.startDesktopJob)('switch', target.alias);
         }
         case 'accounts/window':
             return (0, desktop_windows_1.createDesktopWindows)().open(aliasOf(body, 'Which account should get a Claude Desktop window?'));
-        case 'session/handoff':
-            return (0, session_handoff_1.startHandoff)((0, switcher_1.createSwitcher)(), aliasOf(body, 'Which account should continue this session?'), textOf(body, 'sessionId', 'Which session should continue?'), textOf(body, 'cwd', 'Which folder is the session in?'));
+        case 'session/handoff': {
+            const handed = (0, session_handoff_1.startHandoff)((0, switcher_1.createSwitcher)(), aliasOf(body, 'Which account should continue this session?'), textOf(body, 'sessionId', 'Which session should continue?'), textOf(body, 'cwd', 'Which folder is the session in?'));
+            if (handed.movedCode)
+                (0, auto_switch_1.markManualSwitch)();
+            return handed;
+        }
         case 'accounts/forget':
-            return (0, switcher_1.createSwitcher)().forget(aliasOf(body, 'Which account should I forget?'));
+            return forgetAccount(aliasOf(body, 'Which account should I forget?'));
         case 'accounts/import':
             return (0, cswap_import_1.importEnvelope)((0, cswap_import_1.exportFromCswap)());
         case 'auto/next':
@@ -167,7 +186,7 @@ async function runApi(route, body = {}) {
         case 'auto/start':
             return startAuto();
         case 'auto/install':
-            return { script: (0, auto_switch_1.installAutoTask)((0, paths_1.userDataDir)(), binPath()) };
+            return { script: (0, auto_switch_1.installAutoTask)((0, paths_2.userDataDir)(), binPath()) };
         case 'auto/remove':
             return { removed: (0, auto_switch_1.removeAutoTask)() };
         default:

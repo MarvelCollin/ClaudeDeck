@@ -41,6 +41,7 @@ exports.createSwitcher = createSwitcher;
 const node_fs_1 = __importDefault(require("node:fs"));
 const node_path_1 = __importDefault(require("node:path"));
 const desktop_app_1 = require("./desktop-app");
+const desktop_windows_1 = require("./desktop-windows");
 const identity_1 = require("./identity");
 const installs_1 = require("./installs");
 const paths_1 = require("./paths");
@@ -115,8 +116,15 @@ function createSwitcher(overrides = {}) {
     function currentAccountUuid() {
         return (0, identity_1.readDesktopAccountUuid)(deps.profileDir);
     }
+    function inDefaultProfile(commandLine) {
+        const dir = (0, desktop_windows_1.userDataDirOf)(commandLine);
+        return !dir || node_path_1.default.resolve(dir).toLowerCase() === node_path_1.default.resolve(deps.profileDir).toLowerCase();
+    }
     function desktopRunning() {
-        return deps.listProcesses().map(entry => entry.pid);
+        return deps
+            .listProcesses()
+            .filter(entry => inDefaultProfile(entry.commandLine))
+            .map(entry => entry.pid);
     }
     function emailOfAlias(alias, data) {
         return registry.findSession(data, alias)?.email ?? null;

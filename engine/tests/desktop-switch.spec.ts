@@ -120,6 +120,30 @@ test('switching waits for Claude Desktop to close before it touches the login fi
   }
 });
 
+test('the first Claude Desktop window closes alone, the window of another account keeps running', () => {
+  const h = harness();
+  try {
+    const killed: number[][] = [];
+    const other = { pid: 20, commandLine: 'Claude.exe --user-data-dir=C:\\Users\\me\\.claudedeck\\desktop-profiles\\side' };
+    const own = { pid: 21, commandLine: `Claude.exe --type=renderer --user-data-dir=${h.deps.profileDir}` };
+    let closed = false;
+    const switcher = createSwitcher({
+      ...h.deps,
+      listProcesses: () => (closed ? [other] : [{ pid: 10, commandLine: 'Claude.exe' }, own, other]),
+      kill: (pids: number[]) => {
+        killed.push(pids);
+        closed = true;
+        return pids.length;
+      },
+    });
+    assert.strictEqual(switcher.listSessions().running, true);
+    switcher.freshDesktop();
+    assert.deepStrictEqual(killed, [[10, 21]]);
+  } finally {
+    h.cleanup();
+  }
+});
+
 test('Claude Desktop that never closes stops the switch before any file is swapped', () => {
   const h = harness({ exitAfterPolls: Number.POSITIVE_INFINITY });
   try {

@@ -64,6 +64,7 @@ export type DeckState = {
   code: { email: string; name: string; alias: string | null } | null
   desktop: { email: string; name: string } | null
   desktopRunning: boolean
+  desktopHome: boolean
   desktopJob: DesktopJob | null
   sessions: Session[]
   live: Record<string, Live | null>

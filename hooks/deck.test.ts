@@ -29,6 +29,7 @@ const DECK: DeckState = {
   code: { email: 'four@x.com', name: 'Four', alias: 'four' },
   desktop: { email: 'two@x.com', name: 'Two' },
   desktopRunning: true,
+  desktopHome: true,
   desktopJob: null,
   sessions: ['one', 'two', 'three', 'four'].map(alias => ({
     alias,
@@ -297,25 +298,20 @@ test('the strip stays plain while the Desktop account has room', async ($, on) =
   await ui.unmount()
 })
 
-test('Save Desktop login asks first and saves the account Claude Desktop is on', async ($, on) => {
-  const calls: { route: string; body: unknown }[] = []
-  const unsaved = { ...DECK, sessions: DECK.sessions.map(entry => ({ ...entry, desktopCaptured: entry.alias !== 'two' })) }
-  fakeDeck(on, calls, unsaved)
-  await $.command.run({ command: 'deck', args: 'refresh', ...CMD })
-  const ui = await $.ui.mount({ plugin: 'claudedeck', surface: 'desktop', component: 'Pane', requestId: 'claudedeck', props: PANE })
-  await ui.press({ key: 'desktop-save' })
-  expect(calls.find(call => call.route === 'accounts/save')).toBeUndefined()
-  expect(await ui.find({ type: 'Text', text: /Save the Claude Desktop login of Two?/ })).toBeDefined()
-  await ui.press({ key: 'desktop-save-yes' })
-  expect(calls.find(call => call.route === 'accounts/save')?.body).toEqual({})
-  await ui.unmount()
-})
-
-test('Save Desktop login stays away once the Desktop login is kept', async ($, on) => {
+test('Save Desktop login is gone, the first window keeps its own login', async ($, on) => {
   fakeDeck(on, [])
   await $.command.run({ command: 'deck', args: 'refresh', ...CMD })
   const ui = await $.ui.mount({ plugin: 'claudedeck', surface: 'desktop', component: 'Pane', requestId: 'claudedeck', props: PANE })
   expect(await ui.find({ key: 'desktop-save' })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('a window of another account sends you to the first window to add accounts', async ($, on) => {
+  fakeDeck(on, [], { ...DECK, desktopHome: false })
+  await $.command.run({ command: 'deck', args: 'refresh', ...CMD })
+  const ui = await $.ui.mount({ plugin: 'claudedeck', surface: 'desktop', component: 'Pane', requestId: 'claudedeck', props: PANE })
+  expect(await ui.find({ key: 'desktop-add' })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /first Claude Desktop window/ })).toBeDefined()
   await ui.unmount()
 })
 
@@ -326,7 +322,7 @@ test('Add Desktop account asks first, then opens a sign in screen without signin
   const ui = await $.ui.mount({ plugin: 'claudedeck', surface: 'desktop', component: 'Pane', requestId: 'claudedeck', props: PANE })
   await ui.press({ key: 'desktop-add' })
   expect(calls.find(call => call.route === 'accounts/add-desktop')).toBeUndefined()
-  expect(await ui.find({ type: 'Text', text: /Save Two and open Claude Desktop on a sign in screen\? Nothing is signed out/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Save Two and open this window on a sign in screen\? Only this window closes/ })).toBeDefined()
   await ui.press({ key: 'desktop-add-yes' })
   expect(calls.find(call => call.route === 'accounts/add-desktop')?.body).toEqual({})
   await ui.unmount()

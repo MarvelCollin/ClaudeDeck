@@ -9,6 +9,7 @@ exports.readAutoState = readAutoState;
 exports.updateAutoState = updateAutoState;
 exports.setPreferredNext = setPreferredNext;
 exports.setHeld = setHeld;
+exports.markManualSwitch = markManualSwitch;
 exports.isRunning = isRunning;
 exports.defaultAutoDeps = defaultAutoDeps;
 exports.createAutoSwitch = createAutoSwitch;
@@ -46,6 +47,7 @@ function normalizeAutoState(value) {
         preferredNext: typeof source.preferredNext === 'string' && source.preferredNext ? source.preferredNext : null,
         held: Array.isArray(source.held) ? source.held.filter((alias) => typeof alias === 'string') : [],
         lastSwitchAt: typeof source.lastSwitchAt === 'string' ? source.lastSwitchAt : null,
+        lastManualSwitchAt: typeof source.lastManualSwitchAt === 'string' ? source.lastManualSwitchAt : null,
         lastDesktopSwitchAt: typeof source.lastDesktopSwitchAt === 'string' ? source.lastDesktopSwitchAt : null,
         lastDecision: source.lastDecision ?? null,
         lastDesktopDecision: source.lastDesktopDecision ?? null,
@@ -79,6 +81,9 @@ function setHeld(alias, hold, known, file) {
             preferredNext: hold && state.preferredNext?.toLowerCase() === match.toLowerCase() ? null : state.preferredNext,
         };
     }, file);
+}
+function markManualSwitch(now = new Date(), file) {
+    return updateAutoState(state => ({ ...state, lastManualSwitchAt: now.toISOString() }), file);
 }
 function isRunning(state, now, selfPid = process.pid) {
     if (!state.pid || state.pid === selfPid || !state.heartbeatAt)

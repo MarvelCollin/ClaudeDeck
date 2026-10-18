@@ -46,8 +46,7 @@ A slim strip sits above the message box in every session: the account Claude Cod
 | **Sign in again** | Walks an expired login through a fresh sign in. |
 | **Forget** | Deletes the saved account. It asks first. |
 | **Save signed-in account** | Saves the Claude Code login you are on now. |
-| **Save Desktop login** | Saves the login Claude Desktop is on now, so **Open in Desktop** can give it its own window. |
-| **Add Desktop account** | Saves the login Claude Desktop is on now and opens Claude Desktop on a clean sign in screen, without signing anything out. |
+| **Add Desktop account** | In your first Claude Desktop window: saves the login it is on and opens that window on a clean sign in screen, without signing anything out. The windows of other accounts keep running. |
 | **Turn on auto switch** | Starts auto switch now and at every sign in (Windows). |
 
 **Background runs** sends a short prompt on a schedule so a 5 hour session is already running when you sit down. Turn it on or off, run it once, and edit the prompt and the times.
@@ -71,9 +70,8 @@ The same things work from the prompt:
 ## Adding accounts
 
 1. Sign in to Claude Code with the first account (`claude auth login`) and press **Save signed-in account**.
-2. If you also use Claude Desktop with it, press **Save Desktop login** while Claude Desktop is signed in to that account.
 3. For the next Claude Code account, sign in with `claude auth login` and press **Save signed-in account** again.
-4. For the next Claude Desktop account, press **Add Desktop account**. Claude Desktop reopens on a sign in screen. Sign in with the other account, open the deck and press **Save Desktop login**.
+4. For the next Claude Desktop account, press **Add Desktop account** in your first Claude Desktop window. That window reopens on a sign in screen. Sign in with the other account. The account you left can now be opened with **Open in Desktop** in its own window.
 
 Do not use **Log out** in Claude Desktop to change accounts. Logging out ends that login on Anthropic's side too, so the copy ClaudeDeck saved stops working and switching back lands on a sign in screen.
 
@@ -91,7 +89,7 @@ When the account of the window you are in runs out, the strip above the prompt s
 
 A session in Claude Desktop belongs to the window it runs in. **Continue in terminal** carries it to another account anyway: it moves the terminal Claude Code to that account and runs `claude --resume <session> --fork-session` in a new terminal window, in the session's folder. That is a copy of the conversation, so the Desktop session stays as it was.
 
-Adding a new account still goes through the window you are in: **Add Desktop account** opens it on a sign in screen, and **Save Desktop login** keeps the login. Both close and reopen that one window, once. After that, **Open in Desktop** gives the account its own window.
+Adding a new account still goes through your first Claude Desktop window: **Add Desktop account** saves its login and opens it on a sign in screen. Only that window closes and opens again, once, and the windows of other accounts keep running.
 
 ## How auto switch picks the account
 
@@ -101,7 +99,7 @@ The weekly quota is the part that is lost when it is not used, so the ranking sp
 
 1. **Soonest weekly reset first.** An account whose week resets in 6 hours goes before one that resets in 3 days. An account whose week has not started yet goes last, because its quota is not running out.
 2. **Ties within the same hour** go to the account with a 5 hour session already running, then to the one with the most of its week left.
-3. **Your pick wins.** An account set with **Use next** goes first. A held account is never picked.
+3. **Your pick wins.** An account set with **Use next** goes first. A held account is never picked. After you move Claude Code yourself, with **Use now** or **Continue in terminal**, auto switch leaves it there for 2 hours unless it nears its limit.
 4. **Only accounts with room take over.** Both its session and its week must be under 85 percent.
 
 Claude Code moves when:

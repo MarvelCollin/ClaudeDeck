@@ -30,6 +30,7 @@ export function normalizeAutoState(value: unknown): IAutoState {
     preferredNext: typeof source.preferredNext === 'string' && source.preferredNext ? source.preferredNext : null,
     held: Array.isArray(source.held) ? source.held.filter((alias): alias is string => typeof alias === 'string') : [],
     lastSwitchAt: typeof source.lastSwitchAt === 'string' ? source.lastSwitchAt : null,
+    lastManualSwitchAt: typeof source.lastManualSwitchAt === 'string' ? source.lastManualSwitchAt : null,
     lastDesktopSwitchAt: typeof source.lastDesktopSwitchAt === 'string' ? source.lastDesktopSwitchAt : null,
     lastDecision: (source.lastDecision as IAutoDecision | null) ?? null,
     lastDesktopDecision: (source.lastDesktopDecision as IAutoDecision | null) ?? null,
@@ -65,6 +66,10 @@ export function setHeld(alias: string, hold: boolean, known: readonly string[], 
       preferredNext: hold && state.preferredNext?.toLowerCase() === match.toLowerCase() ? null : state.preferredNext,
     };
   }, file);
+}
+
+export function markManualSwitch(now: Date = new Date(), file?: string): IAutoState {
+  return updateAutoState(state => ({ ...state, lastManualSwitchAt: now.toISOString() }), file);
 }
 
 export function isRunning(state: IAutoState, now: Date, selfPid: number = process.pid): boolean {
