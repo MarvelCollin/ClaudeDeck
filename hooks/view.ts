@@ -3,11 +3,13 @@ import type { DeckState, Live, Ranked, ScheduleBlock, Session, Win } from '../ty
 export const WIDTH = 300
 export const MAX_WIDTH = 760
 
+export const PX_PER_COLUMN = 7
+
 export function paneWidth(bodyColumns: number | undefined): number {
-  return Math.max(WIDTH, Math.min(MAX_WIDTH, Math.round((bodyColumns ?? 46) * 8)))
+  return Math.max(WIDTH, Math.min(MAX_WIDTH, Math.round((bodyColumns ?? 46) * PX_PER_COLUMN) - 16))
 }
 export function cardWidth(width: number): number {
-  return Math.max(WIDTH - 40, width - 40)
+  return Math.max(WIDTH - 48, width - 48)
 }
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 

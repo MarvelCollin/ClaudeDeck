@@ -2,7 +2,7 @@ import type { On } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 
 import type { DeckState } from '../types'
-import { blockText, level, metersSvg, paneWidth, parseBlock, reasonOf, sortForPane, stripSvg, stripText, until } from './view'
+import { blockText, level, cardWidth, metersSvg, paneWidth, parseBlock, reasonOf, sortForPane, stripSvg, stripText, until } from './view'
 
 const NOW = '2026-10-16T07:00:00.000Z'
 const NOW_MS = Date.parse(NOW)
@@ -273,7 +273,8 @@ test('Add Desktop account asks first, then opens a sign in screen without signin
 
 test('the sidebar meters grow with the sidebar width', () => {
   expect(paneWidth(30)).toBe(300)
-  expect(paneWidth(84)).toBe(672)
+  expect(paneWidth(84)).toBe(572)
   expect(paneWidth(200)).toBe(760)
   expect(metersSvg(DECK.ranked[0]!, null, NOW_MS, 672)).toContain('width="672"')
+  expect(cardWidth(paneWidth(84))).toBeLessThan(paneWidth(84))
 })

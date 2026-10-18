@@ -461,6 +461,7 @@ export const register: Register = on => {
     const nameOf = (alias: string | null) => displayName(deck, alias)
     const preferred = deck.auto.preferredNext?.toLowerCase() ?? null
     const width = paneWidth(e.props.bodyColumns)
+    const roomy = e.surface !== 'terminal'
     const canSaveDesktop = Boolean(deck.desktop) && !deck.sessions.some(entry => entry.desktopActive && entry.desktopCaptured)
 
     return (
@@ -495,29 +496,35 @@ export const register: Register = on => {
               borderColor={entry.active ? 'claude' : undefined}
               borderDimColor={!entry.active}
               paddingX={1}
+              paddingY={roomy ? 1 : 0}
+              gap={roomy ? 1 : 0}
             >
-              <Box flexDirection="row" justifyContent="space-between" alignItems="center">
-                <Text weight="semibold" bold={entry.active}>
-                  {session?.name ?? entry.alias}
+              <Box flexDirection="column">
+                <Box flexDirection="row" justifyContent="space-between" alignItems="center" gap={1}>
+                  <Text weight="semibold" bold={entry.active} wrap="truncate-end">
+                    {session?.name ?? entry.alias}
+                  </Text>
+                  {tags.length > 0 && <Text color={entry.active ? 'claude' : undefined} dimColor={!entry.active} wrap="truncate-end">{tags.join(' · ')}</Text>}
+                </Box>
+                <Text dimColor size="footnote" wrap="truncate-end">
+                  {entry.email}
                 </Text>
-                {tags.length > 0 && <Text color={entry.active ? 'claude' : undefined} dimColor={!entry.active}>{tags.join(' · ')}</Text>}
               </Box>
-              <Text dimColor size="footnote">
-                {entry.email}
-              </Text>
-              {Svg ? (
-                <Svg source={metersSvg(entry, live, nowMs, cardWidth(width))} alt={metersAlt(entry)} />
-              ) : (
-                <Text>{metersAlt(entry)}</Text>
-              )}
-              <Text dimColor={!needsLogin} color={needsLogin ? 'error' : undefined} size="footnote">
-                {reasonOf(entry, live, nowMs)}
-              </Text>
-              {!session?.desktopActive && !session?.desktopCaptured && !needsLogin && (
-                <Text dimColor size="footnote">
-                  Desktop login not saved yet. Press Add Desktop account, sign in with it, then press Save Desktop login.
+              <Box flexDirection="column">
+                {Svg ? (
+                  <Svg source={metersSvg(entry, live, nowMs, cardWidth(width))} alt={metersAlt(entry)} />
+                ) : (
+                  <Text>{metersAlt(entry)}</Text>
+                )}
+                <Text dimColor={!needsLogin} color={needsLogin ? 'error' : undefined} size="footnote" wrap="wrap">
+                  {reasonOf(entry, live, nowMs)}
                 </Text>
-              )}
+                {!session?.desktopActive && !session?.desktopCaptured && !needsLogin && (
+                  <Text dimColor size="footnote" wrap="wrap">
+                    Desktop login not saved yet. Press Add Desktop account, sign in with it, then press Save Desktop login.
+                  </Text>
+                )}
+              </Box>
               {pendingDesktop ? (
                 <Box flexDirection="row" gap={1} flexWrap="wrap" alignItems="center">
                   <Text color="claude">
@@ -587,7 +594,7 @@ export const register: Register = on => {
           )
         })}
         <Box flexDirection="column">
-          <Text dimColor size="footnote">
+          <Text dimColor size="footnote" wrap="wrap">
             {deck.auto.running
               ? `Auto switch checks every ${deck.auto.settings.intervalSeconds}s, spends the account whose week resets soonest first and moves Claude Code at ${deck.auto.settings.threshold}%.`
               : 'Auto switch is off, so Claude Code stays on its account until you move it.'}
