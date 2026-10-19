@@ -14,6 +14,7 @@ const node_path_1 = __importDefault(require("node:path"));
 const auto_rank_1 = require("../accounts/auto-rank");
 const auto_switch_1 = require("../accounts/auto-switch");
 const cswap_import_1 = require("../accounts/cswap-import");
+const cswap_sync_1 = require("../accounts/cswap-sync");
 const desktop_job_1 = require("../accounts/desktop-job");
 const desktop_windows_1 = require("../accounts/desktop-windows");
 const live_usage_1 = require("../accounts/live-usage");
@@ -184,6 +185,10 @@ async function runApi(route, body = {}) {
             return forgetAccount(aliasOf(body, 'Which account should I forget?'));
         case 'accounts/import':
             return (0, cswap_import_1.importEnvelope)((0, cswap_import_1.exportFromCswap)());
+        case 'accounts/sync-cswap':
+            if (!(0, cswap_sync_1.cswapAvailable)())
+                throw new Error('No claude-swap data found in ~/.claude-swap-backup.');
+            return (0, cswap_sync_1.syncWithCswap)((0, cswap_sync_1.defaultSyncDeps)());
         case 'auto/next':
             return (0, auto_switch_1.setPreferredNext)(typeof body.alias === 'string' && body.alias ? body.alias : null, knownAliases());
         case 'auto/hold':

@@ -1,3 +1,4 @@
+import { ICswapSyncResult } from './ICswapSyncResult';
 import { ILiveUsage } from './ILiveUsage';
 import { ILiveUsageTarget } from './ILiveUsageTarget';
 import { ISwitcher } from './ISwitcher';
@@ -10,4 +11,5 @@ export interface IAutoDeps {
   slotFile: (alias: string) => string;
   now: () => Date;
   log: (line: string) => void;
+  cswap?: { check: () => ICswapSyncResult | null } | null;
 }

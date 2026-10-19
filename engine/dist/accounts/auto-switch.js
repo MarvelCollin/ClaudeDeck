@@ -24,6 +24,7 @@ const node_fs_1 = __importDefault(require("node:fs"));
 const node_path_1 = __importDefault(require("node:path"));
 const json_1 = require("../core/fs/json");
 const auto_rank_1 = require("./auto-rank");
+const cswap_sync_1 = require("./cswap-sync");
 const live_usage_1 = require("./live-usage");
 const paths_1 = require("./paths");
 exports.DEFAULT_AUTO_SETTINGS = { threshold: 95, landing: 85, cooldownSeconds: 60, intervalSeconds: 20 };
@@ -107,6 +108,7 @@ function defaultAutoDeps(switcher, logFile) {
         credPath: (0, paths_1.codeCredentialsPath)(),
         slotFile: alias => node_path_1.default.join((0, paths_1.sessionSlot)(alias), 'code.json'),
         now: () => new Date(),
+        cswap: (0, cswap_sync_1.cswapAvailable)() ? (0, cswap_sync_1.createCswapWatcher)((0, cswap_sync_1.defaultSyncDeps)()) : null,
         log: line => {
             try {
                 if (node_fs_1.default.existsSync(file) && node_fs_1.default.statSync(file).size > LOG_LIMIT)
@@ -121,7 +123,22 @@ function defaultAutoDeps(switcher, logFile) {
     };
 }
 function createAutoSwitch(deps) {
+    function syncCswap() {
+        if (!deps.cswap)
+            return;
+        try {
+            const synced = deps.cswap.check();
+            if (synced && (synced.pulled.length || synced.pushed.length)) {
+                deps.log(`cswap sync: pulled ${synced.pulled.join(', ') || 'none'}, pushed ${synced.pushed.join(', ') || 'none'}`);
+            }
+        }
+        catch (error) {
+            deps.log(`cswap sync failed: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
     async function tick(options = {}) {
+        if (!options.dryRun)
+            syncCswap();
         const listing = deps.switcher.listSessions();
         const codeEmail = deps.switcher.currentCodeIdentity()?.email ?? null;
         const targets = (0, live_usage_1.targetsFor)(listing.sessions, codeEmail, deps.credPath, deps.slotFile);
@@ -160,6 +177,8 @@ function createAutoSwitch(deps) {
             heartbeatAt: options.dryRun ? current.heartbeatAt : now.toISOString(),
             pid: options.dryRun ? current.pid : process.pid,
         }), deps.stateFile);
+        if (!options.dryRun)
+            syncCswap();
         return { decision, accounts: after, next: (0, auto_rank_1.nextPick)(after, stored.preferredNext), switched, desktopDecision };
     }
     async function run(onTick, signal) {

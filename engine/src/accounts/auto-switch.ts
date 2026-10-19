@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { readJsonFile, writeJsonFile } from '../core/fs/json';
 import { decide, decideDesktop, nextPick, toRanked } from './auto-rank';
+import { createCswapWatcher, cswapAvailable, defaultSyncDeps } from './cswap-sync';
 import { IAutoDecision, IAutoDeps, IAutoSettings, IAutoState, IAutoTick, ILiveUsage, ISwitcher } from './interfaces';
 import { cachedUsage, createLiveUsage, MIN_INTERVAL_MS, targetsFor } from './live-usage';
 import { autoStatePath, codeCredentialsPath, sessionSlot } from './paths';
@@ -92,6 +93,7 @@ export function defaultAutoDeps(switcher: ISwitcher, logFile?: string): IAutoDep
     credPath: codeCredentialsPath(),
     slotFile: alias => path.join(sessionSlot(alias), 'code.json'),
     now: () => new Date(),
+    cswap: cswapAvailable() ? createCswapWatcher(defaultSyncDeps()) : null,
     log: line => {
       try {
         if (fs.existsSync(file) && fs.statSync(file).size > LOG_LIMIT) fs.renameSync(file, `${file}.1`);
@@ -105,7 +107,20 @@ export function defaultAutoDeps(switcher: ISwitcher, logFile?: string): IAutoDep
 }
 
 export function createAutoSwitch(deps: IAutoDeps) {
+  function syncCswap(): void {
+    if (!deps.cswap) return;
+    try {
+      const synced = deps.cswap.check();
+      if (synced && (synced.pulled.length || synced.pushed.length)) {
+        deps.log(`cswap sync: pulled ${synced.pulled.join(', ') || 'none'}, pushed ${synced.pushed.join(', ') || 'none'}`);
+      }
+    } catch (error) {
+      deps.log(`cswap sync failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
   async function tick(options: { dryRun?: boolean } = {}): Promise<IAutoTick> {
+    if (!options.dryRun) syncCswap();
     const listing = deps.switcher.listSessions();
     const codeEmail = deps.switcher.currentCodeIdentity()?.email ?? null;
     const targets = targetsFor(listing.sessions, codeEmail, deps.credPath, deps.slotFile);
@@ -152,6 +167,7 @@ export function createAutoSwitch(deps: IAutoDeps) {
       }),
       deps.stateFile
     );
+    if (!options.dryRun) syncCswap();
     return { decision, accounts: after, next: nextPick(after, stored.preferredNext), switched, desktopDecision };
   }
 

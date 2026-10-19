@@ -13,6 +13,8 @@ export { ICodeSwitchOptions } from './ICodeSwitchOptions';
 export { ICodeSwitchResult } from './ICodeSwitchResult';
 export { ICswapImportDeps } from './ICswapImportDeps';
 export { ICswapImportResult } from './ICswapImportResult';
+export { ICswapSyncDeps } from './ICswapSyncDeps';
+export { ICswapSyncResult } from './ICswapSyncResult';
 export { DesktopJobAction, IDesktopJob } from './IDesktopJob';
 export { IDesktopJobDeps } from './IDesktopJobDeps';
 export { IDesktopNudge } from './IDesktopNudge';

@@ -14,6 +14,7 @@ import {
   updateAutoState,
 } from '../accounts/auto-switch';
 import { exportFromCswap, importEnvelope } from '../accounts/cswap-import';
+import { cswapAvailable, defaultSyncDeps, syncWithCswap } from '../accounts/cswap-sync';
 import { readDesktopJob, startDesktopJob } from '../accounts/desktop-job';
 import { createDesktopWindows } from '../accounts/desktop-windows';
 import { IAutoState, IDesktopNudge, ILiveUsage, IRankedAccount, ISessionListEntry } from '../accounts/interfaces';
@@ -204,6 +205,9 @@ export async function runApi(route: string, body: Body = {}): Promise<unknown> {
       return forgetAccount(aliasOf(body, 'Which account should I forget?'));
     case 'accounts/import':
       return importEnvelope(exportFromCswap());
+    case 'accounts/sync-cswap':
+      if (!cswapAvailable()) throw new Error('No claude-swap data found in ~/.claude-swap-backup.');
+      return syncWithCswap(defaultSyncDeps());
     case 'auto/next':
       return setPreferredNext(typeof body.alias === 'string' && body.alias ? body.alias : null, knownAliases());
     case 'auto/hold':
