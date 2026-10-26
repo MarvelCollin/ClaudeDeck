@@ -15,6 +15,7 @@ import {
   setHeld,
   setPreferredNext,
 } from '../src/accounts/auto-switch';
+import { readCswapPin } from '../src/accounts/cswap-pin';
 import { IAutoState, ILiveUsage, ISwitcher } from '../src/accounts/interfaces';
 import { writeJsonFile } from '../src/core/fs/json';
 
@@ -105,6 +106,35 @@ test('an account you moved Claude Code to yourself is kept until it nears its li
 
   const full = toRanked(entries('four'), { ...fleet, four: usage(97, 1.7, 27, 100) }, state(), NOW.getTime());
   assert.strictEqual(decide(full, picked, NOW).action, 'switch');
+});
+
+test('an account picked with cswap switch is kept until the cswap threshold, then auto switching resumes', () => {
+  const pin = { email: 'four@x.com', untilPercent: 90 };
+  const ranked = toRanked(entries('four'), fleet, state(), NOW.getTime());
+  const kept = decide(ranked, state(), NOW, pin);
+  assert.strictEqual(kept.action, 'stay');
+  assert.match(kept.reason, /cswap switch/);
+
+  const other = decide(toRanked(entries('two'), fleet, state(), NOW.getTime()), state(), NOW, pin);
+  assert.notStrictEqual(other.reason, kept.reason);
+
+  const spent = toRanked(entries('four'), { ...fleet, four: usage(91, 1.7, 27, 100) }, state(), NOW.getTime());
+  assert.strictEqual(decide(spent, state(), NOW, pin).trigger, 'expiring');
+});
+
+test('the cswap pin is read from its state file with the cswap threshold', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cd-pin-'));
+  try {
+    assert.strictEqual(readCswapPin(dir), null);
+    writeJsonFile(path.join(dir, 'autoswitch_state.json'), { manualPin: '1', cliPin: { account: '1', email: 'one@x.com', at: 1 } });
+    assert.deepStrictEqual(readCswapPin(dir), { email: 'one@x.com', untilPercent: 90 });
+    writeJsonFile(path.join(dir, 'settings.json'), { autoswitch: { threshold: 80 } });
+    assert.deepStrictEqual(readCswapPin(dir), { email: 'one@x.com', untilPercent: 80 });
+    writeJsonFile(path.join(dir, 'autoswitch_state.json'), { manualPin: '1' });
+    assert.strictEqual(readCswapPin(dir), null);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('at the threshold it moves to the best account with room, and a chosen next wins', () => {

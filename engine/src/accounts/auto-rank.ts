@@ -1,4 +1,4 @@
-import { IAutoDecision, IAutoState, ILiveUsage, ILiveWindow, IRankedAccount, RankTier } from './interfaces';
+import { IAutoDecision, IAutoState, ICswapPin, ILiveUsage, ILiveWindow, IRankedAccount, RankTier } from './interfaces';
 
 export const AT_LIMIT = 99.5;
 export const EXPIRING_HOURS = 48;
@@ -120,7 +120,7 @@ export function expiringPick(list: readonly IRankedAccount[], active: IRankedAcc
   )[0] ?? null;
 }
 
-export function decide(list: readonly IRankedAccount[], state: IAutoState, now: Date): IAutoDecision {
+export function decide(list: readonly IRankedAccount[], state: IAutoState, now: Date, pin: ICswapPin | null = null): IAutoDecision {
   const at = now.toISOString();
   const active = list.find(entry => entry.active) ?? null;
   const stay = (reason: string): IAutoDecision => ({ at, action: 'stay', from: active?.alias ?? null, target: null, trigger: 'none', reason });
@@ -135,6 +135,9 @@ export function decide(list: readonly IRankedAccount[], state: IAutoState, now: 
 
   if (!active) return stay('Claude Code is on an account ClaudeDeck has not saved');
   if (active.status !== 'ok') return stay('no fresh usage for the active account yet');
+  if (pin && pin.email.toLowerCase() === active.email.toLowerCase() && active.usedPercent < pin.untilPercent) {
+    return stay(`you picked ${active.alias} with cswap switch, so it is used up to ${Math.round(pin.untilPercent)}% first (${Math.round(active.usedPercent)}% now)`);
+  }
 
   const { threshold, cooldownSeconds } = state.settings;
   const best = nextPick(list, state.preferredNext);

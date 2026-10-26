@@ -1,3 +1,4 @@
+import { ICswapPin } from './ICswapPin';
 import { ICswapSyncResult } from './ICswapSyncResult';
 import { ILiveUsage } from './ILiveUsage';
 import { ILiveUsageTarget } from './ILiveUsageTarget';
@@ -12,4 +13,5 @@ export interface IAutoDeps {
   now: () => Date;
   log: (line: string) => void;
   cswap?: { check: () => ICswapSyncResult | null } | null;
+  cswapPin?: () => ICswapPin | null;
 }

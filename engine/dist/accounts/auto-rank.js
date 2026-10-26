@@ -106,7 +106,7 @@ function expiringPick(list, active, preferred) {
         entry.rank <= exports.EXPIRING_HOURS &&
         entry.rank < active.rank - exports.EXPIRY_GAP_HOURS), preferred)[0] ?? null;
 }
-function decide(list, state, now) {
+function decide(list, state, now, pin = null) {
     const at = now.toISOString();
     const active = list.find(entry => entry.active) ?? null;
     const stay = (reason) => ({ at, action: 'stay', from: active?.alias ?? null, target: null, trigger: 'none', reason });
@@ -122,6 +122,9 @@ function decide(list, state, now) {
         return stay('Claude Code is on an account ClaudeDeck has not saved');
     if (active.status !== 'ok')
         return stay('no fresh usage for the active account yet');
+    if (pin && pin.email.toLowerCase() === active.email.toLowerCase() && active.usedPercent < pin.untilPercent) {
+        return stay(`you picked ${active.alias} with cswap switch, so it is used up to ${Math.round(pin.untilPercent)}% first (${Math.round(active.usedPercent)}% now)`);
+    }
     const { threshold, cooldownSeconds } = state.settings;
     const best = nextPick(list, state.preferredNext);
     if (active.usedPercent >= threshold) {

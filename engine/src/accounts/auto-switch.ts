@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { readJsonFile, writeJsonFile } from '../core/fs/json';
 import { decide, decideDesktop, nextPick, toRanked } from './auto-rank';
+import { readCswapPin } from './cswap-pin';
 import { createCswapWatcher, cswapAvailable, defaultSyncDeps } from './cswap-sync';
 import { IAutoDecision, IAutoDeps, IAutoSettings, IAutoState, IAutoTick, ILiveUsage, ISwitcher } from './interfaces';
 import { cachedUsage, createLiveUsage, MIN_INTERVAL_MS, targetsFor } from './live-usage';
@@ -94,6 +95,7 @@ export function defaultAutoDeps(switcher: ISwitcher, logFile?: string): IAutoDep
     slotFile: alias => path.join(sessionSlot(alias), 'code.json'),
     now: () => new Date(),
     cswap: cswapAvailable() ? createCswapWatcher(defaultSyncDeps()) : null,
+    cswapPin: () => readCswapPin(),
     log: line => {
       try {
         if (fs.existsSync(file) && fs.statSync(file).size > LOG_LIMIT) fs.renameSync(file, `${file}.1`);
@@ -141,7 +143,7 @@ export function createAutoSwitch(deps: IAutoDeps) {
       active: target.active,
     }));
     const accounts = toRanked(entries, live, state, now.getTime());
-    const decision = decide(accounts, state, now);
+    const decision = decide(accounts, state, now, deps.cswapPin?.() ?? null);
     let switched = false;
 
     if (decision.action === 'switch' && decision.target && !options.dryRun) {

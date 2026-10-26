@@ -24,6 +24,7 @@ const node_fs_1 = __importDefault(require("node:fs"));
 const node_path_1 = __importDefault(require("node:path"));
 const json_1 = require("../core/fs/json");
 const auto_rank_1 = require("./auto-rank");
+const cswap_pin_1 = require("./cswap-pin");
 const cswap_sync_1 = require("./cswap-sync");
 const live_usage_1 = require("./live-usage");
 const paths_1 = require("./paths");
@@ -109,6 +110,7 @@ function defaultAutoDeps(switcher, logFile) {
         slotFile: alias => node_path_1.default.join((0, paths_1.sessionSlot)(alias), 'code.json'),
         now: () => new Date(),
         cswap: (0, cswap_sync_1.cswapAvailable)() ? (0, cswap_sync_1.createCswapWatcher)((0, cswap_sync_1.defaultSyncDeps)()) : null,
+        cswapPin: () => (0, cswap_pin_1.readCswapPin)(),
         log: line => {
             try {
                 if (node_fs_1.default.existsSync(file) && node_fs_1.default.statSync(file).size > LOG_LIMIT)
@@ -157,7 +159,7 @@ function createAutoSwitch(deps) {
             active: target.active,
         }));
         const accounts = (0, auto_rank_1.toRanked)(entries, live, state, now.getTime());
-        const decision = (0, auto_rank_1.decide)(accounts, state, now);
+        const decision = (0, auto_rank_1.decide)(accounts, state, now, deps.cswapPin?.() ?? null);
         let switched = false;
         if (decision.action === 'switch' && decision.target && !options.dryRun) {
             deps.switcher.switchCode(decision.target);
