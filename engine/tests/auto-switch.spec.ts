@@ -130,6 +130,8 @@ test('the cswap pin is read from its state file with the cswap threshold', () =>
     assert.deepStrictEqual(readCswapPin(dir), { email: 'one@x.com', untilPercent: 90 });
     writeJsonFile(path.join(dir, 'settings.json'), { autoswitch: { threshold: 80 } });
     assert.deepStrictEqual(readCswapPin(dir), { email: 'one@x.com', untilPercent: 80 });
+    writeJsonFile(path.join(dir, 'autoswitch_state.json'), { maxPin: '1', cliPin: { account: '1', email: 'one@x.com', at: 1, max: true } });
+    assert.deepStrictEqual(readCswapPin(dir), { email: 'one@x.com', untilPercent: 100 });
     writeJsonFile(path.join(dir, 'autoswitch_state.json'), { manualPin: '1' });
     assert.strictEqual(readCswapPin(dir), null);
   } finally {
